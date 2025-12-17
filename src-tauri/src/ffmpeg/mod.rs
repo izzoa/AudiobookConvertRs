@@ -8,7 +8,9 @@
 
 pub mod detection;
 pub mod command_builder;
+pub mod executor;
 
 pub use detection::*;
 pub use command_builder::*;
+pub use executor::*;
 

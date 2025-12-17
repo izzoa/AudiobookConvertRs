@@ -502,9 +502,7 @@ pub struct ConversionJob {
     /// Unique job identifier
     pub id: String,
     /// The audiobook being converted
-    pub audiobook_id: String,
-    /// Audiobook title (for display)
-    pub audiobook_title: String,
+    pub audiobook: AudioBook,
     /// Conversion settings
     pub settings: ConversionSettings,
     /// Current status
@@ -527,16 +525,15 @@ pub struct ConversionJob {
 
 impl ConversionJob {
     /// Create a new conversion job
-    pub fn new(audiobook: &AudioBook, settings: ConversionSettings) -> Self {
+    pub fn new(audiobook: AudioBook, settings: ConversionSettings) -> Self {
         Self {
             id: Uuid::new_v4().to_string(),
-            audiobook_id: audiobook.id.clone(),
-            audiobook_title: audiobook.title.clone(),
+            total_files: audiobook.files.len(),
+            audiobook,
             settings,
             status: JobStatus::Queued,
             progress_percent: 0.0,
             current_file_index: 0,
-            total_files: audiobook.files.len(),
             error_message: None,
             created_at: Utc::now(),
             started_at: None,

@@ -377,7 +377,7 @@ mod tests {
     fn create_test_job(audiobook: &AudioBook) -> ConversionJob {
         let mut settings = ConversionSettings::default();
         settings.output_path = "/output/test.m4b".into();
-        ConversionJob::new(audiobook, settings)
+        ConversionJob::new(audiobook.clone(), settings)
     }
 
     #[test]

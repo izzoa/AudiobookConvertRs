@@ -5,11 +5,18 @@
 //! - Worker thread management
 //! - Progress tracking
 //! - Error recovery
+//! - Temporary file management
 
-// TODO: Implement in Phase 5
-// pub mod progress;
-// pub mod queue;
-// pub mod worker;
-// pub mod pipeline;
-// pub mod recovery;
-// pub mod temp;
+pub mod pipeline;
+pub mod progress;
+pub mod queue;
+pub mod recovery;
+pub mod temp;
+pub mod worker;
+
+pub use pipeline::*;
+pub use progress::*;
+pub use queue::*;
+pub use recovery::*;
+pub use temp::*;
+pub use worker::*;

@@ -96,8 +96,14 @@ pub enum AppError {
     // ============================================
     // Conversion Errors
     // ============================================
+    // ============================================
+    // Conversion Errors
+    // ============================================
     #[error("Conversion failed: {reason}")]
     ConversionFailed { reason: String },
+
+    #[error("Conversion error: {reason}")]
+    ConversionError { reason: String },
 
     #[error("Conversion cancelled by user")]
     ConversionCancelled,
@@ -113,6 +119,9 @@ pub enum AppError {
     // ============================================
     #[error("Validation failed: {0}")]
     ValidationError(String),
+
+    #[error("Chapter validation failed: {reason}")]
+    ChapterValidationError { reason: String },
 
     #[error("No files provided for conversion")]
     NoFilesProvided,

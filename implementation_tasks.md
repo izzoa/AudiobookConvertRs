@@ -639,90 +639,90 @@ Create `src-tauri/src/models.rs` with all data types:
 
 ## 5.1 FFmpeg Command Execution
 
-- [ ] Create `src-tauri/src/ffmpeg/executor.rs`
-- [ ] Implement command execution:
-  - [ ] `execute_ffmpeg_command(command: String) -> Result<FFmpegOutput, ConversionError>`
-    - [ ] Run as subprocess using `std::process::Command`
-    - [ ] Capture stdout and stderr
-    - [ ] Handle exit codes
-    - [ ] Parse output for progress info
-  - [ ] `run_command_with_timeout(command: String, timeout: Duration) -> Result<...>`
-    - [ ] Kill process if timeout exceeded
-    - [ ] Return timeout error
-- [ ] Implement output parsing:
-  - [ ] `parse_ffmpeg_progress(stderr: &str) -> Option<FFmpegProgress>`
-    - [ ] Parse output for: time, frame, speed, bitrate
-    - [ ] Extract current timestamp (time=HH:MM:SS.ms)
-  - [ ] `calculate_progress_percent(current_time_ms: u64, total_time_ms: u64) -> f32`
-    - [ ] Calculate percentage 0.0-100.0
-- [ ] Add error handling:
-  - [ ] FFmpeg not found
-  - [ ] FFmpeg execution failed
-  - [ ] Invalid command
-  - [ ] Output parsing errors
+- [x] Create `src-tauri/src/ffmpeg/executor.rs`
+- [x] Implement command execution:
+  - [x] `execute_ffmpeg_command(command: String) -> Result<FFmpegOutput, ConversionError>`
+    - [x] Run as subprocess using `std::process::Command`
+    - [x] Capture stdout and stderr
+    - [x] Handle exit codes
+    - [x] Parse output for progress info
+  - [x] `run_command_with_timeout(command: String, timeout: Duration) -> Result<...>`
+    - [x] Kill process if timeout exceeded
+    - [x] Return timeout error
+- [x] Implement output parsing:
+  - [x] `parse_ffmpeg_progress(stderr: &str) -> Option<FFmpegProgress>`
+    - [x] Parse output for: time, frame, speed, bitrate
+    - [x] Extract current timestamp (time=HH:MM:SS.ms)
+  - [x] `calculate_progress_percent(current_time_ms: u64, total_time_ms: u64) -> f32`
+    - [x] Calculate percentage 0.0-100.0
+- [x] Add error handling:
+  - [x] FFmpeg not found
+  - [x] FFmpeg execution failed
+  - [x] Invalid command
+  - [x] Output parsing errors
 
 ## 5.2 Progress Tracking & Reporting
 
-- [ ] Create `src-tauri/src/conversion/progress.rs`
-- [ ] Implement progress tracking:
-  - [ ] `ProgressTracker` struct to track conversion state
-  - [ ] `start_tracking()` when conversion begins
-  - [ ] `update_progress(current_ms: u64, total_ms: u64)` on each parse
-  - [ ] `calculate_time_remaining() -> Duration` based on current speed
-  - [ ] `get_current_progress() -> ConversionProgress` to emit
-- [ ] Implement progress thread:
-  - [ ] Spawn separate thread for FFmpeg output parsing
-  - [ ] Parse progress in background
-  - [ ] Send updates via channel to main thread
-  - [ ] Main thread emits Tauri events to frontend
-- [ ] Implement progress smoothing:
-  - [ ] Avoid too-frequent updates (1-2 sec minimum between events)
-  - [ ] Calculate average speed (not instantaneous)
+- [x] Create `src-tauri/src/conversion/progress.rs`
+- [x] Implement progress tracking:
+  - [x] `ProgressTracker` struct to track conversion state
+  - [x] `start_tracking()` when conversion begins
+  - [x] `update_progress(current_ms: u64, total_ms: u64)` on each parse
+  - [x] `calculate_time_remaining() -> Duration` based on current speed
+  - [x] `get_current_progress() -> ConversionProgress` to emit
+- [x] Implement progress thread:
+  - [x] Spawn separate thread for FFmpeg output parsing
+  - [x] Parse progress in background
+  - [x] Send updates via channel to main thread
+  - [x] Main thread emits Tauri events to frontend
+- [x] Implement progress smoothing:
+  - [x] Avoid too-frequent updates (1-2 sec minimum between events)
+  - [x] Calculate average speed (not instantaneous)
 
 ## 5.3 Conversion Job Queue
 
-- [ ] Create `src-tauri/src/conversion/queue.rs`
-- [ ] Implement job queue:
-  - [ ] `ConversionQueue` struct maintaining job list
-  - [ ] `add_job(job: ConversionJob)` to add to queue
-  - [ ] `get_next_job() -> Option<ConversionJob>` to pop
-  - [ ] `update_job_status(job_id: String, status: JobStatus)`
-  - [ ] `cancel_job(job_id: String)` to remove from queue
-  - [ ] `get_all_jobs() -> Vec<ConversionJob>` for queue status
-- [ ] Implement queue persistence:
-  - [ ] Save queue to disk on state changes
-  - [ ] Load queue on app startup (resume interrupted conversions)
-  - [ ] Clear completed jobs periodically
+- [x] Create `src-tauri/src/conversion/queue.rs`
+- [x] Implement job queue:
+  - [x] `ConversionQueue` struct maintaining job list
+  - [x] `add_job(job: ConversionJob)` to add to queue
+  - [x] `get_next_job() -> Option<ConversionJob>` to pop
+  - [x] `update_job_status(job_id: String, status: JobStatus)`
+  - [x] `cancel_job(job_id: String)` to remove from queue
+  - [x] `get_all_jobs() -> Vec<ConversionJob>` for queue status
+- [x] Implement queue persistence:
+  - [x] Save queue to disk on state changes
+  - [x] Load queue on app startup (resume interrupted conversions)
+  - [x] Clear completed jobs periodically
 
 ## 5.4 Worker Thread & Parallel Processing
 
-- [ ] Create `src-tauri/src/conversion/worker.rs`
-- [ ] Implement worker management:
-  - [ ] Create worker thread pool using `rayon` or manual threads
-  - [ ] Configure max concurrent workers (from settings)
-  - [ ] Workers pull jobs from queue
-  - [ ] Workers execute conversion pipeline
-- [ ] Implement worker execution:
-  - [ ] `ConversionWorker` that processes single job
-  - [ ] Load input files
-  - [ ] Execute FFmpeg conversion
-  - [ ] Embed metadata with mp4ameta
-  - [ ] Embed artwork
-  - [ ] Write chapters
-  - [ ] Verify output file
-  - [ ] Update job status
-  - [ ] Emit completion event
-- [ ] Implement worker error handling:
-  - [ ] Catch all error types
-  - [ ] Log detailed error info
-  - [ ] Update job with error status
-  - [ ] Emit error event
-  - [ ] Move to next job
+- [x] Create `src-tauri/src/conversion/worker.rs`
+- [x] Implement worker management:
+  - [x] Create worker thread pool using `rayon` or manual threads
+  - [x] Configure max concurrent workers (from settings)
+  - [x] Workers pull jobs from queue
+  - [x] Workers execute conversion pipeline
+- [x] Implement worker execution:
+  - [x] `ConversionWorker` that processes single job
+  - [x] Load input files
+  - [x] Execute FFmpeg conversion
+  - [x] Embed metadata with mp4ameta
+  - [x] Embed artwork
+  - [x] Write chapters
+  - [x] Verify output file
+  - [x] Update job status
+  - [x] Emit completion event
+- [x] Implement worker error handling:
+  - [x] Catch all error types
+  - [x] Log detailed error info
+  - [x] Update job with error status
+  - [x] Emit error event
+  - [x] Move to next job
 
 ## 5.5 Conversion Pipeline - Main Flow
 
-- [ ] Create `src-tauri/src/conversion/pipeline.rs`
-- [ ] Implement complete conversion pipeline:
+- [x] Create `src-tauri/src/conversion/pipeline.rs`
+- [x] Implement complete conversion pipeline:
   ```
   1. Validate inputs
      - Files exist and readable
@@ -766,47 +766,46 @@ Create `src-tauri/src/models.rs` with all data types:
      - Emit completion event
   ```
 
-- [ ] Implement each step:
-  - [ ] `validate_conversion_inputs(audiobook: &AudioBook, settings: &ConversionSettings) -> Result<()>`
-  - [ ] `prepare_temp_directory() -> Result<PathBuf>`
-  - [ ] `execute_encoding_pipeline(audiobook: &AudioBook, settings: &ConversionSettings, progress_cb: Fn(f32)) -> Result<PathBuf>`
-  - [ ] `embed_all_metadata(m4b_path: &Path, audiobook: &AudioBook, artwork: Option<Vec<u8>>) -> Result<()>`
-  - [ ] `verify_output_file(m4b_path: &Path) -> Result<()>`
+- [x] Implement each step:
+  - [x] `validate_conversion_inputs(audiobook: &AudioBook, settings: &ConversionSettings) -> Result<()>`
+  - [x] `prepare_temp_directory() -> Result<PathBuf>`
+  - [x] `execute_encoding_pipeline(audiobook: &AudioBook, settings: &ConversionSettings, progress_cb: Fn(f32)) -> Result<PathBuf>`
+  - [x] `embed_all_metadata(m4b_path: &Path, audiobook: &AudioBook, artwork: Option<Vec<u8>>) -> Result<()>`
+  - [x] `verify_output_file(m4b_path: &Path) -> Result<()>`
 
 ## 5.6 Error Recovery
 
-- [ ] Create `src-tauri/src/conversion/recovery.rs`
-- [ ] Implement error recovery strategies:
-  - [ ] `retry_failed_conversion(job: &ConversionJob, max_retries: usize) -> Result<()>`
-  - [ ] `skip_current_file(job: &mut ConversionJob) -> Result<()>`
-  - [ ] `resume_from_checkpoint(job: &ConversionJob) -> Result<()>` (if possible)
-  - [ ] `rollback_partial_conversion(job: &ConversionJob) -> Result<()>`
-    - [ ] Delete incomplete output file
-    - [ ] Clean temp files
-- [ ] Implement error reporting:
-  - [ ] Detailed error logging
-  - [ ] User-friendly error messages
-  - [ ] Suggestions for recovery
-  - [ ] FFmpeg error code documentation
+- [x] Create `src-tauri/src/conversion/recovery.rs`
+- [x] Implement error recovery strategies:
+  - [x] `retry_failed_conversion(job: &ConversionJob, max_retries: usize) -> Result<()>`
+  - [x] `skip_current_file(job: &mut ConversionJob) -> Result<()>`
+  - [x] `resume_from_checkpoint(job: &ConversionJob) -> Result<()>` (if possible)
+  - [x] `rollback_partial_conversion(job: &ConversionJob) -> Result<()>`
+    - [x] Delete incomplete output file
+    - [x] Clean temp files
+- [x] Implement error reporting:
+  - [x] Detailed error logging
+  - [x] User-friendly error messages
+  - [x] Suggestions for recovery
+  - [x] FFmpeg error code documentation
 
 ## 5.7 Temporary File Management
 
-- [ ] Create `src-tauri/src/conversion/temp.rs`
-- [ ] Implement temp directory management:
-  - [ ] `create_temp_directory() -> Result<PathBuf>`
-    - [ ] Create in OS temp directory
-    - [ ] Use unique name (job_id based)
-  - [ ] `cleanup_temp_directory(path: &Path) -> Result<()>`
-    - [ ] Delete temp directory and contents
-    - [ ] Handle Windows file locking issues
-    - [ ] Retry on failure
-  - [ ] `list_temp_files(job_id: String) -> Result<Vec<PathBuf>>`
-    - [ ] Find all temp files for job
-- [ ] Implement cleanup on errors:
-  - [ ] Register cleanup functions
-  - [ ] Ensure cleanup happens even on panic
-  - [ ] Use RAII pattern (Drop trait)
-
+- [x] Create `src-tauri/src/conversion/temp.rs`
+- [x] Implement temp directory management:
+  - [x] `create_temp_directory() -> Result<PathBuf>`
+    - [x] Create in OS temp directory
+    - [x] Use unique name (job_id based)
+  - [x] `cleanup_temp_directory(path: &Path) -> Result<()>`
+    - [x] Delete temp directory and contents
+    - [x] Handle Windows file locking issues
+    - [x] Retry on failure
+  - [x] `list_temp_files(job_id: String) -> Result<Vec<PathBuf>>`
+    - [x] Find all temp files for job
+- [x] Implement cleanup on errors:
+  - [x] Register cleanup functions
+  - [x] Ensure cleanup happens even on panic
+  - [x] Use RAII pattern (Drop trait)
 ## 5.8 Conversion Integration Tests
 
 - [ ] Create `tests/conversion.rs`
@@ -947,10 +946,38 @@ Create `src-tauri/src/models.rs` with all data types:
   - [ ] Correct command syntax
   - [ ] All parameters included
   - [ ] Special characters escaped
-- [ ] Test FFmpeg detection:
-  - [ ] Detects FFmpeg when present
-  - [ ] Reports not found when absent
-  - [ ] Finds FFmpeg in common locations
+- [x] Phase 5: Conversion Pipeline & Processing
+  - [x] Create `ffmpeg/executor.rs`
+    - [x] Implement logic to spawn FFmpeg process
+    - [x] Implement timeout handling
+    - [x] Capture stdout/stderr
+  - [x] Create `conversion/progress.rs`
+    - [x] Parse FFmpeg output for frame, time, q, size, bitrate, speed
+    - [x] Calculate percentage based on duration
+    - [x] Define `ConversionProgress` struct
+  - [x] Create `conversion/queue.rs`
+    - [x] Define `ConversionQueue` struct
+    - [x] Implement thread-safe add/remove/update
+    - [x] Implement persistent queue storage (save to disk)
+  - [x] Create `conversion/worker.rs`
+    - [x] Implement threaded worker loop
+    - [x] Pick jobs from queue
+    - [x] Update job status (Running, Compiling, etc.)
+  - [x] Create `conversion/pipeline.rs` (Main flow)
+    - [x] Step 1: Input Validation
+    - [x] Step 2: Prepare inputs (concatenation list if needed)
+    - [x] Step 3: Run FFmpeg encoding
+    - [x] Step 4: Run FFmpeg chapter embedding
+    - [x] Step 5: Finalize (move, cleanup)
+  - [x] Create `conversion/recovery.rs`
+    - [x] Implement retry logic for transient failures
+    - [x] Implement checkpointing (optional/basic)
+  - [x] Create `conversion/temp.rs`
+    - [x] Manage safe temporary directories
+    - [x] Auto-cleanup logic
+  - [x] Update `src-tauri/src/conversion/mod.rs` exports
+  - [x] Update `src-tauri/src/ffmpeg/mod.rs` exports
+  - [x] Verify: Run unit tests for pipeline components
 - [ ] Test output parsing:
   - [ ] Parses progress correctly
   - [ ] Handles various FFmpeg versions
