@@ -12,10 +12,10 @@
 
 ## 0.1 Environment & Repository Setup
 
-- [ ] Create new GitHub repository: `AudiobookConvertRs`
-- [ ] Clone and locally archive original Java AudioBookConverter for reference
-- [ ] Set up Rust project with Cargo: `cargo new --name AudiobookConvertRs`
-- [ ] Create initial directory structure:
+- [x] Create new GitHub repository: `AudiobookConvertRs`
+- [x] Clone and locally archive original Java AudioBookConverter for reference
+- [x] Set up Rust project with Cargo: `cargo new --name AudiobookConvertRs`
+- [x] Create initial directory structure:
   ```
   AudiobookConvertRs/
   ├── Cargo.toml
@@ -43,42 +43,42 @@
       └── workflows/
           └── ci.yml
   ```
-- [ ] Initialize Git with appropriate `.gitignore` (Rust, Node, OS files)
-- [ ] Create GitHub Actions CI/CD pipeline for multi-platform builds (Windows, macOS, Linux)
+- [x] Initialize Git with appropriate `.gitignore` (Rust, Node, OS files)
+- [x] Create GitHub Actions CI/CD pipeline for multi-platform builds (Windows, macOS, Linux)
 
 ## 0.2 Documentation & Analysis
 
-- [ ] Create `ARCHITECTURE.md` documenting overall design
-- [ ] Create `AUDIO_FORMATS.md` documenting all supported audio formats
-- [ ] Create `METADATA_SPEC.md` documenting metadata handling (ID3, Vorbis, MP4 atoms)
-- [ ] Create `API.md` documenting Tauri IPC commands
-- [ ] Create `DEVELOPMENT.md` with setup instructions for contributors
+- [x] Create `ARCHITECTURE.md` documenting overall design
+- [x] Create `AUDIO_FORMATS.md` documenting all supported audio formats
+- [x] Create `METADATA_SPEC.md` documenting metadata handling (ID3, Vorbis, MP4 atoms)
+- [x] Create `API.md` documenting Tauri IPC commands
+- [x] Create `DEVELOPMENT.md` with setup instructions for contributors
 - [ ] Document migration from Java version (feature differences, compatibility notes)
 - [ ] List all known limitations compared to Java version
 
 ## 0.3 Dependency Research & Selection
 
-- [ ] Verify Symphonia latest version and feature flags
-- [ ] Research mp4ameta API and version compatibility
-- [ ] Verify FFmpeg bindings (`ffmpeg-sys`) version and platform support
-- [ ] Confirm image crate supports all needed formats (JPEG, PNG, BMP, GIF)
-- [ ] Research Tauri latest version and platform requirements
-- [ ] Document all dependencies in `DEPENDENCIES.md` with rationale
-- [ ] Check license compatibility (ensure all crates compatible with your license)
+- [x] Verify Symphonia latest version and feature flags
+- [x] Research mp4ameta API and version compatibility
+- [x] Verify FFmpeg bindings (`ffmpeg-sys`) version and platform support
+- [x] Confirm image crate supports all needed formats (JPEG, PNG, BMP, GIF)
+- [x] Research Tauri latest version and platform requirements
+- [x] Document all dependencies in `DEPENDENCIES.md` with rationale
+- [x] Check license compatibility (ensure all crates compatible with your license)
 
 ## 0.4 Project Configuration
 
-- [ ] Create `Cargo.toml` with all confirmed dependencies
-- [ ] Set up feature flags for:
-  - [ ] `symphonia` with features: isomp4, flac, mp3, aac, wav, ogg, vorbis
-  - [ ] `symphonia-metadata` for metadata reading
+- [x] Create `Cargo.toml` with all confirmed dependencies
+- [x] Set up feature flags for:
+  - [x] `symphonia` with features: isomp4, flac, mp3, aac, wav, ogg, vorbis
+  - [x] `symphonia-metadata` for metadata reading
   - [ ] Optional: test feature for integration tests
 - [ ] Create `tauri.conf.json` with basic configuration
-- [ ] Set up build profile optimizations:
-  - [ ] `debug` profile for development
-  - [ ] `release` profile with LTO and optimizations
-- [ ] Create `.env.example` for environment variables (FFmpeg path, etc.)
-- [ ] Set up Rust toolchain version file (`.rust-version` or `rust-toolchain.toml`)
+- [x] Set up build profile optimizations:
+  - [x] `debug` profile for development
+  - [x] `release` profile with LTO and optimizations
+- [x] Create `.env.example` for environment variables (FFmpeg path, etc.)
+- [x] Set up Rust toolchain version file (`.rust-version` or `rust-toolchain.toml`)
 
 ## 0.5 Proof of Concepts
 
@@ -94,132 +94,132 @@
 
 ## 1.1 Error Handling Framework
 
-- [ ] Create `src-tauri/src/error.rs` with custom error types
-- [ ] Define error variants for:
-  - [ ] File I/O errors
-  - [ ] FFmpeg execution errors
-  - [ ] Metadata parsing errors
-  - [ ] Audio format errors
-  - [ ] Validation errors
+- [x] Create `src-tauri/src/error.rs` with custom error types
+- [x] Define error variants for:
+  - [x] File I/O errors
+  - [x] FFmpeg execution errors
+  - [x] Metadata parsing errors
+  - [x] Audio format errors
+  - [x] Validation errors
   - [ ] IPC/Tauri errors
-- [ ] Implement `thiserror::Error` trait for all error types
-- [ ] Implement From/Into conversions for common errors
-- [ ] Create error display messages (user-friendly messages)
-- [ ] Document error codes and recovery strategies
+- [x] Implement `thiserror::Error` trait for all error types
+- [x] Implement From/Into conversions for common errors
+- [x] Create error display messages (user-friendly messages)
+- [x] Document error codes and recovery strategies
 
 ## 1.2 Logging Configuration
 
-- [ ] Set up `tracing` and `tracing-subscriber`
-- [ ] Create logging module: `src-tauri/src/logging.rs`
-- [ ] Configure log levels:
-  - [ ] Default: INFO for release builds
-  - [ ] Default: DEBUG for development builds
-- [ ] Implement structured logging for key operations
-- [ ] Configure log output (file and console)
+- [x] Set up `tracing` and `tracing-subscriber`
+- [x] Create logging module: `src-tauri/src/logging.rs`
+- [x] Configure log levels:
+  - [x] Default: INFO for release builds
+  - [x] Default: DEBUG for development builds
+- [x] Implement structured logging for key operations
+- [x] Configure log output (file and console)
 - [ ] Add performance timing logs for audio operations
 
 ## 1.3 Configuration Management
 
-- [ ] Create `src-tauri/src/config.rs` module
-- [ ] Define UserSettings struct with fields:
-  - [ ] Default bitrate (128, 192, 256 kbps)
-  - [ ] Default output directory
-  - [ ] Auto-detect artwork (true/false)
-  - [ ] Concurrent job count
-  - [ ] FFmpeg path (auto-detect or custom)
-  - [ ] Theme preference (light/dark)
-  - [ ] Recent files list
-- [ ] Implement config serialization/deserialization (serde_json)
-- [ ] Create config file location:
-  - [ ] Windows: `%APPDATA%/AudiobookConvertRs/config.json`
-  - [ ] macOS: `~/Library/Application Support/AudiobookConvertRs/config.json`
-  - [ ] Linux: `~/.config/AudiobookConvertRs/config.json`
-- [ ] Implement config loading with defaults fallback
-- [ ] Implement config saving when user updates settings
+- [x] Create `src-tauri/src/config.rs` module
+- [x] Define UserSettings struct with fields:
+  - [x] Default bitrate (128, 192, 256 kbps)
+  - [x] Default output directory
+  - [x] Auto-detect artwork (true/false)
+  - [x] Concurrent job count
+  - [x] FFmpeg path (auto-detect or custom)
+  - [x] Theme preference (light/dark)
+  - [x] Recent files list
+- [x] Implement config serialization/deserialization (serde_json)
+- [x] Create config file location:
+  - [x] Windows: `%APPDATA%/AudiobookConvertRs/config.json`
+  - [x] macOS: `~/Library/Application Support/AudiobookConvertRs/config.json`
+  - [x] Linux: `~/.config/AudiobookConvertRs/config.json`
+- [x] Implement config loading with defaults fallback
+- [x] Implement config saving when user updates settings
 
 ## 1.4 Core Data Structures
 
 Create `src-tauri/src/models.rs` with all data types:
 
-- [ ] `AudioFormat` enum:
+- [x] `AudioFormat` enum:
   ```
   Mp3, Flac, M4a, M4b, Wav, Ogg, Wma
   ```
-- [ ] `Metadata` struct:
-  - [ ] title: Option<String>
-  - [ ] artist: Option<String>
-  - [ ] album: Option<String>
-  - [ ] narrator: Option<String>
-  - [ ] artwork_path: Option<PathBuf>
-  - [ ] year: Option<u16>
-  - [ ] genre: Option<String>
-  - [ ] comments: Option<String>
-- [ ] `Chapter` struct:
-  - [ ] index: usize
-  - [ ] title: String
-  - [ ] start_time_ms: u64
-  - [ ] end_time_ms: u64
-  - [ ] auto_detected: bool
-- [ ] `AudioFile` struct:
-  - [ ] path: PathBuf
-  - [ ] format: AudioFormat
-  - [ ] duration_ms: u64
-  - [ ] bitrate: Option<u32>
-  - [ ] sample_rate: Option<u32>
-  - [ ] metadata: Metadata
-- [ ] `AudioBook` struct:
-  - [ ] id: String (UUID)
-  - [ ] title: String
-  - [ ] author: Option<String>
-  - [ ] files: Vec<AudioFile>
-  - [ ] chapters: Vec<Chapter>
-  - [ ] output_metadata: Metadata
-  - [ ] created_at: DateTime
-  - [ ] modified_at: DateTime
-- [ ] `ConversionSettings` struct:
-  - [ ] bitrate_kbps: u32
-  - [ ] sample_rate: Option<u32>
-  - [ ] output_format: AudioFormat (always M4b for now)
-  - [ ] output_path: PathBuf
-  - [ ] concurrent_jobs: u8
-- [ ] `ConversionJob` struct:
-  - [ ] id: String (UUID)
-  - [ ] audiobook: AudioBook
-  - [ ] settings: ConversionSettings
-  - [ ] status: JobStatus (Queued, Running, Paused, Complete, Error, Cancelled)
-  - [ ] progress_percent: f32
-  - [ ] current_file_index: usize
-  - [ ] error_message: Option<String>
-  - [ ] created_at: DateTime
-  - [ ] started_at: Option<DateTime>
-  - [ ] completed_at: Option<DateTime>
-- [ ] `ConversionProgress` struct (for IPC events):
-  - [ ] job_id: String
-  - [ ] file_index: usize
-  - [ ] current_file: String
-  - [ ] file_progress: f32
-  - [ ] total_progress: f32
-  - [ ] time_remaining_sec: u32
-  - [ ] estimated_finish: DateTime
+- [x] `Metadata` struct:
+  - [x] title: Option<String>
+  - [x] artist: Option<String>
+  - [x] album: Option<String>
+  - [x] narrator: Option<String>
+  - [x] artwork_path: Option<PathBuf>
+  - [x] year: Option<u16>
+  - [x] genre: Option<String>
+  - [x] comments: Option<String>
+- [x] `Chapter` struct:
+  - [x] index: usize
+  - [x] title: String
+  - [x] start_time_ms: u64
+  - [x] end_time_ms: u64
+  - [x] auto_detected: bool
+- [x] `AudioFile` struct:
+  - [x] path: PathBuf
+  - [x] format: AudioFormat
+  - [x] duration_ms: u64
+  - [x] bitrate: Option<u32>
+  - [x] sample_rate: Option<u32>
+  - [x] metadata: Metadata
+- [x] `AudioBook` struct:
+  - [x] id: String (UUID)
+  - [x] title: String
+  - [x] author: Option<String>
+  - [x] files: Vec<AudioFile>
+  - [x] chapters: Vec<Chapter>
+  - [x] output_metadata: Metadata
+  - [x] created_at: DateTime
+  - [x] modified_at: DateTime
+- [x] `ConversionSettings` struct:
+  - [x] bitrate_kbps: u32
+  - [x] sample_rate: Option<u32>
+  - [x] output_format: AudioFormat (always M4b for now)
+  - [x] output_path: PathBuf
+  - [x] concurrent_jobs: u8
+- [x] `ConversionJob` struct:
+  - [x] id: String (UUID)
+  - [x] audiobook: AudioBook
+  - [x] settings: ConversionSettings
+  - [x] status: JobStatus (Queued, Running, Paused, Complete, Error, Cancelled)
+  - [x] progress_percent: f32
+  - [x] current_file_index: usize
+  - [x] error_message: Option<String>
+  - [x] created_at: DateTime
+  - [x] started_at: Option<DateTime>
+  - [x] completed_at: Option<DateTime>
+- [x] `ConversionProgress` struct (for IPC events):
+  - [x] job_id: String
+  - [x] file_index: usize
+  - [x] current_file: String
+  - [x] file_progress: f32
+  - [x] total_progress: f32
+  - [x] time_remaining_sec: u32
+  - [x] estimated_finish: DateTime
 
-- [ ] Implement Serialize/Deserialize for all structs (serde)
-- [ ] Implement Display trait for user-facing strings
-- [ ] Implement Default trait where appropriate
-- [ ] Add validation methods (e.g., validate_chapter_times)
+- [x] Implement Serialize/Deserialize for all structs (serde)
+- [x] Implement Display trait for user-facing strings
+- [x] Implement Default trait where appropriate
+- [x] Add validation methods (e.g., validate_chapter_times)
 
 ## 1.5 Application State Management
 
-- [ ] Create `src-tauri/src/state.rs` module
-- [ ] Define AppState struct:
-  - [ ] current_audiobook: Option<AudioBook>
-  - [ ] conversion_queue: Vec<ConversionJob>
-  - [ ] active_job: Option<String> (job_id)
-  - [ ] user_settings: UserSettings
-  - [ ] ffmpeg_available: bool
-  - [ ] recent_audiobooks: Vec<String> (file paths)
-- [ ] Implement thread-safe state with `Arc<Mutex<AppState>>`
-- [ ] Create state mutation methods
-- [ ] Implement state persistence (save/load from disk)
+- [x] Create `src-tauri/src/state.rs` module
+- [x] Define AppState struct:
+  - [x] current_audiobook: Option<AudioBook>
+  - [x] conversion_queue: Vec<ConversionJob>
+  - [x] active_job: Option<String> (job_id)
+  - [x] user_settings: UserSettings
+  - [x] ffmpeg_available: bool
+  - [x] recent_audiobooks: Vec<String> (file paths)
+- [x] Implement thread-safe state with `Arc<Mutex<AppState>>`
+- [x] Create state mutation methods
+- [x] Implement state persistence (save/load from disk)
 
 ---
 
@@ -227,26 +227,26 @@ Create `src-tauri/src/models.rs` with all data types:
 
 ## 2.1 Symphonia Integration - Audio Loading
 
-- [ ] Create `src-tauri/src/audio/loader.rs` module
-- [ ] Implement `AudioLoader` struct with methods:
-  - [ ] `detect_format(path: &Path) -> Result<AudioFormat>`
-    - [ ] Use Symphonia::Probe to auto-detect
-    - [ ] Validate against file extension as fallback
-    - [ ] Return appropriate error if unsupported
-  - [ ] `load_audio_file(path: &Path) -> Result<AudioFile>`
-    - [ ] Open file with Symphonia
-    - [ ] Extract duration from format reader
-    - [ ] Read codec information (bitrate, sample rate)
-    - [ ] Extract metadata using symphonia-metadata
-    - [ ] Detect and extract artwork
-    - [ ] Populate AudioFile struct
-  - [ ] `get_duration_ms(path: &Path) -> Result<u64>`
-    - [ ] Quick duration calculation without full decode
-  - [ ] `get_metadata(path: &Path) -> Result<Metadata>`
-    - [ ] Extract all available metadata
-    - [ ] Return standardized Metadata struct
+- [x] Create `src-tauri/src/audio/loader.rs` module
+- [x] Implement `AudioLoader` struct with methods:
+  - [x] `detect_format(path: &Path) -> Result<AudioFormat>`
+    - [x] Use Symphonia::Probe to auto-detect
+    - [x] Validate against file extension as fallback
+    - [x] Return appropriate error if unsupported
+  - [x] `load_audio_file(path: &Path) -> Result<AudioFile>`
+    - [x] Open file with Symphonia
+    - [x] Extract duration from format reader
+    - [x] Read codec information (bitrate, sample rate)
+    - [x] Extract metadata using symphonia-metadata
+    - [x] Detect and extract artwork
+    - [x] Populate AudioFile struct
+  - [x] `get_duration_ms(path: &Path) -> Result<u64>`
+    - [x] Quick duration calculation without full decode
+  - [x] `get_metadata(path: &Path) -> Result<Metadata>`
+    - [x] Extract all available metadata
+    - [x] Return standardized Metadata struct
 
-- [ ] Handle Symphonia error types and convert to app errors
+- [x] Handle Symphonia error types and convert to app errors
 - [ ] Add tests for each format (MP3, FLAC, M4A, WAV):
   - [ ] Load valid file
   - [ ] Verify duration is correct
@@ -260,133 +260,134 @@ Create `src-tauri/src/models.rs` with all data types:
 
 ## 2.2 Format Detection & Validation
 
-- [ ] Create `src-tauri/src/audio/format.rs` module
-- [ ] Implement format detection strategy:
-  - [ ] Use Symphonia for authoritative format detection
-  - [ ] Cache format detection results
-- [ ] Create validation functions:
-  - [ ] `is_supported_format(path: &Path) -> bool`
-  - [ ] `validate_audio_file(path: &Path) -> Result<()>`
-    - [ ] File exists
-    - [ ] Readable
-    - [ ] Valid audio format
-    - [ ] Has audio stream
-- [ ] Create file type checking:
-  - [ ] Check magic bytes (file signature)
-  - [ ] Verify with Symphonia
-  - [ ] Detect incorrect extensions
-- [ ] Add comprehensive logging for format detection
+- [x] Create `src-tauri/src/audio/format.rs` module
+- [x] Implement format detection strategy:
+  - [x] Use Symphonia for authoritative format detection
+  - [x] Cache format detection results
+- [x] Create validation functions:
+  - [x] `is_supported_format(path: &Path) -> bool`
+  - [x] `validate_audio_file(path: &Path) -> Result<()>`
+    - [x] File exists
+    - [x] Readable
+    - [x] Valid audio format
+    - [x] Has audio stream
+- [x] Create file type checking:
+  - [x] Check magic bytes (file signature)
+  - [x] Verify with Symphonia
+  - [x] Detect incorrect extensions
+- [x] Add comprehensive logging for format detection
 
 ## 2.3 Duration Calculation & Timing
 
-- [ ] Create `src-tauri/src/audio/timing.rs` module
-- [ ] Implement duration functions:
-  - [ ] `calculate_total_duration(files: &[AudioFile]) -> u64`
-  - [ ] `format_duration_ms(ms: u64) -> String` (HH:MM:SS)
-  - [ ] `parse_time_string(s: &str) -> Result<u64>` (parse user input)
-  - [ ] `convert_ms_to_chapters(duration_ms: u64, chapter_count: usize) -> Vec<u64>` (auto-split)
-- [ ] Handle edge cases:
-  - [ ] Zero duration files
-  - [ ] Very large durations (24+ hours)
-  - [ ] Rounding errors
+- [x] Create `src-tauri/src/audio/timing.rs` module
+- [x] Implement duration functions:
+  - [x] `calculate_total_duration(files: &[AudioFile]) -> u64`
+  - [x] `format_duration_ms(ms: u64) -> String` (HH:MM:SS)
+  - [x] `parse_time_string(s: &str) -> Result<u64>` (parse user input)
+  - [x] `convert_ms_to_chapters(duration_ms: u64, chapter_count: usize) -> Vec<u64>` (auto-split)
+- [x] Handle edge cases:
+  - [x] Zero duration files
+  - [x] Very large durations (24+ hours)
+  - [x] Rounding errors
 
 ## 2.4 Symphonia Metadata Extraction
 
-- [ ] Create `src-tauri/src/audio/symphonia_metadata.rs` module
-- [ ] Implement metadata extraction functions:
-  - [ ] `extract_metadata_from_symphonia(format_reader) -> Result<Metadata>`
-    - [ ] Extract from ID3v1 tags (MP3)
-    - [ ] Extract from ID3v2 tags (MP3)
-    - [ ] Extract from Vorbis comments (FLAC, OGG)
-    - [ ] Extract from MP4 atoms (M4A/M4B)
-    - [ ] Handle missing fields gracefully
-  - [ ] `extract_artwork(metadata) -> Result<Option<Vec<u8>>>`
-    - [ ] Extract embedded artwork
-    - [ ] Return image data
-    - [ ] Support multiple formats (JPEG, PNG, GIF, BMP)
-  - [ ] `get_bitrate(format_reader) -> Option<u32>`
-  - [ ] `get_sample_rate(codec_params) -> Option<u32>`
-- [ ] Implement metadata normalization:
-  - [ ] Trim whitespace
-  - [ ] Handle encoding issues
-  - [ ] Sanitize for filesystem safety
-- [ ] Add tests:
-  - [ ] Extract from MP3 with ID3v2
-  - [ ] Extract from FLAC with Vorbis
-  - [ ] Extract from M4A/M4B
-  - [ ] Handle missing metadata fields
-  - [ ] Extract artwork from each format
+**NOTE:** This section is implemented in `src-tauri/src/metadata/extraction.rs` (Phase 3), not as a separate `symphonia_metadata.rs` module.
+
+- [x] Create `src-tauri/src/metadata/extraction.rs` module (see Phase 3.1)
+- [x] Implement metadata extraction functions:
+  - [x] `extract_metadata(path)` - unified extraction for all formats
+    - [x] Extract from ID3v1 tags (MP3)
+    - [x] Extract from ID3v2 tags (MP3)
+    - [x] Extract from Vorbis comments (FLAC, OGG)
+    - [x] Extract from MP4 atoms (M4A/M4B)
+    - [x] Handle missing fields gracefully
+  - [x] `extract_embedded_artwork(path)` in artwork.rs
+    - [x] Extract embedded artwork
+    - [x] Return image data
+    - [x] Support multiple formats (JPEG, PNG, GIF, BMP)
+  - [x] Bitrate/sample rate extraction in loader.rs
+- [x] Implement metadata normalization:
+  - [x] Trim whitespace
+  - [x] Handle encoding issues
+  - [x] Sanitize for filesystem safety
+- [x] Add tests:
+  - [x] Extract from MP3 with ID3v2
+  - [x] Extract from FLAC with Vorbis
+  - [x] Extract from M4A/M4B
+  - [x] Handle missing metadata fields
+  - [x] Extract artwork from each format
 
 ## 2.5 Batch File Processing
 
-- [ ] Create `src-tauri/src/audio/batch.rs` module
-- [ ] Implement batch loading:
-  - [ ] `load_audiobook_from_files(files: Vec<PathBuf>) -> Result<AudioBook>`
-    - [ ] Load each file with Symphonia
-    - [ ] Validate all files
-    - [ ] Calculate total duration
-    - [ ] Merge metadata (use first file's artist, etc.)
-    - [ ] Create initial chapters from file boundaries
-- [ ] Implement file validation for batch:
-  - [ ] Check all files valid
-  - [ ] Check sufficient disk space for output
-  - [ ] Check all files same sample rate (optional warning)
-- [ ] Implement progress tracking for batch loading:
-  - [ ] Emit progress events for UI
-  - [ ] Track files processed
+- [x] Create `src-tauri/src/audio/batch.rs` module
+- [x] Implement batch loading:
+  - [x] `load_audiobook_from_files(files: Vec<PathBuf>) -> Result<AudioBook>`
+    - [x] Load each file with Symphonia
+    - [x] Validate all files
+    - [x] Calculate total duration
+    - [x] Merge metadata (use first file's artist, etc.)
+    - [x] Create initial chapters from file boundaries
+- [x] Implement file validation for batch:
+  - [x] Check all files valid
+  - [x] Check sufficient disk space for output
+  - [x] Check all files same sample rate (optional warning)
+- [x] Implement progress tracking for batch loading:
+  - [x] Emit progress events via callback (`load_files_batch_with_progress`)
+  - [x] Track files processed with `BatchProgress` struct
 
 ## 2.6 FFmpeg Integration - Command Building
 
-- [ ] Create `src-tauri/src/ffmpeg/mod.rs` module
-- [ ] Create `src-tauri/src/ffmpeg/command_builder.rs`
-- [ ] Implement FFmpeg command building:
-  - [ ] `FFmpegCommand` struct to build commands
-  - [ ] `builder()` method to create builder
-  - [ ] `.input(path)` to add input file
-  - [ ] `.audio_codec("aac")` to set codec
-  - [ ] `.bitrate(kbps)` to set bitrate
-  - [ ] `.sample_rate(hz)` to set sample rate
-  - [ ] `.output(path)` to set output
-  - [ ] `.build()` to create final command string
-- [ ] Implement specific command builders:
-  - [ ] `build_convert_command(input, output, settings) -> String`
-    - [ ] Input file with format auto-detection
-    - [ ] Output format M4B/MP4
-    - [ ] AAC codec
-    - [ ] User-specified bitrate
-    - [ ] User-specified sample rate
-  - [ ] `build_concat_command(input_files, output) -> String`
-    - [ ] Use FFmpeg concat demuxer
-    - [ ] Multiple input files
-    - [ ] Output single M4B
-  - [ ] `build_metadata_embed_command(input, output, metadata) -> String`
-    - [ ] Embed metadata into M4B
-    - [ ] Add title, artist, etc.
-- [ ] Add validation:
-  - [ ] Verify bitrate valid (8-320 kbps typical)
-  - [ ] Verify sample rate valid (8000, 16000, 22050, 44100, 48000 Hz)
-  - [ ] Verify output path writable
+- [x] Create `src-tauri/src/ffmpeg/mod.rs` module
+- [x] Create `src-tauri/src/ffmpeg/command_builder.rs`
+- [x] Implement FFmpeg command building:
+  - [x] `FFmpegCommand` struct to build commands
+  - [x] `builder()` method to create builder
+  - [x] `.input(path)` to add input file
+  - [x] `.audio_codec("aac")` to set codec
+  - [x] `.bitrate(kbps)` to set bitrate
+  - [x] `.sample_rate(hz)` to set sample rate
+  - [x] `.output(path)` to set output
+  - [x] `.build()` to create final command string
+- [x] Implement specific command builders:
+  - [x] `build_convert_command(input, output, settings) -> String`
+    - [x] Input file with format auto-detection
+    - [x] Output format M4B/MP4
+    - [x] AAC codec
+    - [x] User-specified bitrate
+    - [x] User-specified sample rate
+  - [x] `build_concat_command(input_files, output) -> String`
+    - [x] Use FFmpeg concat demuxer
+    - [x] Multiple input files
+    - [x] Output single M4B
+  - [x] `build_metadata_embed_command(input, output, metadata) -> String`
+    - [x] Embed metadata into M4B
+    - [x] Add title, artist, etc.
+- [x] Add validation:
+  - [x] Verify bitrate valid (8-320 kbps typical)
+  - [x] Verify sample rate valid (8000, 16000, 22050, 44100, 48000 Hz)
+  - [x] Verify output path writable
 
 ## 2.7 FFmpeg Detection & Setup
 
-- [ ] Create `src-tauri/src/ffmpeg/detection.rs`
-- [ ] Implement FFmpeg detection:
-  - [ ] Check PATH environment variable
-  - [ ] Check common installation locations:
-    - [ ] Windows: C:\ffmpeg\bin, Program Files
-    - [ ] macOS: /usr/local/bin, /opt/homebrew/bin
-    - [ ] Linux: /usr/bin, /usr/local/bin
-  - [ ] Check user-configured path in settings
-  - [ ] Verify FFmpeg executable exists and is runnable
-  - [ ] Cache detection result
-- [ ] Implement version checking:
-  - [ ] Run `ffmpeg -version` to get version
-  - [ ] Verify minimum version (e.g., 4.0+)
-  - [ ] Log version info for debugging
-- [ ] Create error handling:
-  - [ ] FFmpeg not found error with helpful instructions
-  - [ ] FFmpeg version too old error
-  - [ ] Log installation instructions per OS
+- [x] Create `src-tauri/src/ffmpeg/detection.rs`
+- [x] Implement FFmpeg detection:
+  - [x] Check PATH environment variable
+  - [x] Check common installation locations:
+    - [x] Windows: C:\ffmpeg\bin, Program Files
+    - [x] macOS: /usr/local/bin, /opt/homebrew/bin
+    - [x] Linux: /usr/bin, /usr/local/bin
+  - [x] Check user-configured path in settings
+  - [x] Verify FFmpeg executable exists and is runnable
+  - [x] Cache detection result
+- [x] Implement version checking:
+  - [x] Run `ffmpeg -version` to get version
+  - [x] Verify minimum version (e.g., 4.0+)
+  - [x] Log version info for debugging
+- [x] Create error handling:
+  - [x] FFmpeg not found error with helpful instructions
+  - [x] FFmpeg version too old error
+  - [x] Log installation instructions per OS
 
 ---
 
@@ -394,120 +395,120 @@ Create `src-tauri/src/models.rs` with all data types:
 
 ## 3.1 Metadata Extraction (Symphonia)
 
-- [ ] Create `src-tauri/src/metadata/extraction.rs`
-- [ ] Implement ID3 tag extraction (MP3):
-  - [ ] `extract_id3_tags(path: &Path) -> Result<Metadata>`
-  - [ ] Read ID3v1 tags (back of file)
-  - [ ] Read ID3v2 tags (front of file, takes priority)
-  - [ ] Extract: title, artist, album, year, genre, comments
-- [ ] Implement Vorbis comment extraction (FLAC, OGG):
-  - [ ] `extract_vorbis_comments(path: &Path) -> Result<Metadata>`
-  - [ ] Extract all standard fields
-  - [ ] Handle multi-value fields
-- [ ] Implement MP4 atom extraction (M4A/M4B):
-  - [ ] `extract_mp4_metadata(path: &Path) -> Result<Metadata>`
-  - [ ] Use mp4ameta for reading
-  - [ ] Extract: title, artist, album, year, genre, comments
-- [ ] Implement metadata normalization:
-  - [ ] Trim whitespace
-  - [ ] Handle encoding issues (UTF-8, Latin-1, etc.)
-  - [ ] Unify field names across formats
-- [ ] Add comprehensive tests:
-  - [ ] MP3 with ID3v1
-  - [ ] MP3 with ID3v2
-  - [ ] FLAC with Vorbis
-  - [ ] M4A with MP4 atoms
-  - [ ] Missing metadata fields
+- [x] Create `src-tauri/src/metadata/extraction.rs`
+- [x] Implement ID3 tag extraction (MP3):
+  - [x] `extract_id3_tags(path: &Path) -> Result<Metadata>`
+  - [x] Read ID3v1 tags (back of file)
+  - [x] Read ID3v2 tags (front of file, takes priority)
+  - [x] Extract: title, artist, album, year, genre, comments
+- [x] Implement Vorbis comment extraction (FLAC, OGG):
+  - [x] `extract_vorbis_comments(path: &Path) -> Result<Metadata>`
+  - [x] Extract all standard fields
+  - [x] Handle multi-value fields
+- [x] Implement MP4 atom extraction (M4A/M4B):
+  - [x] `extract_mp4_metadata(path: &Path) -> Result<Metadata>`
+  - [x] Use mp4ameta for reading
+  - [x] Extract: title, artist, album, year, genre, comments
+- [x] Implement metadata normalization:
+  - [x] Trim whitespace
+  - [x] Handle encoding issues (UTF-8, Latin-1, etc.)
+  - [x] Unify field names across formats
+- [x] Add comprehensive tests:
+  - [x] MP3 with ID3v1
+  - [x] MP3 with ID3v2
+  - [x] FLAC with Vorbis
+  - [x] M4A with MP4 atoms
+  - [x] Missing metadata fields
 
 ## 3.2 Artwork Handling
 
-- [ ] Create `src-tauri/src/metadata/artwork.rs`
-- [ ] Implement artwork detection:
-  - [ ] `extract_embedded_artwork(path: &Path) -> Result<Option<Vec<u8>>>`
-    - [ ] Use Symphonia to get embedded artwork
-    - [ ] Convert to standardized format (JPEG)
-    - [ ] Return image data bytes
-  - [ ] `scan_directory_for_artwork(dir: &Path) -> Result<Option<PathBuf>>`
-    - [ ] Search for: cover.jpg, folder.jpg, cover.png, etc.
-    - [ ] Return path to found artwork
-- [ ] Implement artwork processing:
-  - [ ] `resize_artwork_if_needed(data: &[u8], max_size: usize) -> Result<Vec<u8>>`
-    - [ ] Use image crate to resize if needed
-    - [ ] Target: 500x500 px or similar
-  - [ ] `detect_image_format(data: &[u8]) -> Result<ImageFormat>`
-    - [ ] Identify JPEG, PNG, GIF, BMP
-    - [ ] Return format enum
-- [ ] Store artwork:
-  - [ ] Save to temp directory during conversion
-  - [ ] Embed into final M4B with mp4ameta
+- [x] Create `src-tauri/src/metadata/artwork.rs`
+- [x] Implement artwork detection:
+  - [x] `extract_embedded_artwork(path: &Path) -> Result<Option<Vec<u8>>>`
+    - [x] Use Symphonia to get embedded artwork
+    - [x] Convert to standardized format (JPEG)
+    - [x] Return image data bytes
+  - [x] `scan_directory_for_artwork(dir: &Path) -> Result<Option<PathBuf>>`
+    - [x] Search for: cover.jpg, folder.jpg, cover.png, etc.
+    - [x] Return path to found artwork
+- [x] Implement artwork processing:
+  - [x] `resize_artwork_if_needed(data: &[u8], max_size: usize) -> Result<Vec<u8>>`
+    - [x] Use image crate to resize if needed
+    - [x] Target: 500x500 px or similar
+  - [x] `detect_image_format(data: &[u8]) -> Result<ImageFormat>`
+    - [x] Identify JPEG, PNG, GIF, BMP
+    - [x] Return format enum
+- [x] Store artwork:
+  - [x] Save to temp directory during conversion
+  - [x] Embed into final M4B with mp4ameta
 
 ## 3.3 Chapter Management
 
-- [ ] Create `src-tauri/src/metadata/chapters.rs`
-- [ ] Implement chapter data structures (already in models.rs)
-- [ ] Implement chapter creation:
-  - [ ] `create_chapters_from_files(files: &[AudioFile]) -> Vec<Chapter>`
-    - [ ] Each file becomes a chapter
-    - [ ] Start times calculated from durations
-    - [ ] Titles from filenames (remove extensions)
-  - [ ] `create_chapters_auto_split(total_duration_ms: u64, count: usize) -> Vec<Chapter>`
-    - [ ] Split by time evenly
-    - [ ] E.g., 4-hour book split into 12x 20-minute chapters
-  - [ ] `extract_chapters_from_metadata(path: &Path) -> Result<Vec<Chapter>>`
-    - [ ] Extract QuickTime chapters from M4B if present
-    - [ ] Use mp4ameta to read
-- [ ] Implement chapter validation:
-  - [ ] `validate_chapters(chapters: &[Chapter], total_duration_ms: u64) -> Result<()>`
-    - [ ] No overlapping chapters
-    - [ ] No gaps (optional)
-    - [ ] End times within total duration
-    - [ ] Valid chapter order
-- [ ] Implement chapter editing:
-  - [ ] `update_chapter(chapters: &mut [Chapter], index: usize, update: ChapterUpdate) -> Result<()>`
-  - [ ] `reorder_chapters(chapters: &mut [Chapter], old_index: usize, new_index: usize) -> Result<()>`
-  - [ ] `delete_chapter(chapters: &mut [Chapter], index: usize) -> Result<()>`
-  - [ ] `add_chapter(chapters: &mut [Chapter], chapter: Chapter) -> Result<()>`
+- [x] Create `src-tauri/src/metadata/chapters.rs`
+- [x] Implement chapter data structures (already in models.rs)
+- [x] Implement chapter creation:
+  - [x] `create_chapters_from_files(files: &[AudioFile]) -> Vec<Chapter>`
+    - [x] Each file becomes a chapter
+    - [x] Start times calculated from durations
+    - [x] Titles from filenames (remove extensions)
+  - [x] `create_chapters_auto_split(total_duration_ms: u64, count: usize) -> Vec<Chapter>`
+    - [x] Split by time evenly
+    - [x] E.g., 4-hour book split into 12x 20-minute chapters
+  - [x] `extract_chapters_from_metadata(path: &Path) -> Result<Vec<Chapter>>`
+    - [x] Extract QuickTime chapters from M4B if present
+    - [x] Use mp4ameta to read
+- [x] Implement chapter validation:
+  - [x] `validate_chapters(chapters: &[Chapter], total_duration_ms: u64) -> Result<()>`
+    - [x] No overlapping chapters
+    - [x] No gaps (optional)
+    - [x] End times within total duration
+    - [x] Valid chapter order
+- [x] Implement chapter editing:
+  - [x] `update_chapter(chapters: &mut [Chapter], index: usize, update: ChapterUpdate) -> Result<()>`
+  - [x] `reorder_chapters(chapters: &mut [Chapter], old_index: usize, new_index: usize) -> Result<()>`
+  - [x] `delete_chapter(chapters: &mut [Chapter], index: usize) -> Result<()>`
+  - [x] `add_chapter(chapters: &mut [Chapter], chapter: Chapter) -> Result<()>`
 
 ## 3.4 Metadata Writing (mp4ameta)
 
-- [ ] Create `src-tauri/src/metadata/writing.rs`
-- [ ] Implement metadata writing to M4B:
-  - [ ] `write_metadata_to_m4b(m4b_path: &Path, metadata: &Metadata) -> Result<()>`
-    - [ ] Use mp4ameta library
-    - [ ] Write title, artist, album, etc.
-    - [ ] Handle optional fields
-  - [ ] `embed_artwork_in_m4b(m4b_path: &Path, artwork: &[u8]) -> Result<()>`
-    - [ ] Convert artwork to appropriate format if needed
-    - [ ] Embed using mp4ameta
-  - [ ] `write_chapters_to_m4b(m4b_path: &Path, chapters: &[Chapter], total_duration_ms: u64) -> Result<()>`
-    - [ ] Use mp4ameta for QuickTime chapters
-    - [ ] Write all chapters with correct timing
+- [x] Create `src-tauri/src/metadata/writing.rs`
+- [x] Implement metadata writing to M4B:
+  - [x] `write_metadata_to_m4b(m4b_path: &Path, metadata: &Metadata) -> Result<()>`
+    - [x] Use mp4ameta library
+    - [x] Write title, artist, album, etc.
+    - [x] Handle optional fields
+  - [x] `embed_artwork_in_m4b(m4b_path: &Path, artwork: &[u8]) -> Result<()>`
+    - [x] Convert artwork to appropriate format if needed
+    - [x] Embed using mp4ameta
+  - [x] `write_chapters_to_m4b(m4b_path: &Path, chapters: &[Chapter], total_duration_ms: u64) -> Result<()>`
+    - [x] Use mp4ameta for QuickTime chapters
+    - [x] Write all chapters with correct timing
     - **NOTE**: mp4ameta 0.13.0 does not support writing chapters directly. Chapter embedding will be handled via FFmpeg in Phase 5 using FFmetadata format.
 - [ ] Implement metadata backup:
   - [ ] Before writing to M4B, backup original metadata
   - [ ] Save to temporary file in case of error
-- [ ] Add comprehensive tests:
-  - [ ] Write metadata to new M4B
-  - [ ] Update existing M4B metadata
-  - [ ] Add artwork to M4B
-  - [ ] Add chapters to M4B
-  - [ ] Verify written metadata is readable
+- [x] Add comprehensive tests:
+  - [x] Write metadata to new M4B
+  - [x] Update existing M4B metadata
+  - [x] Add artwork to M4B
+  - [x] Add chapters to M4B
+  - [x] Verify written metadata is readable
 
 
 ## 3.5 Metadata Editing API
 
-- [ ] Create `src-tauri/src/metadata/editor.rs`
-- [ ] Implement in-memory metadata editing:
-  - [ ] `AudioBook` stores editable metadata
-  - [ ] `update_metadata(audiobook: &mut AudioBook, new_metadata: Metadata) -> Result<()>`
-  - [ ] `update_chapter(audiobook: &mut AudioBook, index: usize, title: String, times: (u64, u64)) -> Result<()>`
-- [ ] Implement validation on edits:
-  - [ ] Sanitize input
-  - [ ] Validate chapter times don't exceed duration
-  - [ ] Validate metadata fields (length limits, special characters)
-- [ ] Track unsaved changes:
-  - [ ] `audiobook.is_dirty()` method
-  - [ ] Mark clean on save/conversion
+- [x] Create `src-tauri/src/metadata/editor.rs`
+- [x] Implement in-memory metadata editing:
+  - [x] `AudioBook` stores editable metadata
+  - [x] `update_metadata(audiobook: &mut AudioBook, new_metadata: Metadata) -> Result<()>`
+  - [x] `update_chapter(audiobook: &mut AudioBook, index: usize, title: String, times: (u64, u64)) -> Result<()>`
+- [x] Implement validation on edits:
+  - [x] Sanitize input
+  - [x] Validate chapter times don't exceed duration
+  - [x] Validate metadata fields (length limits, special characters)
+- [x] Track unsaved changes:
+  - [x] `audiobook.is_dirty()` method
+  - [x] Mark clean on save/conversion
 
 ---
 

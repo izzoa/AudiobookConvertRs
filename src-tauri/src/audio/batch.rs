@@ -37,16 +37,61 @@ impl BatchLoadResult {
     }
 }
 
+/// Progress information for batch loading
+#[derive(Debug, Clone)]
+pub struct BatchProgress {
+    /// Current file index (0-based)
+    pub current_index: usize,
+    /// Total number of files
+    pub total_files: usize,
+    /// Current file path
+    pub current_file: String,
+    /// Progress percentage (0.0 to 1.0)
+    pub progress: f32,
+}
+
+impl BatchProgress {
+    /// Create a new progress update
+    pub fn new(index: usize, total: usize, file: &str) -> Self {
+        Self {
+            current_index: index,
+            total_files: total,
+            current_file: file.to_string(),
+            progress: if total > 0 { index as f32 / total as f32 } else { 0.0 },
+        }
+    }
+}
+
 /// Load multiple audio files in parallel
 ///
 /// Returns both successful loads and errors, allowing partial success.
 pub fn load_files_batch(paths: &[Utf8PathBuf]) -> BatchLoadResult {
+    load_files_batch_with_progress(paths, |_| {})
+}
+
+/// Load multiple audio files with progress tracking
+///
+/// The callback is called after each file is processed (successfully or not).
+/// Note: Due to parallel processing, callbacks may be out of order.
+pub fn load_files_batch_with_progress<F>(paths: &[Utf8PathBuf], progress_callback: F) -> BatchLoadResult
+where
+    F: Fn(BatchProgress) + Sync,
+{
     info!("Loading {} audio files in batch", paths.len());
+    
+    let total = paths.len();
+    let processed = std::sync::atomic::AtomicUsize::new(0);
 
     let results: Vec<(Utf8PathBuf, Result<AudioFile, AppError>)> = paths
         .par_iter()
         .map(|path| {
             let result = load_audio_file(path);
+            
+            // Update progress
+            let current = processed.fetch_add(1, std::sync::atomic::Ordering::SeqCst) + 1;
+            let file_name = path.file_name().unwrap_or(path.as_str());
+            progress_callback(BatchProgress::new(current, total, file_name));
+            
             (path.clone(), result)
         })
         .collect();
@@ -364,5 +409,18 @@ mod tests {
         assert!(result.all_successful());
         assert_eq!(result.success_count(), 0);
         assert_eq!(result.error_count(), 0);
+    }
+
+    #[test]
+    fn test_batch_progress() {
+        let progress = BatchProgress::new(5, 10, "test.mp3");
+        assert_eq!(progress.current_index, 5);
+        assert_eq!(progress.total_files, 10);
+        assert_eq!(progress.current_file, "test.mp3");
+        assert!((progress.progress - 0.5).abs() < 0.001);
+        
+        // Edge case: zero total
+        let progress_zero = BatchProgress::new(0, 0, "empty.mp3");
+        assert_eq!(progress_zero.progress, 0.0);
     }
 }
