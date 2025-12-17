@@ -1,0 +1,71 @@
+[package]
+name = "audiobookconvert-rs"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description.workspace = true
+default-run = "audiobookconvert-rs"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+# Tauri framework
+tauri = { version = "2", features = ["devtools"] }
+tauri-plugin-shell = "2"
+tauri-plugin-dialog = "2"
+tauri-plugin-fs = "2"
+
+# Audio processing - Symphonia for reading all formats
+symphonia.workspace = true
+# MP4/M4B metadata writing
+mp4ameta.workspace = true
+
+# Image processing for artwork
+image.workspace = true
+
+# Async runtime
+tokio.workspace = true
+
+# Serialization
+serde.workspace = true
+serde_json.workspace = true
+
+# Error handling
+thiserror.workspace = true
+anyhow.workspace = true
+
+# Logging
+tracing.workspace = true
+tracing-subscriber.workspace = true
+
+# Utilities
+uuid.workspace = true
+chrono.workspace = true
+camino.workspace = true
+walkdir.workspace = true
+rayon.workspace = true
+parking_lot.workspace = true
+regex.workspace = true
+once_cell.workspace = true
+dirs.workspace = true
+base64.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
+
+[features]
+default = ["custom-protocol"]
+custom-protocol = ["tauri/custom-protocol"]
+
+[[bin]]
+name = "audiobookconvert-rs"
+path = "src/main.rs"
+
+[lib]
+name = "audiobookconvert_rs"
+path = "src/lib.rs"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
