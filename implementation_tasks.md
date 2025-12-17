@@ -482,6 +482,7 @@ Create `src-tauri/src/models.rs` with all data types:
   - [ ] `write_chapters_to_m4b(m4b_path: &Path, chapters: &[Chapter], total_duration_ms: u64) -> Result<()>`
     - [ ] Use mp4ameta for QuickTime chapters
     - [ ] Write all chapters with correct timing
+    - **NOTE**: mp4ameta 0.13.0 does not support writing chapters directly. Chapter embedding will be handled via FFmpeg in Phase 5 using FFmetadata format.
 - [ ] Implement metadata backup:
   - [ ] Before writing to M4B, backup original metadata
   - [ ] Save to temporary file in case of error
@@ -491,6 +492,7 @@ Create `src-tauri/src/models.rs` with all data types:
   - [ ] Add artwork to M4B
   - [ ] Add chapters to M4B
   - [ ] Verify written metadata is readable
+
 
 ## 3.5 Metadata Editing API
 
