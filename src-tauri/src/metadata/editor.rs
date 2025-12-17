@@ -65,6 +65,28 @@ pub fn add_chapter(audiobook: &mut AudioBook, chapter: Chapter) -> AppResult<()>
     Ok(())
 }
 
+/// Set audiobook artwork
+pub fn set_artwork(audiobook: &mut AudioBook, path: impl Into<std::path::PathBuf>) -> AppResult<()> {
+    let path_buf = path.into();
+    let utf8_path = camino::Utf8PathBuf::from_path_buf(path_buf.clone())
+        .map_err(|_| AppError::InvalidPath(path_buf.to_string_lossy().to_string()))?;
+
+    debug!("Setting artwork for audiobook {}: {}", audiobook.id, utf8_path);
+
+    // Read image data and encode as base64
+    let image_data = std::fs::read(&utf8_path)
+        .map_err(|e| AppError::file_read(&utf8_path, e.to_string()))?;
+    
+    use base64::{Engine as _, engine::general_purpose::STANDARD};
+    let base64_data = STANDARD.encode(&image_data);
+
+    audiobook.output_metadata.artwork_path = Some(utf8_path);
+    audiobook.output_metadata.artwork_data = Some(base64_data);
+    audiobook.mark_modified();
+
+    Ok(())
+}
+
 /// Delete a chapter from the audiobook
 pub fn delete_chapter(audiobook: &mut AudioBook, index: usize) -> AppResult<()> {
     debug!("Deleting chapter {} from audiobook: {}", index, audiobook.id);

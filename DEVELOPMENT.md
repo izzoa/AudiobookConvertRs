@@ -57,6 +57,25 @@ cargo build
 cargo test
 ```
 
+## Running the Application (Dev Mode)
+
+To start the application with both Frontend and Backend in development mode:
+
+1.  Navigate to `src-ui` and install dependencies:
+    ```bash
+    cd src-ui
+    npm install
+    cd ..
+    ```
+2.  Run the development server from the root directory:
+    ```bash
+    ./src-ui/node_modules/.bin/tauri dev
+    ```
+    *Or if you have `tauri-cli` installed globally (`cargo install tauri-cli`):*
+    ```bash
+    cargo tauri dev
+    ```
+
 ## Project Structure
 
 ```

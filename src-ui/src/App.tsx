@@ -1,6 +1,7 @@
 import { Layout } from "@/components/Layout";
 import { FileInput } from "@/components/FileInput";
 import { MetadataEditor } from "@/components/MetadataEditor";
+import { ConversionPanel } from "@/components/ConversionPanel";
 
 function App() {
   return (
@@ -17,6 +18,12 @@ function App() {
         <section className="space-y-3">
           <h2 className="text-xl font-semibold tracking-tight">Step 2: Edit Metadata</h2>
           <MetadataEditor />
+        </section>
+
+        {/* Step 3: Convert */}
+        <section className="space-y-3">
+          <h2 className="text-xl font-semibold tracking-tight">Step 3: Convert</h2>
+          <ConversionPanel />
         </section>
 
       </div>

@@ -3,25 +3,11 @@
 //! Functions for calculating, formatting, and parsing audio durations.
 
 use crate::error::{AppError, AppResult};
-use crate::models::{AudioFile, Chapter};
+use crate::models::{AudioFile, Chapter, format_duration_ms, parse_time_string};
 
 /// Calculate total duration of multiple audio files in milliseconds
 pub fn calculate_total_duration(files: &[AudioFile]) -> u64 {
     files.iter().map(|f| f.duration_ms).sum()
-}
-
-/// Format milliseconds as HH:MM:SS
-pub fn format_duration_ms(ms: u64) -> String {
-    let total_seconds = ms / 1000;
-    let hours = total_seconds / 3600;
-    let minutes = (total_seconds % 3600) / 60;
-    let seconds = total_seconds % 60;
-
-    if hours > 0 {
-        format!("{:02}:{:02}:{:02}", hours, minutes, seconds)
-    } else {
-        format!("{:02}:{:02}", minutes, seconds)
-    }
 }
 
 /// Format milliseconds as HH:MM:SS.mmm (with milliseconds)
@@ -37,88 +23,6 @@ pub fn format_duration_ms_precise(ms: u64) -> String {
     } else {
         format!("{:02}:{:02}.{:03}", minutes, seconds, remaining_ms)
     }
-}
-
-/// Parse time string to milliseconds
-/// 
-/// Supported formats:
-/// - "SS" (seconds only)
-/// - "MM:SS" (minutes:seconds)
-/// - "HH:MM:SS" (hours:minutes:seconds)
-/// - "HH:MM:SS.mmm" (with milliseconds)
-pub fn parse_time_string(s: &str) -> AppResult<u64> {
-    let s = s.trim();
-    
-    // Check for milliseconds
-    let (time_part, ms) = if let Some(pos) = s.rfind('.') {
-        let ms_str = &s[pos + 1..];
-        let ms: u64 = ms_str.parse().map_err(|_| {
-            AppError::InvalidDuration(format!("Invalid milliseconds: {}", ms_str))
-        })?;
-        // Normalize to 3 digits
-        let ms = match ms_str.len() {
-            1 => ms * 100,
-            2 => ms * 10,
-            3 => ms,
-            _ => return Err(AppError::InvalidDuration(format!("Invalid time format: {}", s))),
-        };
-        (&s[..pos], ms)
-    } else {
-        (s, 0)
-    };
-
-    let parts: Vec<&str> = time_part.split(':').collect();
-
-    let total_seconds = match parts.len() {
-        1 => {
-            // SS
-            let seconds: u64 = parts[0].parse().map_err(|_| {
-                AppError::InvalidDuration(format!("Invalid seconds: {}", parts[0]))
-            })?;
-            seconds
-        }
-        2 => {
-            // MM:SS
-            let minutes: u64 = parts[0].parse().map_err(|_| {
-                AppError::InvalidDuration(format!("Invalid minutes: {}", parts[0]))
-            })?;
-            let seconds: u64 = parts[1].parse().map_err(|_| {
-                AppError::InvalidDuration(format!("Invalid seconds: {}", parts[1]))
-            })?;
-            
-            if seconds >= 60 {
-                return Err(AppError::InvalidDuration("Seconds must be < 60".into()));
-            }
-            
-            minutes * 60 + seconds
-        }
-        3 => {
-            // HH:MM:SS
-            let hours: u64 = parts[0].parse().map_err(|_| {
-                AppError::InvalidDuration(format!("Invalid hours: {}", parts[0]))
-            })?;
-            let minutes: u64 = parts[1].parse().map_err(|_| {
-                AppError::InvalidDuration(format!("Invalid minutes: {}", parts[1]))
-            })?;
-            let seconds: u64 = parts[2].parse().map_err(|_| {
-                AppError::InvalidDuration(format!("Invalid seconds: {}", parts[2]))
-            })?;
-            
-            if minutes >= 60 {
-                return Err(AppError::InvalidDuration("Minutes must be < 60".into()));
-            }
-            if seconds >= 60 {
-                return Err(AppError::InvalidDuration("Seconds must be < 60".into()));
-            }
-            
-            hours * 3600 + minutes * 60 + seconds
-        }
-        _ => {
-            return Err(AppError::InvalidDuration(format!("Invalid time format: {}", s)));
-        }
-    };
-
-    Ok(total_seconds * 1000 + ms)
 }
 
 /// Create chapters by auto-splitting duration into equal parts
@@ -229,39 +133,11 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_format_duration_ms() {
-        assert_eq!(format_duration_ms(0), "00:00");
-        assert_eq!(format_duration_ms(1000), "00:01");
-        assert_eq!(format_duration_ms(61000), "01:01");
-        assert_eq!(format_duration_ms(3600000), "01:00:00");
-        assert_eq!(format_duration_ms(3661000), "01:01:01");
-        assert_eq!(format_duration_ms(86400000), "24:00:00");
-    }
-
-    #[test]
     fn test_format_duration_ms_precise() {
         assert_eq!(format_duration_ms_precise(0), "00:00.000");
         assert_eq!(format_duration_ms_precise(1234), "00:01.234");
         assert_eq!(format_duration_ms_precise(61234), "01:01.234");
         assert_eq!(format_duration_ms_precise(3661234), "01:01:01.234");
-    }
-
-    #[test]
-    fn test_parse_time_string() {
-        assert_eq!(parse_time_string("30").unwrap(), 30000);
-        assert_eq!(parse_time_string("01:30").unwrap(), 90000);
-        assert_eq!(parse_time_string("01:00:00").unwrap(), 3600000);
-        assert_eq!(parse_time_string("01:30:45").unwrap(), 5445000);
-        assert_eq!(parse_time_string("00:00.500").unwrap(), 500);
-        assert_eq!(parse_time_string("01:30.5").unwrap(), 90500);
-    }
-
-    #[test]
-    fn test_parse_time_string_errors() {
-        assert!(parse_time_string("invalid").is_err());
-        assert!(parse_time_string("01:60").is_err()); // 60 seconds invalid
-        assert!(parse_time_string("01:60:00").is_err()); // 60 minutes invalid
-        assert!(parse_time_string("1:2:3:4").is_err()); // Too many parts
     }
 
     #[test]

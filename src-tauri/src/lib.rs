@@ -12,6 +12,8 @@ pub mod logging;
 pub mod metadata;
 pub mod models;
 pub mod state;
+pub mod commands;
+pub mod events;
 
 pub use audio::*;
 pub use config::*;

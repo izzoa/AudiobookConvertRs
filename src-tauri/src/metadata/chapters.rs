@@ -8,9 +8,10 @@ use crate::error::{AppError, AppResult};
 use crate::models::{AudioFile, Chapter};
 use camino::Utf8Path;
 use tracing::{debug, info, warn};
+use serde::{Deserialize, Serialize};
 
 /// Update for partial chapter editing
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct ChapterUpdate {
     pub title: Option<String>,
     pub start_time_ms: Option<u64>,

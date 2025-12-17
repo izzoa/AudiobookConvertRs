@@ -36,6 +36,36 @@ fn main() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
         .manage(AppState::new())
+        .invoke_handler(tauri::generate_handler![
+            // Audiobook
+            audiobookconvert_rs::commands::audiobook::create_audiobook_from_files,
+            audiobookconvert_rs::commands::audiobook::load_audiobook_file,
+            audiobookconvert_rs::commands::audiobook::save_audiobook_project,
+            audiobookconvert_rs::commands::audiobook::clear_current_audiobook,
+            // Metadata
+            audiobookconvert_rs::commands::metadata::update_audiobook_metadata,
+            audiobookconvert_rs::commands::metadata::add_chapter,
+            audiobookconvert_rs::commands::metadata::update_chapter,
+            audiobookconvert_rs::commands::metadata::delete_chapter,
+            audiobookconvert_rs::commands::metadata::reorder_chapters,
+            audiobookconvert_rs::commands::metadata::auto_create_chapters,
+            audiobookconvert_rs::commands::metadata::upload_artwork,
+            // Files
+            audiobookconvert_rs::commands::files::pick_files,
+            audiobookconvert_rs::commands::files::pick_directory,
+            audiobookconvert_rs::commands::files::validate_files,
+            audiobookconvert_rs::commands::files::get_file_info,
+            // Settings
+            audiobookconvert_rs::commands::settings::get_settings,
+            audiobookconvert_rs::commands::settings::update_settings,
+            audiobookconvert_rs::commands::settings::get_default_settings,
+            audiobookconvert_rs::commands::settings::check_ffmpeg_available,
+            audiobookconvert_rs::commands::settings::get_ffmpeg_version,
+            // Conversion
+            audiobookconvert_rs::commands::conversion::start_conversion,
+            audiobookconvert_rs::commands::conversion::cancel_conversion,
+            audiobookconvert_rs::commands::conversion::get_conversion_status,
+        ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
