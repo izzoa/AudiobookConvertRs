@@ -516,16 +516,16 @@ Create `src-tauri/src/models.rs` with all data types:
 
 ## 4.1 Tauri Project Setup
 
-- [ ] Initialize Tauri in project:
-  - [ ] Run `npm create tauri-app@latest` or equivalent
-  - [ ] Configure Tauri backend/frontend split
-  - [ ] Set up Cargo workspace if not already
-- [ ] Configure `tauri.conf.json`:
-  - [ ] Set app name, version, description
-  - [ ] Configure window settings (size, resizable, etc.)
-  - [ ] Set build targets (Windows, macOS, Linux)
-  - [ ] Configure updater (optional for now)
-  - [ ] Set security settings
+- [/] Initialize Tauri in project:
+  - [x] Run `npm create tauri-app@latest` or equivalent
+  - [x] Configure Tauri backend/frontend split
+  - [x] Set up Cargo workspace if not already
+- [/] Configure `tauri.conf.json`:
+  - [x] Set app name, version, description
+  - [x] Configure window settings (size, resizable, etc.)
+  - [x] Set build targets (Windows, macOS, Linux)
+  - [x] Configure updater (optional for now)
+  - [x] Set security settings
 - [ ] Create Tauri app state:
   - [ ] Integrate AppState from Phase 1.5
   - [ ] Make available to all commands
