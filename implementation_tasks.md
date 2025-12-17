@@ -101,7 +101,7 @@
   - [x] Metadata parsing errors
   - [x] Audio format errors
   - [x] Validation errors
-  - [ ] IPC/Tauri errors
+  - [x] IPC/Tauri errors
 - [x] Implement `thiserror::Error` trait for all error types
 - [x] Implement From/Into conversions for common errors
 - [x] Create error display messages (user-friendly messages)
@@ -516,113 +516,113 @@ Create `src-tauri/src/models.rs` with all data types:
 
 ## 4.1 Tauri Project Setup
 
-- [/] Initialize Tauri in project:
+- [x] Initialize Tauri in project:
   - [x] Run `npm create tauri-app@latest` or equivalent
   - [x] Configure Tauri backend/frontend split
   - [x] Set up Cargo workspace if not already
-- [/] Configure `tauri.conf.json`:
+- [x] Configure `tauri.conf.json`:
   - [x] Set app name, version, description
   - [x] Configure window settings (size, resizable, etc.)
   - [x] Set build targets (Windows, macOS, Linux)
   - [x] Configure updater (optional for now)
   - [x] Set security settings
-- [ ] Create Tauri app state:
-  - [ ] Integrate AppState from Phase 1.5
-  - [ ] Make available to all commands
-  - [ ] Handle state persistence
+- [x] Create Tauri app state:
+  - [x] Integrate AppState from Phase 1.5
+  - [x] Make available to all commands
+  - [x] Handle state persistence
 
 ## 4.2 Tauri IPC Commands - Core
 
-- [ ] Create `src-tauri/src/commands/mod.rs`
-- [ ] Create `src-tauri/src/commands/audiobook.rs`
-- [ ] Implement audiobook commands:
-  - [ ] `#[tauri::command] create_audiobook_from_files(paths: Vec<String>) -> Result<AudioBook, String>`
-    - [ ] Load files using Symphonia
-    - [ ] Create AudioBook struct
-    - [ ] Return to frontend
-  - [ ] `#[tauri::command] load_audiobook_file(path: String) -> Result<AudioBook, String>`
-    - [ ] Load previously saved audiobook
-  - [ ] `#[tauri::command] save_audiobook_project(audiobook: AudioBook, path: String) -> Result<(), String>`
-    - [ ] Save audiobook metadata as JSON
-    - [ ] For later resumption
-  - [ ] `#[tauri::command] clear_current_audiobook() -> Result<(), String>`
-    - [ ] Reset app state
+- [x] Create `src-tauri/src/commands/mod.rs`
+- [x] Create `src-tauri/src/commands/audiobook.rs`
+- [x] Implement audiobook commands:
+  - [x] `#[tauri::command] create_audiobook_from_files(paths: Vec<String>) -> Result<AudioBook, String>`
+    - [x] Load files using Symphonia
+    - [x] Create AudioBook struct
+    - [x] Return to frontend
+  - [x] `#[tauri::command] load_audiobook_file(path: String) -> Result<AudioBook, String>`
+    - [x] Load previously saved audiobook
+  - [x] `#[tauri::command] save_audiobook_project(audiobook: AudioBook, path: String) -> Result<(), String>`
+    - [x] Save audiobook metadata as JSON
+    - [x] For later resumption
+  - [x] `#[tauri::command] clear_current_audiobook() -> Result<(), String>`
+    - [x] Reset app state
 
 ## 4.3 Tauri IPC Commands - Metadata
 
-- [ ] Create `src-tauri/src/commands/metadata.rs`
-- [ ] Implement metadata commands:
-  - [ ] `#[tauri::command] update_audiobook_metadata(audiobook_id: String, metadata: Metadata) -> Result<(), String>`
-  - [ ] `#[tauri::command] add_chapter(audiobook_id: String, chapter: Chapter) -> Result<(), String>`
-  - [ ] `#[tauri::command] update_chapter(audiobook_id: String, index: usize, chapter: Chapter) -> Result<(), String>`
-  - [ ] `#[tauri::command] delete_chapter(audiobook_id: String, index: usize) -> Result<(), String>`
-  - [ ] `#[tauri::command] reorder_chapters(audiobook_id: String, old_idx: usize, new_idx: usize) -> Result<(), String>`
-  - [ ] `#[tauri::command] auto_create_chapters(audiobook_id: String, count: usize) -> Result<(), String>`
-  - [ ] `#[tauri::command] upload_artwork(audiobook_id: String, image_path: String) -> Result<(), String>`
+- [x] Create `src-tauri/src/commands/metadata.rs`
+- [x] Implement metadata commands:
+  - [x] `#[tauri::command] update_audiobook_metadata(audiobook_id: String, metadata: Metadata) -> Result<(), String>`
+  - [x] `#[tauri::command] add_chapter(audiobook_id: String, chapter: Chapter) -> Result<(), String>`
+  - [x] `#[tauri::command] update_chapter(audiobook_id: String, index: usize, chapter: Chapter) -> Result<(), String>`
+  - [x] `#[tauri::command] delete_chapter(audiobook_id: String, index: usize) -> Result<(), String>`
+  - [x] `#[tauri::command] reorder_chapters(audiobook_id: String, old_idx: usize, new_idx: usize) -> Result<(), String>`
+  - [x] `#[tauri::command] auto_create_chapters(audiobook_id: String, count: usize) -> Result<(), String>`
+  - [x] `#[tauri::command] upload_artwork(audiobook_id: String, image_path: String) -> Result<(), String>`
 
 ## 4.4 Tauri IPC Commands - File Operations
 
-- [ ] Create `src-tauri/src/commands/files.rs`
-- [ ] Implement file commands:
-  - [ ] `#[tauri::command] pick_files() -> Result<Vec<String>, String>`
-    - [ ] Open file picker dialog
-    - [ ] Return selected file paths
-  - [ ] `#[tauri::command] pick_directory() -> Result<String, String>`
-    - [ ] Open directory picker
-    - [ ] Return selected directory path
-  - [ ] `#[tauri::command] validate_files(paths: Vec<String>) -> Result<Vec<FileValidation>, String>`
-    - [ ] Check each file
-    - [ ] Return: valid, format, duration, size
-  - [ ] `#[tauri::command] get_file_info(path: String) -> Result<AudioFile, String>`
-    - [ ] Get detailed info on single file
+- [x] Create `src-tauri/src/commands/files.rs`
+- [x] Implement file commands:
+  - [x] `#[tauri::command] pick_files() -> Result<Vec<String>, String>`
+    - [x] Open file picker dialog
+    - [x] Return selected file paths
+  - [x] `#[tauri::command] pick_directory() -> Result<String, String>`
+    - [x] Open directory picker
+    - [x] Return selected directory path
+  - [x] `#[tauri::command] validate_files(paths: Vec<String>) -> Result<Vec<FileValidation>, String>`
+    - [x] Check each file
+    - [x] Return: valid, format, duration, size
+  - [x] `#[tauri::command] get_file_info(path: String) -> Result<AudioFile, String>`
+    - [x] Get detailed info on single file
 
 ## 4.5 Tauri IPC Commands - Settings
 
-- [ ] Create `src-tauri/src/commands/settings.rs`
-- [ ] Implement settings commands:
-  - [ ] `#[tauri::command] get_settings() -> Result<UserSettings, String>`
-  - [ ] `#[tauri::command] update_settings(settings: UserSettings) -> Result<(), String>`
-  - [ ] `#[tauri::command] get_default_settings() -> Result<UserSettings, String>`
+- [x] Create `src-tauri/src/commands/settings.rs`
+- [x] Implement settings commands:
+  - [x] `#[tauri::command] get_settings() -> Result<UserSettings, String>`
+  - [x] `#[tauri::command] update_settings(settings: UserSettings) -> Result<(), String>`
+  - [x] `#[tauri::command] get_default_settings() -> Result<UserSettings, String>`
   - [ ] `#[tauri::command] reset_settings() -> Result<(), String>`
-  - [ ] `#[tauri::command] check_ffmpeg_available() -> Result<bool, String>`
-  - [ ] `#[tauri::command] get_ffmpeg_version() -> Result<String, String>`
+  - [x] `#[tauri::command] check_ffmpeg_available() -> Result<bool, String>`
+  - [x] `#[tauri::command] get_ffmpeg_version() -> Result<String, String>`
 
 ## 4.6 Tauri IPC Commands - Conversion
 
-- [ ] Create `src-tauri/src/commands/conversion.rs`
-- [ ] Implement conversion commands:
-  - [ ] `#[tauri::command] start_conversion(audiobook_id: String, settings: ConversionSettings) -> Result<String, String>`
-    - [ ] Validate inputs
-    - [ ] Create ConversionJob
-    - [ ] Queue for processing
-    - [ ] Return job_id
-  - [ ] `#[tauri::command] cancel_conversion(job_id: String) -> Result<(), String>`
-    - [ ] Stop ongoing conversion
-    - [ ] Clean up temporary files
-  - [ ] `#[tauri::command] get_conversion_status(job_id: String) -> Result<ConversionJob, String>`
-    - [ ] Return current job status and progress
+- [x] Create `src-tauri/src/commands/conversion.rs`
+- [x] Implement conversion commands:
+  - [x] `#[tauri::command] start_conversion(audiobook_id: String, settings: ConversionSettings) -> Result<String, String>`
+    - [x] Validate inputs
+    - [x] Create ConversionJob
+    - [x] Queue for processing
+    - [x] Return job_id
+  - [x] `#[tauri::command] cancel_conversion(job_id: String) -> Result<(), String>`
+    - [x] Stop ongoing conversion
+    - [x] Clean up temporary files
+  - [x] `#[tauri::command] get_conversion_status(job_id: String) -> Result<ConversionJob, String>`
+    - [x] Return current job status and progress
   - [ ] `#[tauri::command] pause_conversion(job_id: String) -> Result<(), String>` (optional)
   - [ ] `#[tauri::command] resume_conversion(job_id: String) -> Result<(), String>` (optional)
 
 ## 4.7 Tauri Events (Backend → Frontend)
 
-- [ ] Create event emitters in `src-tauri/src/events.rs`
-- [ ] Implement event types:
-  - [ ] `ConversionProgress` - emit during conversion
-    - [ ] job_id, current_file, file_progress, total_progress, time_remaining
-  - [ ] `ConversionComplete` - emit on success
-    - [ ] job_id, output_path, duration
-  - [ ] `ConversionError` - emit on error
-    - [ ] job_id, error_message, recoverable
-  - [ ] `FilesLoaded` - emit after files analyzed
-    - [ ] file_count, total_duration, metadata
+- [x] Create event emitters in `src-tauri/src/events.rs`
+- [x] Implement event types:
+  - [x] `ConversionProgress` - emit during conversion
+    - [x] job_id, current_file, file_progress, total_progress, time_remaining
+  - [x] `ConversionComplete` - emit on success
+    - [x] job_id, output_path, duration
+  - [x] `ConversionError` - emit on error
+    - [x] job_id, error_message, recoverable
+  - [x] `FilesLoaded` - emit after files analyzed
+    - [x] file_count, total_duration, metadata
   - [ ] `MetadataUpdated` - emit after metadata changes
     - [ ] audiobook_id
 
-- [ ] Implement event emission:
-  - [ ] `emit_progress(window, event: ConversionProgress)`
-  - [ ] `emit_completion(window, event: ConversionComplete)`
-  - [ ] `emit_error(window, event: ConversionError)`
+- [x] Implement event emission:
+  - [x] `emit_progress(window, event: ConversionProgress)`
+  - [x] `emit_completion(window, event: ConversionComplete)`
+  - [x] `emit_error(window, event: ConversionError)`
 
 ## 4.8 Backend Integration Tests
 
