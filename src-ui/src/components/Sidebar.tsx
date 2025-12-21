@@ -10,9 +10,11 @@ export function Sidebar() {
     const { setActiveAudiobook } = useApp();
     const [recentProjects, setRecentProjects] = useState<RecentProject[]>([]);
     const [showRecent, setShowRecent] = useState(false);
+    const [error, setError] = useState<string | null>(null);
 
     const handleOpenProject = async () => {
         try {
+            setError(null);
             const path = await FilesApi.pickOpenProjectFile();
             if (path) {
                 const project = await ProjectApi.loadProject(path);
@@ -20,11 +22,13 @@ export function Sidebar() {
             }
         } catch (error) {
             console.error("Failed to open project:", error);
+            setError("Could not open project file.");
         }
     };
 
     const handleImportFiles = async () => {
         try {
+            setError(null);
             const files = await FilesApi.pickFiles();
             if (files && files.length > 0) {
                 const audiobook = await AudiobookApi.createAudiobookFromFiles(files);
@@ -32,6 +36,7 @@ export function Sidebar() {
             }
         } catch (error) {
             console.error("Failed to import files:", error);
+            setError("Import failed. Please verify file types and try again.");
         }
     };
 
@@ -42,6 +47,7 @@ export function Sidebar() {
                 setRecentProjects(projects.slice(0, 5));
             } catch (error) {
                 console.error("Failed to load recent projects:", error);
+                setError("Unable to load recent projects.");
             }
         }
         setShowRecent(!showRecent);
@@ -53,11 +59,12 @@ export function Sidebar() {
             setActiveAudiobook(project.audiobook);
         } catch (error) {
             console.error("Failed to open recent project:", error);
+            setError("Could not open selected recent project.");
         }
     };
 
     const handleSettings = () => {
-        console.log("Settings clicked - TODO: implement settings panel");
+        setError("Settings are coming soon.");
     };
 
     const handleHelp = () => {
@@ -102,8 +109,15 @@ export function Sidebar() {
                     icon={<Cog6ToothIcon className="w-5 h-5" />} 
                     label="Settings" 
                     onClick={handleSettings}
+                    disabled
                 />
             </nav>
+
+            {error && (
+                <div className="px-4 py-2 text-xs text-destructive">
+                    {error}
+                </div>
+            )}
 
             <div className="px-2 mt-auto">
                 <NavItem 
@@ -121,18 +135,21 @@ interface NavItemProps {
     label: string;
     onClick?: () => void;
     active?: boolean;
+    disabled?: boolean;
 }
 
-function NavItem({ icon, label, onClick, active = false }: NavItemProps) {
+function NavItem({ icon, label, onClick, active = false, disabled = false }: NavItemProps) {
     return (
         <button
             onClick={onClick}
+            disabled={disabled}
             className={`
                 w-full flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-md transition-colors
                 ${active
                     ? 'bg-primary/10 text-primary'
                     : 'text-muted-foreground hover:bg-muted hover:text-foreground'
                 }
+                disabled:opacity-50 disabled:cursor-not-allowed
             `}
         >
             {icon}

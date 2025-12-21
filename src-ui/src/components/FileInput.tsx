@@ -8,10 +8,12 @@ import { useState } from 'react';
 export function FileInput() {
     const { setActiveAudiobook } = useApp();
     const [isProcessing, setIsProcessing] = useState(false);
+    const [error, setError] = useState<string | null>(null);
 
     const handleFiles = async (files: string[]) => {
         if (files.length === 0) return;
         setIsProcessing(true);
+        setError(null);
         try {
             console.log("Creating audiobook from files:", files);
             const audiobook = await AudiobookApi.createAudiobookFromFiles(files);
@@ -19,7 +21,7 @@ export function FileInput() {
             setActiveAudiobook(audiobook);
         } catch (error) {
             console.error("Failed to create audiobook:", error);
-            // TODO: Error handling
+            setError("Could not import files. Please check formats and try again.");
         } finally {
             setIsProcessing(false);
         }
@@ -34,6 +36,7 @@ export function FileInput() {
             }
         } catch (error) {
             console.error("Failed to pick files:", error);
+            setError("Unable to open file picker. Please retry.");
         }
     };
 
@@ -76,6 +79,11 @@ export function FileInput() {
             <p className="text-xs text-muted-foreground/75 mt-2">
                 or click to browse
             </p>
+            {error && (
+                <p className="text-xs text-destructive mt-3">
+                    {error}
+                </p>
+            )}
         </div>
     );
 }

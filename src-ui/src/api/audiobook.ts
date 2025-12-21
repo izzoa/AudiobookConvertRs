@@ -2,7 +2,8 @@ import { invoke } from '@tauri-apps/api/core';
 import type { AudioBook } from '../types/models';
 
 export async function createAudiobookFromFiles(files: string[]): Promise<AudioBook> {
-    return await invoke('create_audiobook_from_files', { files });
+    // Backend expects { paths } per command signature
+    return await invoke('create_audiobook_from_files', { paths: files });
 }
 
 export async function loadAudiobookFile(path: string): Promise<AudioBook> {
