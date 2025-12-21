@@ -52,6 +52,15 @@ pub async fn check_ffmpeg_available(
 }
 
 #[tauri::command]
+pub async fn reset_settings(
+    _state: State<'_, AppState>
+) -> Result<(), String> {
+    let defaults = UserSettings::default();
+    config::update_settings(defaults).map_err(to_string_err)?;
+    Ok(())
+}
+
+#[tauri::command]
 pub async fn get_ffmpeg_version(
     state: State<'_, AppState>
 ) -> Result<String, String> {

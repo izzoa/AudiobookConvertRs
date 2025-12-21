@@ -3,3 +3,7 @@ pub mod metadata;
 pub mod files;
 pub mod settings;
 pub mod conversion;
+pub mod quality;
+pub mod presets;
+pub mod project;
+pub mod undo;

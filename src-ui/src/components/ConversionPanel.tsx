@@ -4,13 +4,15 @@ import { Input } from "./ui/input";
 import { Label } from "./ui/label";
 import { useApp } from "@/context/AppContext";
 import * as ConversionApi from "@/api/conversion";
-import type { ConversionSettings } from "@/types/models";
+import type { ConversionSettings, JobStatus } from "@/types/models";
 
 export function ConversionPanel() {
     const { activeAudiobook } = useApp();
     const [isStarting, setIsStarting] = useState(false);
     const [status, setStatus] = useState<string>("");
     const [outputPath, setOutputPath] = useState("output.m4b");
+    const [currentJobId, setCurrentJobId] = useState<string | null>(null);
+    const [jobStatus, setJobStatus] = useState<JobStatus | null>(null);
 
     const handleStart = async () => {
         if (!activeAudiobook) return;
@@ -30,12 +32,59 @@ export function ConversionPanel() {
             };
 
             const jobId = await ConversionApi.startConversion(settings);
+            setCurrentJobId(jobId);
+            setJobStatus('running');
             setStatus(`Started Job: ${jobId}`);
         } catch (e) {
             console.error(e);
             setStatus(`Failed to start: ${e}`);
         } finally {
             setIsStarting(false);
+        }
+    };
+
+    const handlePause = async () => {
+        if (!currentJobId) return;
+        try {
+            const paused = await ConversionApi.pauseConversion(currentJobId);
+            if (paused) {
+                setJobStatus('paused');
+                setStatus("Paused");
+            } else {
+                setStatus("Cannot pause - job not running");
+            }
+        } catch (e) {
+            console.error(e);
+            setStatus(`Failed to pause: ${e}`);
+        }
+    };
+
+    const handleResume = async () => {
+        if (!currentJobId) return;
+        try {
+            const resumed = await ConversionApi.resumeConversion(currentJobId);
+            if (resumed) {
+                setJobStatus('running');
+                setStatus("Resumed");
+            } else {
+                setStatus("Cannot resume - job not paused");
+            }
+        } catch (e) {
+            console.error(e);
+            setStatus(`Failed to resume: ${e}`);
+        }
+    };
+
+    const handleCancel = async () => {
+        if (!currentJobId) return;
+        try {
+            await ConversionApi.cancelConversion(currentJobId);
+            setJobStatus('cancelled');
+            setCurrentJobId(null);
+            setStatus("Cancelled");
+        } catch (e) {
+            console.error(e);
+            setStatus(`Failed to cancel: ${e}`);
         }
     };
 
@@ -57,10 +106,30 @@ export function ConversionPanel() {
                         onChange={(e) => setOutputPath(e.target.value)}
                     />
                 </div>
-                <Button onClick={handleStart} disabled={isStarting}>
+                <Button onClick={handleStart} disabled={isStarting || jobStatus === 'running' || jobStatus === 'paused'}>
                     {isStarting ? "Starting..." : "Start Conversion"}
                 </Button>
             </div>
+
+            {currentJobId && (
+                <div className="flex gap-2">
+                    {jobStatus === 'running' && (
+                        <Button variant="secondary" onClick={handlePause}>
+                            Pause
+                        </Button>
+                    )}
+                    {jobStatus === 'paused' && (
+                        <Button variant="secondary" onClick={handleResume}>
+                            Resume
+                        </Button>
+                    )}
+                    {(jobStatus === 'running' || jobStatus === 'paused') && (
+                        <Button variant="destructive" onClick={handleCancel}>
+                            Cancel
+                        </Button>
+                    )}
+                </div>
+            )}
         </div>
     );
 }

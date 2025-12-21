@@ -23,3 +23,19 @@ export async function validateFiles(paths: string[]): Promise<Record<string, Val
 export async function getFileInfo(path: string): Promise<any> {
     return await invoke('get_file_info', { path });
 }
+
+export async function pickSaveProjectFile(): Promise<string | null> {
+    return await invoke('pick_save_project_file');
+}
+
+export async function pickOpenProjectFile(): Promise<string | null> {
+    return await invoke('pick_open_project_file');
+}
+
+export async function pickExportSummaryFile(defaultName: string): Promise<string | null> {
+    return await invoke('pick_export_summary_file', { defaultName });
+}
+
+export async function writeTextFile(path: string, content: string): Promise<void> {
+    return await invoke('write_text_file', { path, content });
+}

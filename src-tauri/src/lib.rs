@@ -11,7 +11,10 @@ pub mod ffmpeg;
 pub mod logging;
 pub mod metadata;
 pub mod models;
+pub mod perf;
+pub mod project;
 pub mod state;
+pub mod undo;
 pub mod commands;
 pub mod events;
 

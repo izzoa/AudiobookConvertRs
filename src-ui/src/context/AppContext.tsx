@@ -1,7 +1,7 @@
-import { createContext, useContext, useState, useEffect, type ReactNode } from 'react';
-import type { AudioBook, UserSettings, ConversionJob } from '../types/models';
+import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from 'react';
+import type { AudioBook, UserSettings, ConversionJob, UndoState } from '../types/models';
 import * as SettingsApi from '../api/settings';
-// import * as AudiobookApi from '../api/audiobook'; // Unused for now
+import * as UndoApi from '../api/undo';
 
 interface AppState {
     activeAudiobook: AudioBook | null;
@@ -11,6 +11,10 @@ interface AppState {
     conversionQueue: ConversionJob[];
     addToQueue: (job: ConversionJob) => void;
     isLoading: boolean;
+    undoState: UndoState;
+    handleUndo: () => Promise<void>;
+    handleRedo: () => Promise<void>;
+    refreshUndoState: () => Promise<void>;
 }
 
 const AppContext = createContext<AppState | undefined>(undefined);
@@ -20,14 +24,50 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const [settings, setSettings] = useState<UserSettings | null>(null);
     const [conversionQueue, setConversionQueue] = useState<ConversionJob[]>([]);
     const [isLoading, setIsLoading] = useState(true);
+    const [undoState, setUndoState] = useState<UndoState>({
+        canUndo: false,
+        canRedo: false,
+    });
+
+    const refreshUndoState = useCallback(async () => {
+        try {
+            const state = await UndoApi.getUndoState();
+            setUndoState(state);
+        } catch (error) {
+            console.error("Failed to refresh undo state:", error);
+        }
+    }, []);
+
+    const handleUndo = useCallback(async () => {
+        try {
+            const description = await UndoApi.undo();
+            if (description) {
+                console.log("Undid:", description);
+            }
+            await refreshUndoState();
+        } catch (error) {
+            console.error("Undo failed:", error);
+        }
+    }, [refreshUndoState]);
+
+    const handleRedo = useCallback(async () => {
+        try {
+            const description = await UndoApi.redo();
+            if (description) {
+                console.log("Redid:", description);
+            }
+            await refreshUndoState();
+        } catch (error) {
+            console.error("Redo failed:", error);
+        }
+    }, [refreshUndoState]);
 
     useEffect(() => {
         async function loadInitialData() {
             try {
                 const loadedSettings = await SettingsApi.getSettings();
                 setSettings(loadedSettings);
-
-                // TODO: Load last open audiobook if applicable
+                await refreshUndoState();
             } catch (error) {
                 console.error("Failed to load settings:", error);
             } finally {
@@ -35,7 +75,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
             }
         }
         loadInitialData();
-    }, []);
+    }, [refreshUndoState]);
 
     // Apply theme effect
     useEffect(() => {
@@ -74,7 +114,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
             updateSettings: handleUpdateSettings,
             conversionQueue,
             addToQueue,
-            isLoading
+            isLoading,
+            undoState,
+            handleUndo,
+            handleRedo,
+            refreshUndoState,
         }}>
             {children}
         </AppContext.Provider>

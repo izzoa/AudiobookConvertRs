@@ -122,3 +122,107 @@ export interface FFmpegInfo {
     copyright: string;
     build_config: string;
 }
+
+// Audio Quality Types
+export interface AudioLevels {
+    integrated_loudness_lufs: number;
+    loudness_range_lu: number;
+    true_peak_dbtp: number;
+    threshold_lufs: number;
+    target_offset: number;
+}
+
+export interface NormalizationSuggestion {
+    recommended: boolean;
+    reason: string;
+    target_lufs: number;
+    target_true_peak: number;
+    target_lra: number;
+}
+
+export interface NormalizationSettings {
+    target_lufs: number;
+    target_true_peak: number;
+    target_lra: number;
+    two_pass: boolean;
+}
+
+// Preset Types
+export interface PresetSettings {
+    bitrate_kbps: number;
+    sample_rate?: number;
+    concurrent_jobs: number;
+    overwrite_existing: boolean;
+    embed_chapters: boolean;
+    embed_artwork: boolean;
+    copy_metadata: boolean;
+    normalize: boolean;
+    target_lufs?: number;
+}
+
+export interface ConversionPreset {
+    name: string;
+    description?: string;
+    settings: PresetSettings;
+    created_at: string;
+    modified_at: string;
+}
+
+// Dry Run Types
+export interface DryRunResult {
+    title: string;
+    input_duration_ms: number;
+    input_file_count: number;
+    input_size_bytes: number;
+    estimated_output_size_bytes: number;
+    estimated_time_seconds: number;
+    output_path: string;
+    output_exists: boolean;
+    chapter_count: number;
+    has_artwork: boolean;
+    warnings: string[];
+}
+
+// Project Types
+export interface Project {
+    version: number;
+    audiobook: AudioBook;
+    conversion_settings?: ConversionSettings;
+    created_at: string;
+    saved_at: string;
+    app_version: string;
+    notes?: string;
+}
+
+export interface RecentProject {
+    path: string;
+    title: string;
+    last_opened: string;
+    exists: boolean;
+}
+
+export interface ProjectExport {
+    title: string;
+    author?: string;
+    narrator?: string;
+    duration_formatted: string;
+    chapter_count: number;
+    file_count: number;
+    chapters: ChapterExport[];
+}
+
+export interface ChapterExport {
+    index: number;
+    title: string;
+    start_time: string;
+    end_time: string;
+    duration: string;
+}
+
+// Undo Types
+export interface UndoState {
+    canUndo: boolean;
+    canRedo: boolean;
+    undoDescription?: string;
+    redoDescription?: string;
+}

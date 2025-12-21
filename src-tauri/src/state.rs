@@ -277,6 +277,36 @@ impl AppState {
         Ok(())
     }
 
+    /// Pause a job
+    pub fn pause_job(&self, id: &str) -> AppResult<bool> {
+        let mut paused = false;
+        self.update_job_with(id, |job| {
+            paused = job.pause();
+        })?;
+
+        if paused {
+            info!("Paused job: {}", id);
+        } else {
+            warn!("Cannot pause job {} - not running", id);
+        }
+        Ok(paused)
+    }
+
+    /// Resume a job
+    pub fn resume_job(&self, id: &str) -> AppResult<bool> {
+        let mut resumed = false;
+        self.update_job_with(id, |job| {
+            resumed = job.resume();
+        })?;
+
+        if resumed {
+            info!("Resumed job: {}", id);
+        } else {
+            warn!("Cannot resume job {} - not paused", id);
+        }
+        Ok(resumed)
+    }
+
     /// Remove completed/cancelled jobs from queue
     pub fn cleanup_completed_jobs(&self) {
         let mut state = self.inner.write();

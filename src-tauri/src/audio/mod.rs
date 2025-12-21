@@ -11,9 +11,11 @@ pub mod loader;
 pub mod format;
 pub mod timing;
 pub mod batch;
+pub mod quality;
 
 pub use loader::*;
 pub use format::*;
 pub use timing::*;
 pub use batch::*;
+pub use quality::*;
 

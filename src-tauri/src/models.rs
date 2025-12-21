@@ -567,6 +567,26 @@ impl ConversionJob {
         self.completed_at = Some(Utc::now());
     }
 
+    /// Pause the job (only if running)
+    pub fn pause(&mut self) -> bool {
+        if self.status == JobStatus::Running {
+            self.status = JobStatus::Paused;
+            true
+        } else {
+            false
+        }
+    }
+
+    /// Resume the job (only if paused)
+    pub fn resume(&mut self) -> bool {
+        if self.status == JobStatus::Paused {
+            self.status = JobStatus::Running;
+            true
+        } else {
+            false
+        }
+    }
+
     /// Get elapsed time since job started
     pub fn elapsed(&self) -> Option<chrono::Duration> {
         self.started_at.map(|started| {

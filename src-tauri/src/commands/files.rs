@@ -86,3 +86,55 @@ pub async fn get_file_info(path: String) -> Result<AudioFile, String> {
     let path_buf = Utf8PathBuf::from(path);
     loader::load_audio_file(&path_buf).map_err(to_string_err)
 }
+
+#[tauri::command]
+pub async fn pick_save_project_file(app: AppHandle) -> Result<Option<String>, String> {
+    let file_path = app.dialog()
+        .file()
+        .add_filter("Audiobook Project", &["abcproj"])
+        .set_file_name("project.abcproj")
+        .blocking_save_file();
+
+    match file_path {
+        Some(path) => {
+            Ok(Some(path.as_path().map(|p| p.to_string_lossy().to_string()).unwrap_or_default()))
+        },
+        None => Ok(None)
+    }
+}
+
+#[tauri::command]
+pub async fn pick_open_project_file(app: AppHandle) -> Result<Option<String>, String> {
+    let file_path = app.dialog()
+        .file()
+        .add_filter("Audiobook Project", &["abcproj"])
+        .blocking_pick_file();
+
+    match file_path {
+        Some(path) => {
+            Ok(Some(path.as_path().map(|p| p.to_string_lossy().to_string()).unwrap_or_default()))
+        },
+        None => Ok(None)
+    }
+}
+
+#[tauri::command]
+pub async fn pick_export_summary_file(app: AppHandle, default_name: String) -> Result<Option<String>, String> {
+    let file_path = app.dialog()
+        .file()
+        .add_filter("Text File", &["txt", "json"])
+        .set_file_name(&format!("{}.txt", default_name))
+        .blocking_save_file();
+
+    match file_path {
+        Some(path) => {
+            Ok(Some(path.as_path().map(|p| p.to_string_lossy().to_string()).unwrap_or_default()))
+        },
+        None => Ok(None)
+    }
+}
+
+#[tauri::command]
+pub async fn write_text_file(path: String, content: String) -> Result<(), String> {
+    std::fs::write(&path, content).map_err(|e| e.to_string())
+}

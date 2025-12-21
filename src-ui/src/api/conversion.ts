@@ -13,3 +13,11 @@ export async function cancelConversion(jobId: string): Promise<void> {
 export async function getConversionStatus(jobId: string): Promise<ConversionJob> {
     return await invoke('get_conversion_status', { jobId });
 }
+
+export async function pauseConversion(jobId: string): Promise<boolean> {
+    return await invoke('pause_conversion', { jobId });
+}
+
+export async function resumeConversion(jobId: string): Promise<boolean> {
+    return await invoke('resume_conversion', { jobId });
+}

@@ -55,6 +55,10 @@ fn main() {
             audiobookconvert_rs::commands::files::pick_directory,
             audiobookconvert_rs::commands::files::validate_files,
             audiobookconvert_rs::commands::files::get_file_info,
+            audiobookconvert_rs::commands::files::pick_save_project_file,
+            audiobookconvert_rs::commands::files::pick_open_project_file,
+            audiobookconvert_rs::commands::files::pick_export_summary_file,
+            audiobookconvert_rs::commands::files::write_text_file,
             // Settings
             audiobookconvert_rs::commands::settings::get_settings,
             audiobookconvert_rs::commands::settings::update_settings,
@@ -65,6 +69,29 @@ fn main() {
             audiobookconvert_rs::commands::conversion::start_conversion,
             audiobookconvert_rs::commands::conversion::cancel_conversion,
             audiobookconvert_rs::commands::conversion::get_conversion_status,
+            // Quality
+            audiobookconvert_rs::commands::quality::analyze_audio_levels,
+            audiobookconvert_rs::commands::quality::suggest_normalization,
+            audiobookconvert_rs::commands::quality::apply_audio_normalization,
+            // Presets
+            audiobookconvert_rs::commands::presets::list_presets,
+            audiobookconvert_rs::commands::presets::get_preset,
+            audiobookconvert_rs::commands::presets::save_preset,
+            audiobookconvert_rs::commands::presets::delete_preset,
+            audiobookconvert_rs::commands::presets::dry_run_conversion,
+            // Project
+            audiobookconvert_rs::commands::project::save_project,
+            audiobookconvert_rs::commands::project::load_project,
+            audiobookconvert_rs::commands::project::list_recent_projects,
+            audiobookconvert_rs::commands::project::clear_recent_projects,
+            audiobookconvert_rs::commands::project::export_project_summary,
+            // Undo
+            audiobookconvert_rs::commands::undo::undo,
+            audiobookconvert_rs::commands::undo::redo,
+            audiobookconvert_rs::commands::undo::can_undo,
+            audiobookconvert_rs::commands::undo::can_redo,
+            audiobookconvert_rs::commands::undo::get_undo_description,
+            audiobookconvert_rs::commands::undo::get_redo_description,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

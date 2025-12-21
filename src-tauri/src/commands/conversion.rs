@@ -57,3 +57,19 @@ pub async fn get_conversion_status(
 ) -> Result<ConversionJob, String> {
     state.get_job(&job_id).ok_or("Job not found".to_string())
 }
+
+#[tauri::command]
+pub async fn pause_conversion(
+    job_id: String,
+    state: State<'_, AppState>
+) -> Result<bool, String> {
+    state.pause_job(&job_id).map_err(to_string_err)
+}
+
+#[tauri::command]
+pub async fn resume_conversion(
+    job_id: String,
+    state: State<'_, AppState>
+) -> Result<bool, String> {
+    state.resume_job(&job_id).map_err(to_string_err)
+}

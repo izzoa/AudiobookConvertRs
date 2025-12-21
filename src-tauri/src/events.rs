@@ -30,6 +30,11 @@ pub struct FilesLoaded {
     pub total_duration_ms: u64,
 }
 
+#[derive(Clone, Serialize)]
+pub struct MetadataUpdated {
+    pub audiobook_id: String,
+}
+
 pub fn emit_progress(window: &Window, event: ConversionProgress) -> tauri::Result<()> {
     window.emit("conversion_progress", event)
 }
@@ -44,4 +49,8 @@ pub fn emit_error(window: &Window, event: ConversionError) -> tauri::Result<()> 
 
 pub fn emit_files_loaded(window: &Window, event: FilesLoaded) -> tauri::Result<()> {
     window.emit("files_loaded", event)
+}
+
+pub fn emit_metadata_updated(window: &Window, event: MetadataUpdated) -> tauri::Result<()> {
+    window.emit("metadata_updated", event)
 }

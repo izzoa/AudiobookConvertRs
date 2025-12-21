@@ -7,6 +7,7 @@
 //! - Error recovery
 //! - Temporary file management
 
+pub mod batch;
 pub mod pipeline;
 pub mod progress;
 pub mod queue;
@@ -14,6 +15,7 @@ pub mod recovery;
 pub mod temp;
 pub mod worker;
 
+pub use batch::*;
 pub use pipeline::*;
 pub use progress::*;
 pub use queue::*;

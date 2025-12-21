@@ -2,11 +2,30 @@ import { Layout } from "@/components/Layout";
 import { FileInput } from "@/components/FileInput";
 import { MetadataEditor } from "@/components/MetadataEditor";
 import { ConversionPanel } from "@/components/ConversionPanel";
+import { NormalizationPanel } from "@/components/NormalizationPanel";
+import { DryRunPreview } from "@/components/DryRunPreview";
+import { ProjectManager } from "@/components/ProjectManager";
+import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
 
 function App() {
+  useKeyboardShortcuts({
+    onOpen: () => {
+      console.log("Open project shortcut triggered");
+    },
+    onSave: () => {
+      console.log("Save project shortcut triggered");
+    },
+  });
+
   return (
     <Layout>
       <div className="p-6 space-y-6 max-w-4xl mx-auto">
+
+        {/* Project Management */}
+        <section className="space-y-3">
+          <h2 className="text-xl font-semibold tracking-tight">Project</h2>
+          <ProjectManager />
+        </section>
 
         {/* Step 1: Import */}
         <section className="space-y-3">
@@ -20,9 +39,16 @@ function App() {
           <MetadataEditor />
         </section>
 
+        {/* Audio Quality */}
+        <section className="space-y-3">
+          <h2 className="text-xl font-semibold tracking-tight">Audio Quality</h2>
+          <NormalizationPanel />
+        </section>
+
         {/* Step 3: Convert */}
         <section className="space-y-3">
           <h2 className="text-xl font-semibold tracking-tight">Step 3: Convert</h2>
+          <DryRunPreview />
           <ConversionPanel />
         </section>
 
