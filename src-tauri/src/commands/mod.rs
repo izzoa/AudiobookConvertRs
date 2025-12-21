@@ -7,3 +7,4 @@ pub mod quality;
 pub mod presets;
 pub mod project;
 pub mod undo;
+pub mod open_library;

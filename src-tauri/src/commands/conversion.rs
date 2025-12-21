@@ -13,14 +13,11 @@ pub async fn start_conversion(
     state: State<'_, AppState>,
     _window: Window // Will be used for events later
 ) -> Result<String, String> {
-    let current_opt = state.get_active_audiobook();
-    
-    let audiobook = match current_opt {
-        Some(ab) if ab.id == audiobook_id => ab,
-        _ => return Err("Audiobook not found or not loaded".to_string())
-    };
+    // Get audiobook by ID - validate it exists
+    let audiobook = state.get_audiobook(&audiobook_id)
+        .ok_or_else(|| format!("Audiobook not found: {}", audiobook_id))?;
 
-    // basic validation
+    // Basic validation
     if settings.output_path.as_str().is_empty() {
         return Err("Output path is required".to_string());
     }

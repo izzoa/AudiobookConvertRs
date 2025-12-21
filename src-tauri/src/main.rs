@@ -50,6 +50,8 @@ fn main() {
             audiobookconvert_rs::commands::metadata::reorder_chapters,
             audiobookconvert_rs::commands::metadata::auto_create_chapters,
             audiobookconvert_rs::commands::metadata::upload_artwork,
+            audiobookconvert_rs::commands::metadata::set_artwork_base64,
+            audiobookconvert_rs::commands::metadata::clear_artwork,
             // Files
             audiobookconvert_rs::commands::files::pick_files,
             audiobookconvert_rs::commands::files::pick_directory,
@@ -59,6 +61,7 @@ fn main() {
             audiobookconvert_rs::commands::files::pick_open_project_file,
             audiobookconvert_rs::commands::files::pick_export_summary_file,
             audiobookconvert_rs::commands::files::write_text_file,
+            audiobookconvert_rs::commands::files::pick_artwork_file,
             // Settings
             audiobookconvert_rs::commands::settings::get_settings,
             audiobookconvert_rs::commands::settings::update_settings,
@@ -92,6 +95,9 @@ fn main() {
             audiobookconvert_rs::commands::undo::can_redo,
             audiobookconvert_rs::commands::undo::get_undo_description,
             audiobookconvert_rs::commands::undo::get_redo_description,
+            // Open Library
+            audiobookconvert_rs::commands::open_library::open_library_search,
+            audiobookconvert_rs::commands::open_library::open_library_apply,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

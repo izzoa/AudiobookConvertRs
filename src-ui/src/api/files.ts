@@ -39,3 +39,7 @@ export async function pickExportSummaryFile(defaultName: string): Promise<string
 export async function writeTextFile(path: string, content: string): Promise<void> {
     return await invoke('write_text_file', { path, content });
 }
+
+export async function pickArtworkFile(): Promise<string | null> {
+    return await invoke('pick_artwork_file');
+}

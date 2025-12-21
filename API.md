@@ -177,3 +177,157 @@ interface AppInfo {
   ffmpeg_status: FFmpegStatus;
 }
 ```
+
+## Artwork Commands
+
+### `pick_artwork_file`
+Open a file picker dialog to select an artwork image file.
+
+```typescript
+// Returns the selected file path, or null if cancelled
+function pick_artwork_file(): Promise<string | null>
+```
+
+### `upload_artwork`
+Upload artwork from a file path.
+
+```typescript
+interface UploadArtworkRequest {
+  audiobook_id: string;
+  image_path: string;
+}
+
+interface UploadArtworkResponse {
+  audiobook: AudioBook; // Returns updated audiobook
+}
+```
+
+### `set_artwork_base64`
+Set artwork from base64-encoded image data (e.g., from drag-and-drop).
+
+```typescript
+interface SetArtworkBase64Request {
+  audiobook_id: string;
+  artwork_base64: string; // Base64-encoded image bytes
+}
+
+interface SetArtworkBase64Response {
+  audiobook: AudioBook; // Returns updated audiobook
+}
+```
+
+### `clear_artwork`
+Remove artwork from the audiobook.
+
+```typescript
+interface ClearArtworkRequest {
+  audiobook_id: string;
+}
+
+interface ClearArtworkResponse {
+  audiobook: AudioBook; // Returns updated audiobook
+}
+```
+
+## Open Library Integration
+
+### `open_library_search`
+Search for books on Open Library.
+
+```typescript
+interface OpenLibrarySearchRequest {
+  query: string;
+  limit?: number; // Default: 10, max: 100
+}
+
+interface OpenLibrarySearchResult {
+  key: string;
+  title: string;
+  author_name?: string[];
+  first_publish_year?: number;
+  cover_i?: number; // Cover ID for fetching artwork
+  publisher?: string[];
+  subject?: string[];
+}
+
+type OpenLibrarySearchResponse = OpenLibrarySearchResult[];
+```
+
+### `open_library_apply`
+Apply selected Open Library metadata to the audiobook.
+
+```typescript
+interface OpenLibraryApplyRequest {
+  audiobook_id: string;
+  selection: OpenLibrarySelection;
+  download_cover: boolean; // Whether to download and apply cover art
+}
+
+interface OpenLibrarySelection {
+  key: string;
+  title: string;
+  author?: string;
+  year?: number;
+  cover_id?: number;
+  publisher?: string;
+  genre?: string;
+}
+
+interface OpenLibraryApplyResponse {
+  audiobook: AudioBook; // Returns updated audiobook with new metadata
+}
+```
+
+## Updated Metadata Commands
+
+All metadata commands now require `audiobook_id` and return the updated `AudioBook`:
+
+### `update_audiobook_metadata`
+```typescript
+function update_audiobook_metadata(
+  audiobook_id: string,
+  metadata: Metadata
+): Promise<AudioBook>
+```
+
+### `add_chapter`
+```typescript
+function add_chapter(
+  audiobook_id: string,
+  chapter: Chapter
+): Promise<AudioBook>
+```
+
+### `update_chapter`
+```typescript
+function update_chapter(
+  audiobook_id: string,
+  index: number,
+  update: ChapterUpdate
+): Promise<AudioBook>
+```
+
+### `delete_chapter`
+```typescript
+function delete_chapter(
+  audiobook_id: string,
+  index: number
+): Promise<AudioBook>
+```
+
+### `reorder_chapters`
+```typescript
+function reorder_chapters(
+  audiobook_id: string,
+  old_index: number,
+  new_index: number
+): Promise<AudioBook>
+```
+
+### `auto_create_chapters`
+```typescript
+function auto_create_chapters(
+  audiobook_id: string,
+  count: number
+): Promise<AudioBook>
+```

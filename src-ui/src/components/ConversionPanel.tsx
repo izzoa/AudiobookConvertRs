@@ -31,7 +31,7 @@ export function ConversionPanel() {
                 copy_metadata: true,
             };
 
-            const jobId = await ConversionApi.startConversion(settings);
+            const jobId = await ConversionApi.startConversion(activeAudiobook.id, settings);
             setCurrentJobId(jobId);
             setJobStatus('running');
             setStatus(`Started Job: ${jobId}`);

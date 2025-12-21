@@ -63,6 +63,12 @@ pub enum AppError {
     #[error("Artwork processing failed: {0}")]
     ArtworkError(String),
 
+    #[error("Metadata lookup failed for provider '{provider}': {reason}")]
+    MetadataLookupError { provider: String, reason: String },
+
+    #[error("Network request failed: {0}")]
+    NetworkError(String),
+
     // ============================================
     // Chapter Errors
     // ============================================

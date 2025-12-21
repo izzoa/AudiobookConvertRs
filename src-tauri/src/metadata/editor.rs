@@ -65,7 +65,37 @@ pub fn add_chapter(audiobook: &mut AudioBook, chapter: Chapter) -> AppResult<()>
     Ok(())
 }
 
-/// Set audiobook artwork
+/// Set audiobook artwork from raw bytes
+///
+/// Converts/resizes the image bytes to JPEG format and stores as base64.
+/// This function runs CPU-intensive work via spawn_blocking.
+pub fn set_artwork_bytes(audiobook: &mut AudioBook, bytes: &[u8]) -> AppResult<()> {
+    debug!("Setting artwork from bytes for audiobook {}: {} bytes", audiobook.id, bytes.len());
+
+    if bytes.is_empty() {
+        return Err(AppError::ArtworkError("Artwork data is empty".to_string()));
+    }
+
+    // Convert/resize the artwork using the artwork module
+    let processed_bytes = crate::metadata::artwork::resize_artwork_if_needed(
+        bytes, 
+        crate::metadata::artwork::DEFAULT_MAX_ARTWORK_DIMENSION
+    )?;
+
+    // Encode as base64
+    use base64::{Engine as _, engine::general_purpose::STANDARD};
+    let base64_data = STANDARD.encode(&processed_bytes);
+
+    // Clear the path since we're setting from bytes, not a file
+    audiobook.output_metadata.artwork_path = None;
+    audiobook.output_metadata.artwork_data = Some(base64_data);
+    audiobook.mark_modified();
+
+    info!("Set artwork from bytes for audiobook {}", audiobook.id);
+    Ok(())
+}
+
+/// Set audiobook artwork from a file path
 pub fn set_artwork(audiobook: &mut AudioBook, path: impl Into<std::path::PathBuf>) -> AppResult<()> {
     let path_buf = path.into();
     let utf8_path = camino::Utf8PathBuf::from_path_buf(path_buf.clone())
@@ -73,17 +103,28 @@ pub fn set_artwork(audiobook: &mut AudioBook, path: impl Into<std::path::PathBuf
 
     debug!("Setting artwork for audiobook {}: {}", audiobook.id, utf8_path);
 
-    // Read image data and encode as base64
+    // Read image data
     let image_data = std::fs::read(&utf8_path)
         .map_err(|e| AppError::file_read(&utf8_path, e.to_string()))?;
     
-    use base64::{Engine as _, engine::general_purpose::STANDARD};
-    let base64_data = STANDARD.encode(&image_data);
-
+    // Convert/resize using set_artwork_bytes
+    set_artwork_bytes(audiobook, &image_data)?;
+    
+    // Also store the path for reference
     audiobook.output_metadata.artwork_path = Some(utf8_path);
-    audiobook.output_metadata.artwork_data = Some(base64_data);
+
+    Ok(())
+}
+
+/// Clear audiobook artwork
+pub fn clear_artwork(audiobook: &mut AudioBook) -> AppResult<()> {
+    debug!("Clearing artwork for audiobook {}", audiobook.id);
+
+    audiobook.output_metadata.artwork_path = None;
+    audiobook.output_metadata.artwork_data = None;
     audiobook.mark_modified();
 
+    info!("Cleared artwork for audiobook {}", audiobook.id);
     Ok(())
 }
 
@@ -335,5 +376,65 @@ mod tests {
 
         mark_as_saved(&mut audiobook);
         assert!(!has_unsaved_changes(&audiobook));
+    }
+
+    #[test]
+    fn test_set_artwork_bytes_valid() {
+        let mut audiobook = create_test_audiobook();
+
+        // Minimal valid JPEG (1x1 red pixel)
+        let jpeg_bytes = vec![
+            0xFF, 0xD8, 0xFF, 0xE0, 0x00, 0x10, 0x4A, 0x46, 0x49, 0x46, 0x00, 0x01,
+            0x01, 0x00, 0x00, 0x01, 0x00, 0x01, 0x00, 0x00, 0xFF, 0xDB, 0x00, 0x43,
+            0x00, 0x08, 0x06, 0x06, 0x07, 0x06, 0x05, 0x08, 0x07, 0x07, 0x07, 0x09,
+            0x09, 0x08, 0x0A, 0x0C, 0x14, 0x0D, 0x0C, 0x0B, 0x0B, 0x0C, 0x19, 0x12,
+            0x13, 0x0F, 0x14, 0x1D, 0x1A, 0x1F, 0x1E, 0x1D, 0x1A, 0x1C, 0x1C, 0x20,
+            0x24, 0x2E, 0x27, 0x20, 0x22, 0x2C, 0x23, 0x1C, 0x1C, 0x28, 0x37, 0x29,
+            0x2C, 0x30, 0x31, 0x34, 0x34, 0x34, 0x1F, 0x27, 0x39, 0x3D, 0x38, 0x32,
+            0x3C, 0x2E, 0x33, 0x34, 0x32, 0xFF, 0xC0, 0x00, 0x0B, 0x08, 0x00, 0x01,
+            0x00, 0x01, 0x01, 0x01, 0x11, 0x00, 0xFF, 0xC4, 0x00, 0x1F, 0x00, 0x00,
+            0x01, 0x05, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x00, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08,
+            0x09, 0x0A, 0x0B, 0xFF, 0xC4, 0x00, 0xB5, 0x10, 0x00, 0x02, 0x01, 0x03,
+        ];
+
+        let result = set_artwork_bytes(&mut audiobook, &jpeg_bytes);
+        assert!(result.is_ok());
+        assert!(audiobook.output_metadata.artwork_data.is_some());
+        assert!(audiobook.is_dirty);
+
+        // Verify base64 is non-empty
+        let artwork_data = audiobook.output_metadata.artwork_data.unwrap();
+        assert!(!artwork_data.is_empty());
+    }
+
+    #[test]
+    fn test_set_artwork_bytes_empty() {
+        let mut audiobook = create_test_audiobook();
+        let result = set_artwork_bytes(&mut audiobook, &[]);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_set_artwork_bytes_invalid_image() {
+        let mut audiobook = create_test_audiobook();
+        let invalid_bytes = vec![0x00, 0x01, 0x02, 0x03];
+        let result = set_artwork_bytes(&mut audiobook, &invalid_bytes);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_clear_artwork() {
+        let mut audiobook = create_test_audiobook();
+        
+        // Set some artwork first
+        audiobook.output_metadata.artwork_data = Some("base64data".to_string());
+        audiobook.output_metadata.artwork_path = Some("path.jpg".into());
+
+        clear_artwork(&mut audiobook).unwrap();
+
+        assert!(audiobook.output_metadata.artwork_data.is_none());
+        assert!(audiobook.output_metadata.artwork_path.is_none());
+        assert!(audiobook.is_dirty);
     }
 }

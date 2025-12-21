@@ -1,9 +1,9 @@
 import { invoke } from '@tauri-apps/api/core';
 import type { ConversionSettings, ConversionJob } from '../types/models';
 
-export async function startConversion(settings: ConversionSettings): Promise<string> {
-    // Backend: start_conversion(state, settings) -> AppResult<String> (job_id)
-    return await invoke('start_conversion', { settings });
+export async function startConversion(audiobookId: string, settings: ConversionSettings): Promise<string> {
+    // Backend: start_conversion(audiobook_id, settings) -> AppResult<String> (job_id)
+    return await invoke('start_conversion', { audiobookId, settings });
 }
 
 export async function cancelConversion(jobId: string): Promise<void> {

@@ -138,3 +138,18 @@ pub async fn pick_export_summary_file(app: AppHandle, default_name: String) -> R
 pub async fn write_text_file(path: String, content: String) -> Result<(), String> {
     std::fs::write(&path, content).map_err(|e| e.to_string())
 }
+
+#[tauri::command]
+pub async fn pick_artwork_file(app: AppHandle) -> Result<Option<String>, String> {
+    let file_path = app.dialog()
+        .file()
+        .add_filter("Image Files", &["jpg", "jpeg", "png", "webp", "gif", "bmp"])
+        .blocking_pick_file();
+
+    match file_path {
+        Some(path) => {
+            Ok(Some(path.as_path().map(|p| p.to_string_lossy().to_string()).unwrap_or_default()))
+        },
+        None => Ok(None)
+    }
+}

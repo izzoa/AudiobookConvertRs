@@ -5,6 +5,8 @@ import { Label } from "./ui/label";
 import { useApp } from "@/context/AppContext";
 import * as MetadataApi from "@/api/metadata";
 import type { Metadata } from "@/types/models";
+import { OpenLibraryFetcher } from "./OpenLibraryFetcher";
+import { ArtworkPicker } from "./ArtworkPicker";
 
 export function MetadataEditor() {
     const { activeAudiobook, setActiveAudiobook } = useApp();
@@ -25,15 +27,9 @@ export function MetadataEditor() {
         if (!activeAudiobook) return;
         setIsSaving(true);
         try {
-            await MetadataApi.updateAudiobookMetadata(activeAudiobook.id, metadata);
-
-            // Update local context
-            setActiveAudiobook({
-                ...activeAudiobook,
-                output_metadata: metadata,
-                title: metadata.title || activeAudiobook.title,
-                author: metadata.artist || activeAudiobook.author,
-            });
+            const updatedAudiobook = await MetadataApi.updateAudiobookMetadata(activeAudiobook.id, metadata);
+            // Update local context with returned audiobook
+            setActiveAudiobook(updatedAudiobook);
         } catch (error) {
             console.error("Failed to save metadata:", error);
         } finally {
@@ -50,9 +46,18 @@ export function MetadataEditor() {
     }
 
     return (
-        <div className="space-y-4 p-4 border rounded-lg bg-card">
-            <div className="grid gap-2">
-                <Label htmlFor="title">Title</Label>
+        <div className="space-y-6">
+            {/* Fetch from Open Library */}
+            <OpenLibraryFetcher />
+
+            {/* Cover Artwork */}
+            <ArtworkPicker />
+
+            {/* Manual Metadata Editing */}
+            <div className="space-y-4 p-4 border rounded-lg bg-card">
+                <Label className="text-base font-semibold">Manual Metadata</Label>
+                <div className="grid gap-2">
+                    <Label htmlFor="title">Title</Label>
                 <Input
                     id="title"
                     placeholder="Enter audiobook title"
@@ -114,14 +119,15 @@ export function MetadataEditor() {
                 />
             </div>
 
-            <div className="pt-2">
-                <Button
-                    className="w-full sm:w-auto"
-                    onClick={handleSave}
-                    disabled={isSaving}
-                >
-                    {isSaving ? "Saving..." : "Save Metadata"}
-                </Button>
+                <div className="pt-2">
+                    <Button
+                        className="w-full sm:w-auto"
+                        onClick={handleSave}
+                        disabled={isSaving}
+                    >
+                        {isSaving ? "Saving..." : "Save Metadata"}
+                    </Button>
+                </div>
             </div>
         </div>
     );

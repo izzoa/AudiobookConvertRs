@@ -226,3 +226,24 @@ export interface UndoState {
     undoDescription?: string;
     redoDescription?: string;
 }
+
+// Open Library Types
+export interface OpenLibrarySearchResult {
+    key: string;
+    title: string;
+    author_name?: string[];
+    first_publish_year?: number;
+    cover_i?: number;
+    publisher?: string[];
+    subject?: string[];
+}
+
+export interface OpenLibrarySelection {
+    key: string;
+    title: string;
+    author?: string;
+    year?: number;
+    cover_id?: number;
+    publisher?: string;
+    genre?: string;
+}

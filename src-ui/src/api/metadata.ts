@@ -1,41 +1,38 @@
 import { invoke } from '@tauri-apps/api/core';
-import type { Metadata, Chapter, ChapterUpdate } from '../types/models';
+import type { Metadata, Chapter, ChapterUpdate, AudioBook } from '../types/models';
 
-export async function updateAudiobookMetadata(audiobookId: string, metadata: Metadata): Promise<void> {
-    // Note: The backend command doesn't actually need ID if it operates on active audiobook,
-    // but verifying 'metadata.rs' command signature:
-    // fn update_audiobook_metadata(state: State<'_, AppState>, metadata: Metadata)
-    console.debug('Updating metadata for', audiobookId); // Use variable to silence warning
-    return await invoke('update_audiobook_metadata', { metadata });
+export async function updateAudiobookMetadata(audiobookId: string, metadata: Metadata): Promise<AudioBook> {
+    return await invoke('update_audiobook_metadata', { audiobookId, metadata });
 }
 
-export async function addChapter(chapter: Chapter): Promise<void> {
-    return await invoke('add_chapter', { chapter });
+export async function addChapter(audiobookId: string, chapter: Chapter): Promise<AudioBook> {
+    return await invoke('add_chapter', { audiobookId, chapter });
 }
 
-export async function updateChapter(index: number, update: ChapterUpdate): Promise<void> {
-    return await invoke('update_chapter', { index, update });
+export async function updateChapter(audiobookId: string, index: number, update: ChapterUpdate): Promise<AudioBook> {
+    return await invoke('update_chapter', { audiobookId, index, update });
 }
 
-export async function deleteChapter(index: number): Promise<void> {
-    return await invoke('delete_chapter', { index });
+export async function deleteChapter(audiobookId: string, index: number): Promise<AudioBook> {
+    return await invoke('delete_chapter', { audiobookId, index });
 }
 
-export async function reorderChapters(oldIndex: number, newIndex: number): Promise<void> {
-    return await invoke('reorder_chapters', { oldIndex, newIndex });
+export async function reorderChapters(audiobookId: string, oldIndex: number, newIndex: number): Promise<AudioBook> {
+    return await invoke('reorder_chapters', { audiobookId, oldIndex, newIndex });
 }
 
-export async function autoCreateChapters(minDurationMs: number): Promise<void> {
-    // Backend: auto_create_chapters(state, min_duration_ms: Option<u64>)
-    // Wait, let me check backend signature for auto_create_chapters
-    // Actually I implemented `auto_split_chapters` in `editor.rs` but command name?
-    // checking main.rs: audiobookconvert_rs::commands::metadata::auto_create_chapters
-    return await invoke('auto_create_chapters', { minDurationMs });
-    // Backend argument name is snake_case likely unless strict camelCase.
-    // 'min_duration_ms' or 'minDurationMs'? Tauri usually converts camel to snake.
-    // I will double check this.
+export async function autoCreateChapters(audiobookId: string, count: number): Promise<AudioBook> {
+    return await invoke('auto_create_chapters', { audiobookId, count });
 }
 
-export async function uploadArtwork(path: string): Promise<void> {
-    return await invoke('upload_artwork', { path });
+export async function uploadArtwork(audiobookId: string, imagePath: string): Promise<AudioBook> {
+    return await invoke('upload_artwork', { audiobookId, imagePath });
+}
+
+export async function setArtworkBase64(audiobookId: string, artworkBase64: string): Promise<AudioBook> {
+    return await invoke('set_artwork_base64', { audiobookId, artworkBase64 });
+}
+
+export async function clearArtwork(audiobookId: string): Promise<AudioBook> {
+    return await invoke('clear_artwork', { audiobookId });
 }

@@ -12,6 +12,7 @@ pub mod chapters;
 pub mod format_specific;
 pub mod writing;
 pub mod editor;
+pub mod open_library;
 
 // Re-export commonly used items
 pub use extraction::{extract_metadata, extract_id3_tags, extract_vorbis_comments, extract_mp4_metadata, normalize_metadata};
