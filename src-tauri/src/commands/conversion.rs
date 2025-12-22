@@ -1,6 +1,11 @@
 use tauri::{State, Window};
 use crate::models::{ConversionSettings, ConversionJob};
 use crate::state::AppState;
+use crate::conversion::pipeline::{ConversionPipeline, PipelineConfig};
+use crate::ffmpeg::detection::detect_ffmpeg;
+use crate::events::{emit_progress, emit_completion, emit_error};
+use std::thread;
+use tracing::{info, error};
 
 fn to_string_err<E: ToString>(err: E) -> String {
     err.to_string()
@@ -11,7 +16,7 @@ pub async fn start_conversion(
     audiobook_id: String, 
     settings: ConversionSettings,
     state: State<'_, AppState>,
-    _window: Window // Will be used for events later
+    window: Window
 ) -> Result<String, String> {
     // Get audiobook by ID - validate it exists
     let audiobook = state.get_audiobook(&audiobook_id)
@@ -22,15 +27,88 @@ pub async fn start_conversion(
         return Err("Output path is required".to_string());
     }
     
+    // Detect FFmpeg
+    let ffmpeg_info = detect_ffmpeg().map_err(|e| format!("FFmpeg not found: {}", e))?;
+    
     // Create Job
-    let job = ConversionJob::new(audiobook, settings);
+    let mut job = ConversionJob::new(audiobook, settings);
     let job_id = job.id.clone();
+    job.start(); // Mark as running
     
     // Add to queue in state
-    state.add_job(job);
+    state.add_job(job.clone());
     
-    // Trigger processing (Phase 5 will implement the actual worker trigger)
-    // For now we just queue it.
+    // Clone state for thread (AppState implements Clone via Arc)
+    let state_clone: AppState = (*state).clone();
+    
+    // Spawn worker thread to process the job
+    let job_id_clone = job_id.clone();
+    let window_clone = window.clone();
+    
+    thread::spawn(move || {
+        info!("Starting conversion worker for job {}", job_id_clone);
+        
+        // Create pipeline
+        let pipeline = ConversionPipeline::new(ffmpeg_info, PipelineConfig::default());
+        
+        // Progress callback - emit events to frontend
+        let window_progress = window_clone.clone();
+        let job_id_progress = job_id_clone.clone();
+        let progress_callback = move |progress: crate::conversion::progress::ConversionProgress| {
+            if let Err(e) = emit_progress(&window_progress, crate::events::ConversionProgress {
+                job_id: job_id_progress.clone(),
+                current_file: progress.current_file.clone(),
+                file_progress: progress.file_progress,
+                total_progress: progress.total_progress,
+                time_remaining_sec: progress.time_remaining_sec,
+            }) {
+                error!("Failed to emit progress: {}", e);
+            }
+        };
+        
+        // Cancel check - for now, always return false (no cancellation support yet)
+        let cancel_check = || false;
+        
+        // Run the pipeline
+        let start_time = std::time::Instant::now();
+        match pipeline.run(&job, progress_callback, cancel_check) {
+            Ok(output_path) => {
+                let duration_ms = start_time.elapsed().as_millis() as u64;
+                info!("Conversion completed: {} ({}ms)", output_path, duration_ms);
+                
+                // Emit completion event
+                if let Err(e) = emit_completion(&window_clone, crate::events::ConversionComplete {
+                    job_id: job_id_clone.clone(),
+                    output_path: output_path.to_string(),
+                    duration_ms,
+                }) {
+                    error!("Failed to emit completion: {}", e);
+                }
+                
+                // Update job status in state
+                let _ = state_clone.update_job_with(&job_id_clone, |j| {
+                    j.complete();
+                });
+            }
+            Err(e) => {
+                error!("Conversion failed: {}", e);
+                
+                // Emit error event
+                if let Err(err) = emit_error(&window_clone, crate::events::ConversionError {
+                    job_id: job_id_clone.clone(),
+                    error_message: e.to_string(),
+                    recoverable: false,
+                }) {
+                    error!("Failed to emit error: {}", err);
+                }
+                
+                // Update job status in state
+                let _ = state_clone.update_job_with(&job_id_clone, |j| {
+                    j.fail(e.to_string());
+                });
+            }
+        }
+    });
     
     Ok(job_id)
 }

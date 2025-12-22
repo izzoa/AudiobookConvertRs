@@ -173,3 +173,23 @@ pub async fn pick_chapters_file(app: AppHandle) -> Result<Option<String>, String
 pub async fn read_text_file(path: String) -> Result<String, String> {
     std::fs::read_to_string(&path).map_err(|e| e.to_string())
 }
+
+#[tauri::command]
+pub async fn pick_output_file(app: AppHandle, default_name: Option<String>) -> Result<Option<String>, String> {
+    let mut dialog = app.dialog()
+        .file()
+        .add_filter("M4B Audiobook", &["m4b"]);
+    
+    if let Some(name) = default_name {
+        dialog = dialog.set_file_name(&name);
+    }
+    
+    let file_path = dialog.blocking_save_file();
+
+    match file_path {
+        Some(path) => {
+            Ok(Some(path.as_path().map(|p| p.to_string_lossy().to_string()).unwrap_or_default()))
+        },
+        None => Ok(None)
+    }
+}

@@ -17,7 +17,7 @@ export function MetadataEditor() {
         if (activeAudiobook?.output_metadata) {
             setMetadata(activeAudiobook.output_metadata);
         }
-    }, [activeAudiobook?.id]); // Only reset when book changes
+    }, [activeAudiobook]); // Update when audiobook or its metadata changes
 
     const handleChange = (field: keyof Metadata, value: string) => {
         setMetadata(prev => ({ ...prev, [field]: value }));

@@ -1,10 +1,33 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Label } from "./ui/label";
+import { Progress } from "./ui/progress";
 import { useApp } from "@/context/AppContext";
 import * as ConversionApi from "@/api/conversion";
+import * as FilesApi from "@/api/files";
 import type { ConversionSettings, JobStatus } from "@/types/models";
+import { listen } from '@tauri-apps/api/event';
+
+interface ProgressEvent {
+    job_id: string;
+    current_file: string;
+    file_progress: number;
+    total_progress: number;
+    time_remaining_sec: number;
+}
+
+interface CompletionEvent {
+    job_id: string;
+    output_path: string;
+    duration_ms: number;
+}
+
+interface ErrorEvent {
+    job_id: string;
+    error_message: string;
+    recoverable: boolean;
+}
 
 export function ConversionPanel() {
     const { activeAudiobook } = useApp();
@@ -13,11 +36,49 @@ export function ConversionPanel() {
     const [outputPath, setOutputPath] = useState("output.m4b");
     const [currentJobId, setCurrentJobId] = useState<string | null>(null);
     const [jobStatus, setJobStatus] = useState<JobStatus | null>(null);
+    const [progress, setProgress] = useState<ProgressEvent | null>(null);
+
+    // Listen to conversion events
+    useEffect(() => {
+        const unlistenProgress = listen<ProgressEvent>('conversion_progress', (event) => {
+            const progressData = event.payload;
+            if (progressData.job_id === currentJobId) {
+                setProgress(progressData);
+                setStatus(`Converting: ${progressData.current_file}`);
+            }
+        });
+
+        const unlistenComplete = listen<CompletionEvent>('conversion_complete', (event) => {
+            const completionData = event.payload;
+            if (completionData.job_id === currentJobId) {
+                setJobStatus('complete');
+                setProgress(null);
+                const durationSec = (completionData.duration_ms / 1000).toFixed(1);
+                setStatus(`Completed: ${completionData.output_path} (${durationSec}s)`);
+            }
+        });
+
+        const unlistenError = listen<ErrorEvent>('conversion_error', (event) => {
+            const errorData = event.payload;
+            if (errorData.job_id === currentJobId) {
+                setJobStatus('error');
+                setProgress(null);
+                setStatus(`Error: ${errorData.error_message}`);
+            }
+        });
+
+        return () => {
+            unlistenProgress.then(fn => fn());
+            unlistenComplete.then(fn => fn());
+            unlistenError.then(fn => fn());
+        };
+    }, [currentJobId]);
 
     const handleStart = async () => {
         if (!activeAudiobook) return;
         setIsStarting(true);
         setStatus("Starting...");
+        setProgress(null);
 
         try {
             const settings: ConversionSettings = {
@@ -88,7 +149,34 @@ export function ConversionPanel() {
         }
     };
 
+    const handleBrowseOutput = async () => {
+        try {
+            // Generate a default filename from the audiobook title if available
+            let defaultName = 'output.m4b';
+            if (activeAudiobook?.title) {
+                // Sanitize title for filename
+                const sanitized = activeAudiobook.title.replace(/[<>:"/\\|?*]/g, '_');
+                defaultName = `${sanitized}.m4b`;
+            }
+            
+            const selectedPath = await FilesApi.pickOutputFile(defaultName);
+            if (selectedPath) {
+                setOutputPath(selectedPath);
+            }
+        } catch (e) {
+            console.error(e);
+            setStatus(`Failed to open file dialog: ${e}`);
+        }
+    };
+
     if (!activeAudiobook) return null;
+
+    const formatTime = (seconds: number) => {
+        if (seconds < 60) return `${seconds}s`;
+        const mins = Math.floor(seconds / 60);
+        const secs = seconds % 60;
+        return `${mins}m ${secs}s`;
+    };
 
     return (
         <div className="p-4 border rounded-lg bg-card mt-4 space-y-4">
@@ -100,16 +188,40 @@ export function ConversionPanel() {
             <div className="flex gap-4 items-end">
                 <div className="grid gap-2 flex-1">
                     <Label htmlFor="output-path">Output Path</Label>
-                    <Input
-                        id="output-path"
-                        value={outputPath}
-                        onChange={(e) => setOutputPath(e.target.value)}
-                    />
+                    <div className="flex gap-2">
+                        <Input
+                            id="output-path"
+                            value={outputPath}
+                            onChange={(e) => setOutputPath(e.target.value)}
+                            className="flex-1"
+                        />
+                        <Button 
+                            type="button" 
+                            variant="outline" 
+                            onClick={handleBrowseOutput}
+                            disabled={isStarting || jobStatus === 'running' || jobStatus === 'paused'}
+                        >
+                            Browse
+                        </Button>
+                    </div>
                 </div>
                 <Button onClick={handleStart} disabled={isStarting || jobStatus === 'running' || jobStatus === 'paused'}>
                     {isStarting ? "Starting..." : "Start Conversion"}
                 </Button>
             </div>
+
+            {progress && (
+                <div className="space-y-2">
+                    <div className="flex justify-between text-sm">
+                        <span className="text-muted-foreground">Progress: {progress.total_progress.toFixed(1)}%</span>
+                        <span className="text-muted-foreground">ETA: {formatTime(progress.time_remaining_sec)}</span>
+                    </div>
+                    <Progress value={progress.total_progress} className="h-2" />
+                    <div className="text-xs text-muted-foreground">
+                        Current file: {progress.current_file} ({progress.file_progress.toFixed(1)}%)
+                    </div>
+                </div>
+            )}
 
             {currentJobId && (
                 <div className="flex gap-2">

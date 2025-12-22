@@ -73,6 +73,7 @@ fn main() {
             audiobookconvert_rs::commands::files::pick_artwork_file,
             audiobookconvert_rs::commands::files::pick_chapters_file,
             audiobookconvert_rs::commands::files::read_text_file,
+            audiobookconvert_rs::commands::files::pick_output_file,
             // Settings
             audiobookconvert_rs::commands::settings::get_settings,
             audiobookconvert_rs::commands::settings::update_settings,
