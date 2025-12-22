@@ -27,11 +27,12 @@ sudo apt-get update
 sudo apt-get install -y \
   ffmpeg \
   build-essential \
-  libgtk-3-dev \
-  libwebkit2gtk-4.0-dev \
-  libappindicator3-dev \
+  libwebkit2gtk-4.1-dev \
+  libayatana-appindicator3-dev \
   librsvg2-dev \
-  patchelf
+  patchelf \
+  libxdo-dev \
+  libssl-dev
 
 # Rust (if not installed)
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
@@ -136,6 +137,16 @@ cargo build --release  # Release build
 4. Run `cargo test` and `cargo clippy`
 5. Submit a pull request
 
+## Creating Releases
+
+For detailed instructions on creating and publishing releases, see **[DEPLOY.md](DEPLOY.md)**.
+
+Quick summary:
+1. Update versions in `Cargo.toml` and `src-tauri/tauri.conf.json`
+2. Commit and create a tag: `git tag vX.Y.Z`
+3. Push tag: `git push origin vX.Y.Z`
+4. GitHub Actions automatically builds installers for macOS, Windows, and Linux
+
 ## Common Issues
 
 ### FFmpeg Not Found
@@ -147,7 +158,7 @@ ffmpeg -version
 ### Build Fails on Linux
 Install missing dependencies:
 ```bash
-sudo apt-get install libgtk-3-dev libwebkit2gtk-4.0-dev
+sudo apt-get install libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev patchelf
 ```
 
 ### Tests Fail

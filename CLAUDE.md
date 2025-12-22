@@ -479,15 +479,32 @@ cargo tarpaulin --out Html          # Coverage report
 
 **Your Job**: Create installers for all platforms
 
-**Windows**: NSIS installer with FFmpeg
-**macOS**: DMG with code signing
-**Linux**: AppImage or Flatpak
+**Status**: ✅ **AUTOMATED** - GitHub Actions workflow configured
+
+**Automated Release Pipeline**:
+The project now has an automated GitHub Actions release workflow (`.github/workflows/release.yml`) that:
+- Triggers on version tags (e.g., `v1.0.0`)
+- Builds installers for all platforms in parallel:
+  - **Windows**: NSIS `.exe` installer
+  - **macOS**: `.dmg` installer
+  - **Linux**: `.deb` package (Ubuntu/Debian)
+- Creates a GitHub Release with all installers attached
+- Applies LTO and optimization settings from `Cargo.toml` profile
+
+**How to Create a Release**:
+1. Update version in `Cargo.toml` and `src-tauri/tauri.conf.json`
+2. Commit changes: `git commit -m "Bump version to X.Y.Z"`
+3. Create and push tag: `git tag vX.Y.Z && git push origin main && git push origin vX.Y.Z`
+4. GitHub Actions automatically builds and publishes the release
+
+**For detailed deployment instructions, see [DEPLOY.md](DEPLOY.md)**
 
 **Key Tasks**:
-- [ ] Optimize release build (LTO)
-- [ ] Create platform-specific installers
-- [ ] Test on clean system
-- [ ] Bundle FFmpeg appropriately
+- [x] Optimize release build (LTO) - configured in `Cargo.toml`
+- [x] Create platform-specific installers - automated via GitHub Actions
+- [ ] Test on clean system - download from GitHub Releases
+- [ ] Bundle FFmpeg appropriately - user must have FFmpeg installed (documented in README)
+- [x] Generate app icons (.icns, .ico) - completed via `tauri icon` command
 
 ---
 
