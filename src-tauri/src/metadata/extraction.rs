@@ -312,6 +312,8 @@ pub fn normalize_metadata(metadata: &mut Metadata) {
     normalize_field(&mut metadata.description);
     normalize_field(&mut metadata.publisher);
     normalize_field(&mut metadata.copyright);
+    normalize_field(&mut metadata.series);
+    normalize_field(&mut metadata.language);
 }
 
 #[cfg(test)]

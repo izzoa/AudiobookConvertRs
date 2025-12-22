@@ -153,3 +153,23 @@ pub async fn pick_artwork_file(app: AppHandle) -> Result<Option<String>, String>
         None => Ok(None)
     }
 }
+
+#[tauri::command]
+pub async fn pick_chapters_file(app: AppHandle) -> Result<Option<String>, String> {
+    let file_path = app.dialog()
+        .file()
+        .add_filter("Chapter Files", &["txt", "csv", "ffmeta"])
+        .blocking_pick_file();
+
+    match file_path {
+        Some(path) => {
+            Ok(Some(path.as_path().map(|p| p.to_string_lossy().to_string()).unwrap_or_default()))
+        },
+        None => Ok(None)
+    }
+}
+
+#[tauri::command]
+pub async fn read_text_file(path: String) -> Result<String, String> {
+    std::fs::read_to_string(&path).map_err(|e| e.to_string())
+}

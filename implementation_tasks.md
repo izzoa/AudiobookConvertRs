@@ -13,7 +13,7 @@
 - ✅ Phase 3: Metadata Handling & Chapters
 - ✅ Phase 4: GUI Implementation - Backend
 - ✅ Phase 5: Conversion Pipeline & Processing
-- ✅ Phase 6: Advanced Features (Backend + Frontend GUI)
+- ✅ Phase 6: Advanced Features (Backend + Frontend GUI + Chapter/Metadata Editing)
 - ⏳ Phase 7: Testing & Quality Assurance
 - ⏳ Phase 8: Packaging & Distribution
 - ⏳ Phase 9: Launch & Post-Launch
@@ -938,7 +938,200 @@ Create `src-tauri/src/models.rs` with all data types:
 - [x] Wire up Sidebar navigation with actual handlers
 - [x] Create `useKeyboardShortcuts` hook
 
-## 6.7 Performance Optimization
+## 6.7 Chapter & Metadata Editing Enhancements
+
+### 6.7.1 Chapter Import/Export (Interoperability)
+
+- [x] Create `src-tauri/src/metadata/chapter_io.rs` module
+- [x] Implement chapter parsing:
+  - [x] Parse Audacity label track format (.txt)
+    - [x] Format: `start_sec<TAB>end_sec<TAB>title`
+    - [x] Handle comments and empty lines
+  - [x] Parse FFmpeg metadata format (.ffmeta)
+    - [x] Format: `;FFMETADATA1` with `[CHAPTER]` blocks
+    - [x] Escape/unescape special characters
+  - [x] Parse CSV format (.csv)
+    - [x] Support both `HH:MM:SS` and decimal seconds
+    - [x] Handle quoted fields with commas
+    - [x] Auto-detect headers
+- [x] Implement chapter rendering:
+  - [x] Render to Audacity format
+  - [x] Render to FFmpeg metadata format
+  - [x] Render to CSV format with proper escaping
+- [x] Add validation during import:
+  - [x] Validate chapter times don't overlap
+  - [x] Validate chapters don't exceed duration
+  - [x] Provide line-number specific error messages
+- [x] Create Tauri commands:
+  - [x] `import_chapters(audiobook_id, format, content) -> AudioBook`
+  - [x] `export_chapters(audiobook_id, format) -> String`
+  - [x] `set_chapters(audiobook_id, chapters) -> AudioBook`
+- [x] Add file picker commands:
+  - [x] `pick_chapters_file() -> Option<String>`
+  - [x] `read_text_file(path) -> String`
+- [x] Register all commands in main.rs
+
+### 6.7.2 Smart Chapter Generation
+
+- [x] Create `src-tauri/src/metadata/chapter_generation.rs` module
+- [x] Implement source metadata extraction:
+  - [x] `extract_chapters_from_sources(files) -> Vec<Chapter>`
+    - [x] Extract from M4B QuickTime chapters
+    - [x] Extract from MP3 ID3 CHAP frames
+    - [x] Extract from FLAC cue sheets
+    - [x] Handle multi-file concatenation with time offsets
+    - [x] Fix last chapter end time
+- [x] Implement regex-based title cleanup:
+  - [x] `rename_chapters_regex(chapters, pattern, replacement) -> Result<()>`
+  - [x] Validate regex pattern before applying
+  - [x] Track number of renamed chapters
+- [x] Create regex presets:
+  - [x] Remove numbered prefix (01 -, 001., etc.)
+  - [x] Remove "Track" prefix
+  - [x] Replace underscores with spaces
+  - [x] Remove file extensions
+  - [x] Clean multiple spaces
+  - [x] Remove "Chapter" prefix
+- [x] Add helper functions:
+  - [x] `get_regex_presets() -> Vec<RegexPreset>`
+  - [x] `apply_preset(chapters, preset_name) -> Result<()>`
+- [x] Create Tauri commands:
+  - [x] `generate_chapters_from_source(audiobook_id) -> AudioBook`
+  - [x] `rename_chapters_with_regex(audiobook_id, pattern, replacement) -> AudioBook`
+  - [x] `get_chapter_regex_presets() -> Vec<RegexPresetInfo>`
+- [x] Register commands in main.rs
+
+### 6.7.3 Rich Metadata Fields (Backend)
+
+- [x] Extend `Metadata` struct in models.rs:
+  - [x] Add `series: Option<String>` field
+  - [x] Add `series_index: Option<u32>` field
+  - [x] Add `language: Option<String>` field
+- [x] Update metadata operations:
+  - [x] Update `merge_with()` to include new fields
+  - [x] Update `sanitize()` to clean new fields
+  - [x] Update `normalize_metadata()` in extraction.rs
+- [x] Update validation:
+  - [x] Add length limits for series field
+  - [x] Add length limits for description field
+  - [x] Validate in `validate_metadata_fields()`
+- [x] Update TypeScript types:
+  - [x] Add new fields to `Metadata` interface in types/models.ts
+- [x] Ensure backward compatibility:
+  - [x] All new fields are `Option<T>`
+  - [x] Serde handles missing fields gracefully
+  - [x] Old projects load without migration
+
+### 6.7.4 Rich Metadata Fields (Frontend UI)
+
+- [x] Redesign `MetadataEditor.tsx` with grouped sections:
+  - [x] **Core Information** section:
+    - [x] Title, Author, Narrator
+    - [x] Album, Album Artist
+    - [x] Genre, Year
+    - [x] Language, Composer
+  - [x] **Series** section:
+    - [x] Series name input
+    - [x] Series index/book number input
+  - [x] **Publishing** section:
+    - [x] Publisher field
+    - [x] Copyright field
+  - [x] **Indexing** section:
+    - [x] Track number / total tracks
+    - [x] Disc number / total discs
+  - [x] **Notes & Description** section:
+    - [x] Description (multi-line textarea)
+    - [x] Comments (multi-line textarea)
+- [x] Expose all 19 metadata fields (previously only 6)
+- [x] Maintain existing Open Library integration
+- [x] Keep artwork picker functionality
+
+### 6.7.5 Chapter Editor UI
+
+- [x] Create `src-ui/src/components/ChapterEditor.tsx`
+- [x] Implement chapter display:
+  - [x] Show chapter list with numbers, titles, times
+  - [x] Display chapter count
+  - [x] Show overlap warnings (inline)
+  - [x] Show gap warnings (inline)
+  - [x] Scrollable list for many chapters
+- [x] Implement import functionality:
+  - [x] File picker for chapter files
+  - [x] Auto-detect format from extension
+  - [x] Read and parse file content
+  - [x] Apply to audiobook with validation
+  - [x] Error handling with user-friendly messages
+- [x] Implement export functionality:
+  - [x] Export to Audacity format button
+  - [x] Export to FFmpeg metadata button
+  - [x] Export to CSV button
+  - [x] File picker with appropriate extensions
+  - [x] Write exported content to file
+- [x] Implement smart generation:
+  - [x] "Extract from Source" button
+  - [x] Quick preset buttons for regex cleanup
+  - [x] Custom regex input fields
+  - [x] Pattern and replacement text boxes
+  - [x] Apply custom regex button
+  - [x] Loading states for all operations
+- [x] Create `src-ui/src/api/chapters.ts` API layer
+- [x] Extend `src-ui/src/api/files.ts` with new functions
+- [x] Add to App.tsx as "Step 2b: Edit Chapters"
+
+### 6.7.6 Undo/Redo System Integration
+
+- [x] Fix backend undo state management:
+  - [x] Add `.manage(UndoState::new())` in main.rs
+  - [x] Create public `execute()` method on UndoState
+  - [x] Add `ReplaceChapters` command variant to undo.rs
+  - [x] Implement apply/unapply logic for ReplaceChapters
+- [x] Integrate undo into metadata commands:
+  - [x] Record metadata updates in undo stack
+  - [x] Record chapter imports in undo stack
+  - [x] Record chapter generation in undo stack
+  - [x] Record regex renames in undo stack
+  - [x] Record manual chapter sets in undo stack
+- [x] Add helper commands:
+  - [x] `get_active_audiobook() -> Option<AudioBook>`
+  - [x] `get_undo_state() -> UndoStateResponse` (combined query)
+- [x] Fix frontend undo/redo:
+  - [x] Call `getActiveAudiobook()` after undo
+  - [x] Call `getActiveAudiobook()` after redo
+  - [x] Update `setActiveAudiobook` with fresh state
+  - [x] Refresh undo state after operations
+  - [x] Ensure UI updates immediately
+- [x] Test end-to-end:
+  - [x] Ctrl+Z works for metadata changes
+  - [x] Ctrl+Z works for chapter imports
+  - [x] Ctrl+Z works for chapter generation
+  - [x] Ctrl+Shift+Z / Ctrl+Y works for redo
+  - [x] UI reflects undo/redo changes immediately
+
+### 6.7.7 Documentation
+
+- [x] Create `CHAPTER_METADATA_IMPROVEMENTS.md`:
+  - [x] Feature summary
+  - [x] Files changed list
+  - [x] Build status
+  - [x] Usage examples
+- [x] Create `CHAPTER_EDITOR_ARCHITECTURE.md`:
+  - [x] System architecture diagrams
+  - [x] Data flow sequences
+  - [x] Design decisions
+  - [x] Performance characteristics
+- [x] Create `FEATURE_COMPARISON.md`:
+  - [x] Before/after comparison
+  - [x] Real-world use cases
+  - [x] Security considerations
+  - [x] Known limitations
+- [x] Create `CHAPTER_EDITOR_USER_GUIDE.md`:
+  - [x] Quick start guide
+  - [x] Format examples
+  - [x] Workflow walkthroughs
+  - [x] Troubleshooting section
+  - [x] Advanced tips
+
+## 6.8 Performance Optimization
 
 - [x] Create `src-tauri/src/perf.rs` module:
   - [x] Timer utility for measuring operations

@@ -67,3 +67,10 @@ pub async fn clear_current_audiobook(
     state.set_active_audiobook(None).map_err(to_string_err)?;
     Ok(())
 }
+
+#[tauri::command]
+pub async fn get_active_audiobook(
+    state: State<'_, AppState>
+) -> Result<Option<AudioBook>, String> {
+    Ok(state.get_active_audiobook())
+}

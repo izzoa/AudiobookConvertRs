@@ -172,6 +172,8 @@ pub fn validate_metadata_fields(metadata: &Metadata) -> AppResult<()> {
     const MAX_ARTIST_LEN: usize = 500;
     const MAX_ALBUM_LEN: usize = 500;
     const MAX_COMMENT_LEN: usize = 5000;
+    const MAX_DESCRIPTION_LEN: usize = 10000;
+    const MAX_SERIES_LEN: usize = 500;
 
     if let Some(ref title) = metadata.title {
         if title.len() > MAX_TITLE_LEN {
@@ -218,6 +220,27 @@ pub fn validate_metadata_fields(metadata: &Metadata) -> AppResult<()> {
             return Err(AppError::InvalidMetadataField {
                 field: "year".to_string(),
                 reason: format!("Year {} is not a valid year (1800-2100)", year),
+            });
+        }
+    }
+
+    if let Some(ref description) = metadata.description {
+        if description.len() > MAX_DESCRIPTION_LEN {
+            return Err(AppError::InvalidMetadataField {
+                field: "description".to_string(),
+                reason: format!(
+                    "Description exceeds maximum length of {} characters",
+                    MAX_DESCRIPTION_LEN
+                ),
+            });
+        }
+    }
+
+    if let Some(ref series) = metadata.series {
+        if series.len() > MAX_SERIES_LEN {
+            return Err(AppError::InvalidMetadataField {
+                field: "series".to_string(),
+                reason: format!("Series exceeds maximum length of {} characters", MAX_SERIES_LEN),
             });
         }
     }

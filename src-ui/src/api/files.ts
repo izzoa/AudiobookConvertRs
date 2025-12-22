@@ -43,3 +43,11 @@ export async function writeTextFile(path: string, content: string): Promise<void
 export async function pickArtworkFile(): Promise<string | null> {
     return await invoke('pick_artwork_file');
 }
+
+export async function pickChaptersFile(): Promise<string | null> {
+    return await invoke('pick_chapters_file');
+}
+
+export async function readTextFile(path: string): Promise<string> {
+    return await invoke('read_text_file', { path });
+}

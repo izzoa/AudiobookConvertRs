@@ -9,7 +9,7 @@ use crate::undo::UndoManager;
 
 /// Thread-safe wrapper for UndoManager
 pub struct UndoState {
-    inner: Arc<RwLock<UndoManager>>,
+    pub(crate) inner: Arc<RwLock<UndoManager>>,
 }
 
 impl Default for UndoState {
@@ -23,6 +23,11 @@ impl UndoState {
         Self {
             inner: Arc::new(RwLock::new(UndoManager::new())),
         }
+    }
+    
+    /// Execute a command and add it to the undo stack
+    pub fn execute(&self, audiobook: &mut crate::models::AudioBook, command: crate::undo::EditCommand) -> Result<(), crate::error::AppError> {
+        self.inner.write().execute(audiobook, command)
     }
 }
 
@@ -90,4 +95,25 @@ pub async fn get_undo_description(undo_state: State<'_, UndoState>) -> Result<Op
 #[tauri::command]
 pub async fn get_redo_description(undo_state: State<'_, UndoState>) -> Result<Option<String>, String> {
     Ok(undo_state.inner.read().peek_redo())
+}
+
+/// Response for undo state query
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct UndoStateResponse {
+    pub can_undo: bool,
+    pub can_redo: bool,
+    pub undo_description: Option<String>,
+    pub redo_description: Option<String>,
+}
+
+/// Get complete undo state
+#[tauri::command]
+pub async fn get_undo_state(undo_state: State<'_, UndoState>) -> Result<UndoStateResponse, String> {
+    let manager = undo_state.inner.read();
+    Ok(UndoStateResponse {
+        can_undo: manager.can_undo(),
+        can_redo: manager.can_redo(),
+        undo_description: manager.peek_undo(),
+        redo_description: manager.peek_redo(),
+    })
 }

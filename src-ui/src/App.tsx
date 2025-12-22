@@ -1,6 +1,7 @@
 import { Layout } from "@/components/Layout";
 import { FileInput } from "@/components/FileInput";
 import { MetadataEditor } from "@/components/MetadataEditor";
+import { ChapterEditor } from "@/components/ChapterEditor";
 import { ConversionPanel } from "@/components/ConversionPanel";
 import { NormalizationPanel } from "@/components/NormalizationPanel";
 import { DryRunPreview } from "@/components/DryRunPreview";
@@ -37,6 +38,12 @@ function App() {
         <section className="space-y-3">
           <h2 className="text-xl font-semibold tracking-tight">Step 2: Edit Metadata</h2>
           <MetadataEditor />
+        </section>
+
+        {/* Step 2b: Chapters */}
+        <section className="space-y-3">
+          <h2 className="text-xl font-semibold tracking-tight">Step 2b: Edit Chapters</h2>
+          <ChapterEditor />
         </section>
 
         {/* Audio Quality */}

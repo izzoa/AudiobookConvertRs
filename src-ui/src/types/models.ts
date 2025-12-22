@@ -17,6 +17,9 @@ export interface Metadata {
     description?: string;
     publisher?: string;
     copyright?: string;
+    series?: string;
+    series_index?: number;
+    language?: string;
     artwork_path?: string;
     artwork_data?: string;
 }

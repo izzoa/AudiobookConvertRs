@@ -13,7 +13,6 @@
 use camino::Utf8PathBuf;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use std::path::PathBuf;
 use uuid::Uuid;
 
 /// Supported audio formats
@@ -111,6 +110,9 @@ pub struct Metadata {
     pub description: Option<String>,
     pub publisher: Option<String>,
     pub copyright: Option<String>,
+    pub series: Option<String>,
+    pub series_index: Option<u32>,
+    pub language: Option<String>,
     pub artwork_path: Option<Utf8PathBuf>,
     /// Embedded artwork as base64 encoded data (for IPC transfer)
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -170,6 +172,15 @@ impl Metadata {
         if self.copyright.is_none() {
             self.copyright = other.copyright.clone();
         }
+        if self.series.is_none() {
+            self.series = other.series.clone();
+        }
+        if self.series_index.is_none() {
+            self.series_index = other.series_index;
+        }
+        if self.language.is_none() {
+            self.language = other.language.clone();
+        }
         if self.artwork_path.is_none() {
             self.artwork_path = other.artwork_path.clone();
         }
@@ -193,6 +204,8 @@ impl Metadata {
         sanitize_string(&mut self.album);
         sanitize_string(&mut self.narrator);
         sanitize_string(&mut self.genre);
+        sanitize_string(&mut self.series);
+        sanitize_string(&mut self.language);
     }
 }
 

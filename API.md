@@ -1,8 +1,8 @@
 # Tauri IPC API Reference
 
-This document describes the Tauri IPC commands that will be implemented for frontend-backend communication.
+This document describes the Tauri IPC commands for frontend-backend communication.
 
-> **Note:** This API is planned for Phase 4. Commands are not yet implemented.
+> **Status:** Core commands implemented (Phase 4-6). Advanced chapter/metadata editing commands added in Phase 6.7.
 
 ## File Operations
 
@@ -331,3 +331,172 @@ function auto_create_chapters(
   count: number
 ): Promise<AudioBook>
 ```
+
+## Chapter Import/Export Commands
+
+### `import_chapters`
+Import chapters from external file formats (Audacity, FFmpeg metadata, CSV).
+
+```typescript
+function import_chapters(
+  audiobook_id: string,
+  format: 'audacity' | 'ffmetadata' | 'csv',
+  content: string
+): Promise<AudioBook>
+```
+
+**Format Examples:**
+
+**Audacity Label Track:**
+```
+0.000000	60.000000	Chapter 1
+60.000000	120.000000	Chapter 2
+```
+
+**FFmpeg Metadata:**
+```
+;FFMETADATA1
+
+[CHAPTER]
+TIMEBASE=1/1000
+START=0
+END=60000
+title=Chapter 1
+```
+
+**CSV:**
+```
+title,start,end
+Chapter 1,00:00:00,00:01:00
+Chapter 2,00:01:00,00:02:00
+```
+
+### `export_chapters`
+Export chapters to external file format.
+
+```typescript
+function export_chapters(
+  audiobook_id: string,
+  format: 'audacity' | 'ffmetadata' | 'csv'
+): Promise<string>
+```
+
+Returns the rendered chapter content as a string. Frontend writes to file.
+
+### `set_chapters`
+Directly set all chapters (replaces existing).
+
+```typescript
+function set_chapters(
+  audiobook_id: string,
+  chapters: Chapter[]
+): Promise<AudioBook>
+```
+
+## Smart Chapter Generation Commands
+
+### `generate_chapters_from_source`
+Extract chapters from source file metadata (M4B, MP3 ID3 CHAP, FLAC cue sheets).
+
+```typescript
+function generate_chapters_from_source(
+  audiobook_id: string
+): Promise<AudioBook>
+```
+
+Automatically:
+- Reads QuickTime chapters from M4B files
+- Reads ID3 CHAP frames from MP3 files
+- Reads cue sheets from FLAC files
+- Adjusts times for multi-file concatenation
+- Returns error if no chapters found in sources
+
+### `rename_chapters_with_regex`
+Apply regex pattern replacement to all chapter titles.
+
+```typescript
+function rename_chapters_with_regex(
+  audiobook_id: string,
+  pattern: string,
+  replacement: string
+): Promise<AudioBook>
+```
+
+**Examples:**
+```typescript
+// Remove "01 - " prefix
+rename_chapters_with_regex(id, "^\\d+\\s*-\\s*", "")
+
+// Replace underscores with spaces
+rename_chapters_with_regex(id, "_", " ")
+
+// Remove file extensions
+rename_chapters_with_regex(id, "\\.(mp3|flac|m4a)$", "")
+```
+
+### `get_chapter_regex_presets`
+Get built-in regex presets for common cleanup patterns.
+
+```typescript
+interface RegexPreset {
+  name: string;
+  description: string;
+  pattern: string;
+  replacement: string;
+}
+
+function get_chapter_regex_presets(): Promise<RegexPreset[]>
+```
+
+**Built-in Presets:**
+1. Remove numbered prefix (01 -, 001., etc.)
+2. Remove "Track" prefix
+3. Replace underscores with spaces
+4. Remove file extensions
+5. Clean multiple spaces
+6. Remove "Chapter" prefix
+
+## Enhanced File Picker Commands
+
+### `pick_chapters_file`
+Open file picker for chapter files.
+
+```typescript
+function pick_chapters_file(): Promise<string | null>
+```
+
+Filters for: .txt, .csv, .ffmeta, .ffmetadata
+
+### `read_text_file`
+Read a text file's contents.
+
+```typescript
+function read_text_file(path: string): Promise<string>
+```
+
+## Enhanced Audiobook Commands
+
+### `get_active_audiobook`
+Get the currently active audiobook (useful after undo/redo).
+
+```typescript
+function get_active_audiobook(): Promise<AudioBook | null>
+```
+
+## Undo/Redo Commands
+
+### `get_undo_state`
+Get complete undo/redo state (combined query).
+
+```typescript
+interface UndoStateResponse {
+  can_undo: boolean;
+  can_redo: boolean;
+  undo_description?: string;
+  redo_description?: string;
+}
+
+function get_undo_state(): Promise<UndoStateResponse>
+```
+
+More efficient than calling `can_undo`, `can_redo`, `get_undo_description`, and `get_redo_description` separately.

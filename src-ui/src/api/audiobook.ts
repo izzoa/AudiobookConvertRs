@@ -17,3 +17,7 @@ export async function saveAudiobookProject(audiobook: AudioBook, path: string): 
 export async function clearCurrentAudiobook(): Promise<void> {
     return await invoke('clear_current_audiobook');
 }
+
+export async function getActiveAudiobook(): Promise<AudioBook | null> {
+    return await invoke('get_active_audiobook');
+}

@@ -2,6 +2,7 @@ import { createContext, useContext, useState, useEffect, useCallback, type React
 import type { AudioBook, UserSettings, ConversionJob, UndoState } from '../types/models';
 import * as SettingsApi from '../api/settings';
 import * as UndoApi from '../api/undo';
+import * as AudiobookApi from '../api/audiobook';
 
 interface AppState {
     activeAudiobook: AudioBook | null;
@@ -44,6 +45,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
             if (description) {
                 console.log("Undid:", description);
             }
+            // Refresh the active audiobook to reflect undo changes
+            const updatedAudiobook = await AudiobookApi.getActiveAudiobook();
+            if (updatedAudiobook) {
+                setActiveAudiobook(updatedAudiobook);
+            }
             await refreshUndoState();
         } catch (error) {
             console.error("Undo failed:", error);
@@ -55,6 +61,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
             const description = await UndoApi.redo();
             if (description) {
                 console.log("Redid:", description);
+            }
+            // Refresh the active audiobook to reflect redo changes
+            const updatedAudiobook = await AudiobookApi.getActiveAudiobook();
+            if (updatedAudiobook) {
+                setActiveAudiobook(updatedAudiobook);
             }
             await refreshUndoState();
         } catch (error) {

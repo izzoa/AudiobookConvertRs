@@ -47,6 +47,12 @@ pub enum EditCommand {
         old_order: Vec<usize>,
         new_order: Vec<usize>,
     },
+    /// Replace all chapters (for imports/generation)
+    ReplaceChapters {
+        audiobook_id: String,
+        old_chapters: Vec<Chapter>,
+        new_chapters: Vec<Chapter>,
+    },
     /// Batch update (for grouping multiple changes)
     Batch {
         description: String,
@@ -63,6 +69,9 @@ impl EditCommand {
             EditCommand::AddChapter { chapter, .. } => format!("Add chapter \"{}\"", chapter.title),
             EditCommand::DeleteChapter { chapter, .. } => format!("Delete chapter \"{}\"", chapter.title),
             EditCommand::ReorderChapters { .. } => "Reorder chapters".to_string(),
+            EditCommand::ReplaceChapters { new_chapters, .. } => {
+                format!("Replace chapters ({} chapters)", new_chapters.len())
+            }
             EditCommand::Batch { description, .. } => description.clone(),
         }
     }
@@ -75,6 +84,7 @@ impl EditCommand {
             EditCommand::AddChapter { audiobook_id, .. } => audiobook_id,
             EditCommand::DeleteChapter { audiobook_id, .. } => audiobook_id,
             EditCommand::ReorderChapters { audiobook_id, .. } => audiobook_id,
+            EditCommand::ReplaceChapters { audiobook_id, .. } => audiobook_id,
             EditCommand::Batch { commands, .. } => {
                 commands.first().map(|c| c.audiobook_id()).unwrap_or("")
             }
@@ -133,6 +143,14 @@ pub fn apply_command(audiobook: &mut AudioBook, command: &EditCommand) -> AppRes
             audiobook.chapters = reordered;
             audiobook.mark_modified();
         }
+        EditCommand::ReplaceChapters { new_chapters, .. } => {
+            audiobook.chapters = new_chapters.clone();
+            // Re-index
+            for (i, ch) in audiobook.chapters.iter_mut().enumerate() {
+                ch.index = i;
+            }
+            audiobook.mark_modified();
+        }
         EditCommand::Batch { commands, .. } => {
             for cmd in commands {
                 apply_command(audiobook, cmd)?;
@@ -184,6 +202,14 @@ pub fn unapply_command(audiobook: &mut AudioBook, command: &EditCommand) -> AppR
                 ch.index = i;
             }
             audiobook.chapters = reordered;
+            audiobook.mark_modified();
+        }
+        EditCommand::ReplaceChapters { old_chapters, .. } => {
+            audiobook.chapters = old_chapters.clone();
+            // Re-index
+            for (i, ch) in audiobook.chapters.iter_mut().enumerate() {
+                ch.index = i;
+            }
             audiobook.mark_modified();
         }
         EditCommand::Batch { commands, .. } => {
