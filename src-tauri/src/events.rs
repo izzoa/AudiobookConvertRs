@@ -1,5 +1,5 @@
 use serde::Serialize;
-use tauri::{Emitter, Window};
+use tauri::{AppHandle, Emitter, Manager, Window};
 
 #[derive(Clone, Serialize)]
 pub struct ConversionProgress {
@@ -35,22 +35,24 @@ pub struct MetadataUpdated {
     pub audiobook_id: String,
 }
 
+/// Emit progress event to all windows via AppHandle for reliability
 pub fn emit_progress(window: &Window, event: ConversionProgress) -> tauri::Result<()> {
-    window.emit("conversion_progress", event)
+    // Use app_handle().emit() to emit to all windows - more reliable from background threads
+    window.app_handle().emit("conversion_progress", event)
 }
 
 pub fn emit_completion(window: &Window, event: ConversionComplete) -> tauri::Result<()> {
-    window.emit("conversion_complete", event)
+    window.app_handle().emit("conversion_complete", event)
 }
 
 pub fn emit_error(window: &Window, event: ConversionError) -> tauri::Result<()> {
-    window.emit("conversion_error", event)
+    window.app_handle().emit("conversion_error", event)
 }
 
 pub fn emit_files_loaded(window: &Window, event: FilesLoaded) -> tauri::Result<()> {
-    window.emit("files_loaded", event)
+    window.app_handle().emit("files_loaded", event)
 }
 
 pub fn emit_metadata_updated(window: &Window, event: MetadataUpdated) -> tauri::Result<()> {
-    window.emit("metadata_updated", event)
+    window.app_handle().emit("metadata_updated", event)
 }

@@ -5,13 +5,11 @@
 
 use crate::error::{AppError, AppResult};
 use crate::ffmpeg::command_builder::FFmpegCommand;
-use camino::Utf8PathBuf;
 use std::io::{BufRead, BufReader, Read};
-use std::process::{Child, Command, Stdio};
-use std::sync::mpsc::{self, Receiver, Sender};
+use std::process::{Command, Stdio};
 use std::thread;
 use std::time::{Duration, Instant};
-use tracing::{debug, error, info, trace, warn};
+use tracing::{error, info, trace, warn};
 
 /// Output from FFmpeg command execution
 #[derive(Debug, Clone)]
@@ -253,7 +251,6 @@ pub fn run_command_with_timeout(
 /// The callback receives the current progress in milliseconds.
 pub fn execute_with_progress<F>(
     command: &FFmpegCommand,
-    total_duration_ms: u64,
     mut progress_callback: F,
 ) -> AppResult<FFmpegOutput>
 where
@@ -292,9 +289,6 @@ where
         .ok_or_else(|| AppError::FFmpegExecutionError {
             reason: "Failed to capture stderr".to_string(),
         })?;
-
-    // Channel for collecting stderr content
-    let (tx, rx): (Sender<String>, Receiver<String>) = mpsc::channel();
 
     // Read stdout in a separate thread
     let stdout_handle = thread::spawn(move || {
@@ -338,8 +332,6 @@ where
             }
             all_output.push_str(&line_buffer);
         }
-
-        let _ = tx.send(all_output.clone());
         all_output
     });
 
@@ -375,13 +367,60 @@ where
 ///
 /// FFmpeg outputs progress in format:
 /// `frame=12345 fps=30 size=1234kB time=00:15:30.45 bitrate=128kbits/s speed=2.5x`
+///
+/// Or when using `-progress pipe:1`, each field is on its own line:
+/// `out_time_ms=123456000` (note: microseconds, not milliseconds!)
+/// `out_time=00:00:05.12`
+/// `speed=2.5x`
 pub fn parse_ffmpeg_progress(line: &str) -> Option<FFmpegProgress> {
-    // Check if this looks like a progress line
+    let mut progress = FFmpegProgress::default();
+    let line = line.trim();
+
+    // Progress pipe format: key=value lines (out_time_ms, out_time, speed, progress)
+    // Each field comes on its own line when using -progress pipe:1
+    // Handle each possible key separately
+    if line.starts_with("out_time_us=") || line.starts_with("out_time_ms=") {
+        // out_time_us and out_time_ms are in MICROSECONDS despite the name!
+        // FFmpeg documentation: "out_time_us: time in microseconds"
+        let parts: Vec<&str> = line.splitn(2, '=').collect();
+        if parts.len() == 2 {
+            if let Ok(us) = parts[1].trim().parse::<u64>() {
+                // Convert microseconds to milliseconds
+                progress.time_ms = us / 1000;
+                return if progress.is_valid() { Some(progress) } else { None };
+            }
+        }
+    }
+    
+    if line.starts_with("out_time=") {
+        let parts: Vec<&str> = line.splitn(2, '=').collect();
+        if parts.len() == 2 {
+            if let Some(ms) = parse_time_to_ms(parts[1].trim()) {
+                progress.time_ms = ms;
+                return if progress.is_valid() { Some(progress) } else { None };
+            }
+        }
+    }
+    
+    // Speed line from progress pipe
+    if line.starts_with("speed=") {
+        let parts: Vec<&str> = line.splitn(2, '=').collect();
+        if parts.len() == 2 {
+            let s = parts[1].trim().trim_end_matches('x');
+            if s != "N/A" {
+                if let Ok(speed) = s.parse::<f32>() {
+                    progress.speed = Some(speed);
+                    // Speed alone isn't enough to report progress
+                }
+            }
+        }
+        return None; // Speed line doesn't provide time info
+    }
+
+    // Classic stderr progress line with time=
     if !line.contains("time=") {
         return None;
     }
-
-    let mut progress = FFmpegProgress::default();
 
     // Parse time=HH:MM:SS.ms
     if let Some(time_pos) = line.find("time=") {

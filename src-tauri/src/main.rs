@@ -84,6 +84,8 @@ fn main() {
             audiobookconvert_rs::commands::conversion::start_conversion,
             audiobookconvert_rs::commands::conversion::cancel_conversion,
             audiobookconvert_rs::commands::conversion::get_conversion_status,
+            audiobookconvert_rs::commands::conversion::pause_conversion,
+            audiobookconvert_rs::commands::conversion::resume_conversion,
             // Quality
             audiobookconvert_rs::commands::quality::analyze_audio_levels,
             audiobookconvert_rs::commands::quality::suggest_normalization,

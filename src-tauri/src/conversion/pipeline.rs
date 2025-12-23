@@ -15,6 +15,9 @@ use crate::metadata::writing::{embed_artwork_in_m4b, generate_ffmpeg_chapters_me
 use crate::models::{AudioBook, Chapter, ConversionJob, ConversionSettings};
 use camino::{Utf8Path, Utf8PathBuf};
 use std::fs;
+use std::io::{BufRead, BufReader, Read};
+use std::process::{Command, Stdio};
+use std::thread;
 use tracing::{debug, info, warn};
 
 /// Configuration for the conversion pipeline
@@ -74,43 +77,56 @@ impl ConversionPipeline {
         info!("Starting conversion pipeline for job {}", job.id);
 
         // Validate inputs
+        info!("Validating conversion inputs...");
         validate_conversion_inputs(&job.audiobook, &job.settings)?;
+        info!("Validation passed");
 
         // Create temp directory
+        info!("Creating temp directory for job {}", job.id);
         let mut temp_dir = TempDirectory::new(&job.id)?;
         if self.config.preserve_temp_files {
             temp_dir.preserve();
         }
+        info!("Temp directory created: {:?}", temp_dir.path());
 
         // Initialize progress tracker
         let total_duration_ms: u64 = job.audiobook.files.iter().map(|f| f.duration_ms).sum();
+        info!("Total duration: {} ms across {} files", total_duration_ms, job.audiobook.files.len());
         let mut tracker = ProgressTracker::new(
             job.id.clone(),
             total_duration_ms,
             job.audiobook.files.len(),
         );
         tracker.start();
+        info!("Progress tracker initialized");
 
         // Check for cancellation
         if cancel_check() {
+            info!("Cancellation requested, aborting");
             return Err(AppError::ConversionCancelled);
         }
 
         // Step 1: Prepare encoding
+        info!("Step 1: Preparing encoding");
         tracker.set_stage(ConversionStage::Preparing);
         if let Some(progress) = tracker.get_progress() {
+            info!("Emitting initial progress");
             progress_callback(progress);
         }
 
         // Determine output path
         let output_path = if job.settings.output_path.as_str().is_empty() {
             // Use default output path
-            temp_dir.file_path(&format!("{}.m4b", job.audiobook.suggested_filename()))
+            let path = temp_dir.file_path(&format!("{}.m4b", job.audiobook.suggested_filename()));
+            info!("Using default output path: {}", path);
+            path
         } else {
+            info!("Using specified output path: {}", job.settings.output_path);
             job.settings.output_path.clone()
         };
 
         // Step 2: Execute FFmpeg encoding
+        info!("Step 2: Starting FFmpeg encoding");
         tracker.set_stage(ConversionStage::Encoding);
         let encoded_path = self.execute_encoding(
             job,
@@ -200,6 +216,8 @@ impl ConversionPipeline {
         let files = &job.audiobook.files;
         let settings = &job.settings;
         let encoder = self.ffmpeg_info.aac_encoder();
+        
+        info!("execute_encoding: {} files, encoder: {}", files.len(), encoder);
 
         if files.is_empty() {
             return Err(AppError::ConversionError {
@@ -208,10 +226,12 @@ impl ConversionPipeline {
         }
 
         let output_path = temp_dir.file_path("output.m4b");
+        info!("execute_encoding: output path: {}", output_path);
 
         if files.len() == 1 {
             // Single file conversion
             let input_path = &files[0].path;
+            info!("execute_encoding: single file mode, input: {}", input_path);
             tracker.set_current_file(0, input_path.file_name().unwrap_or("input"), files[0].duration_ms);
 
             let command = build_convert_command(
@@ -221,20 +241,31 @@ impl ConversionPipeline {
                 settings,
                 encoder,
             );
+            
+            info!("execute_encoding: built FFmpeg command, executing...");
+            let args = command.build_args().map_err(|e| {
+                info!("execute_encoding: failed to build args: {}", e);
+                e
+            })?;
+            info!("execute_encoding: FFmpeg args: {:?}", args);
 
             self.execute_ffmpeg_with_progress(command, tracker, progress_callback, cancel_check)?;
+            info!("execute_encoding: FFmpeg completed successfully");
         } else {
             // Multiple files - use concat demuxer
+            info!("execute_encoding: concat mode for {} files", files.len());
             let concat_file_path = temp_dir.file_path("concat.txt");
             
             // Convert AudioFile paths to Utf8PathBuf
             let file_paths: Vec<Utf8PathBuf> = files.iter().map(|f| f.path.clone()).collect();
             let concat_content = generate_concat_file_content(&file_paths);
+            info!("execute_encoding: concat file content:\n{}", concat_content);
             
-            fs::write(&concat_file_path, concat_content).map_err(|e| AppError::FileWriteError {
+            fs::write(&concat_file_path, &concat_content).map_err(|e| AppError::FileWriteError {
                 path: concat_file_path.clone().into(),
                 reason: format!("Failed to write concat file: {}", e),
             })?;
+            info!("execute_encoding: wrote concat file to {}", concat_file_path);
 
             // Set tracker for total duration
             let total_duration: u64 = files.iter().map(|f| f.duration_ms).sum();
@@ -247,8 +278,16 @@ impl ConversionPipeline {
                 settings,
                 encoder,
             );
+            
+            info!("execute_encoding: built concat command, executing...");
+            let args = command.build_args().map_err(|e| {
+                info!("execute_encoding: failed to build args: {}", e);
+                e
+            })?;
+            info!("execute_encoding: FFmpeg args: {:?}", args);
 
             self.execute_ffmpeg_with_progress(command, tracker, progress_callback, cancel_check)?;
+            info!("execute_encoding: FFmpeg concat completed successfully");
         }
 
         Ok(output_path)
@@ -260,32 +299,140 @@ impl ConversionPipeline {
         command: FFmpegCommand,
         tracker: &mut ProgressTracker,
         progress_callback: &mut F,
-        _cancel_check: &C,
+        cancel_check: &C,
     ) -> AppResult<()>
     where
         F: FnMut(ConversionProgress),
         C: Fn() -> bool,
     {
-        // For now, use simple execution without live progress
-        // Real-time progress would require async execution
-        let output = execute_ffmpeg_command(&command)?;
+        let args = command.build_args()?;
+        let executable = command.executable();
+        
+        info!("execute_ffmpeg_with_progress: spawning FFmpeg: {} {:?}", executable, args);
 
-        if !output.success() {
-            return Err(AppError::FFmpegExecutionError {
-                reason: format!("FFmpeg failed: {}", output.stderr),
-            });
-        }
+        // Spawn FFmpeg process with piped stdio so we can stream progress
+        let mut child = Command::new(executable.as_str())
+            .args(&args)
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .map_err(|e| {
+                info!("execute_ffmpeg_with_progress: spawn error: {}", e);
+                if e.kind() == std::io::ErrorKind::NotFound {
+                    AppError::FFmpegNotFound
+                } else {
+                    AppError::FFmpegExecutionError {
+                        reason: format!("Failed to spawn FFmpeg: {}", e),
+                    }
+                }
+            })?;
+        
+        info!("execute_ffmpeg_with_progress: FFmpeg process spawned, pid: {:?}", child.id());
 
-        // Parse final progress from output
-        for line in output.stderr.lines() {
-            if let Some(progress) = parse_ffmpeg_progress(line) {
-                tracker.update_position(progress.time_ms);
-                if let Some(speed) = progress.speed {
+        let stdout = child.stdout.take().ok_or_else(|| AppError::FFmpegExecutionError {
+            reason: "Failed to capture stdout".to_string(),
+        })?;
+
+        let stderr = child.stderr.take().ok_or_else(|| AppError::FFmpegExecutionError {
+            reason: "Failed to capture stderr".to_string(),
+        })?;
+
+        // Read stderr in background so it doesn't block
+        let stderr_handle = thread::spawn(move || {
+            let mut reader = BufReader::new(stderr);
+            let mut content = String::new();
+            let mut line = String::new();
+            loop {
+                line.clear();
+                if reader.read_line(&mut line).unwrap_or(0) == 0 {
+                    break;
+                }
+                content.push_str(&line);
+            }
+            content
+        });
+
+        // Stream stdout for progress updates (FFmpeg -progress pipe:1 writes here)
+        let mut stdout_reader = BufReader::new(stdout);
+        let mut stdout_content = String::new();
+        let mut line = String::new();
+        let mut lines_read = 0;
+
+        info!("execute_ffmpeg_with_progress: starting stdout read loop");
+        let mut last_progress_log = std::time::Instant::now();
+        loop {
+            line.clear();
+            if cancel_check() {
+                info!("execute_ffmpeg_with_progress: cancellation requested");
+                let _ = child.kill();
+                return Err(AppError::ConversionCancelled);
+            }
+
+            let bytes = stdout_reader.read_line(&mut line).map_err(|e| AppError::FFmpegExecutionError {
+                reason: format!("Failed to read FFmpeg stdout: {}", e),
+            })?;
+
+            if bytes == 0 {
+                info!("execute_ffmpeg_with_progress: EOF reached after {} lines", lines_read);
+                break; // EOF
+            }
+            
+            lines_read += 1;
+            
+            // Log first few lines and occasionally thereafter for debugging
+            // Changed to INFO level to ensure we see these
+            if lines_read <= 20 || lines_read % 200 == 0 {
+                info!("execute_ffmpeg_with_progress: line {}: {:?}", lines_read, line.trim());
+            }
+
+            // Accumulate stdout for diagnostics
+            stdout_content.push_str(&line);
+
+            if let Some(ffmpeg_progress) = parse_ffmpeg_progress(line.trim()) {
+                // Log progress periodically (every 5 seconds)
+                if last_progress_log.elapsed().as_secs() >= 5 {
+                    info!("execute_ffmpeg_with_progress: progress {} ms ({}%), speed: {:?}", 
+                        ffmpeg_progress.time_ms, 
+                        (ffmpeg_progress.time_ms as f64 / tracker.total_duration_ms() as f64 * 100.0).min(100.0),
+                        ffmpeg_progress.speed
+                    );
+                    last_progress_log = std::time::Instant::now();
+                }
+                
+                tracker.update_position(ffmpeg_progress.time_ms);
+                if let Some(speed) = ffmpeg_progress.speed {
                     tracker.update_speed(speed);
+                }
+                if let Some(progress) = tracker.get_progress() {
+                    info!("execute_ffmpeg_with_progress: emitting progress event: {}%", progress.total_progress);
+                    progress_callback(progress);
                 }
             }
         }
 
+        info!("execute_ffmpeg_with_progress: waiting for FFmpeg to exit");
+        let status = child.wait().map_err(|e| AppError::FFmpegExecutionError {
+            reason: format!("Failed to wait for FFmpeg: {}", e),
+        })?;
+
+        let stderr_content = stderr_handle.join().unwrap_or_default();
+        info!("execute_ffmpeg_with_progress: FFmpeg exited with status: {:?}", status.code());
+
+        if !status.success() {
+            info!("execute_ffmpeg_with_progress: FFmpeg FAILED, stderr:\n{}", stderr_content);
+            return Err(AppError::FFmpegExecutionError {
+                reason: format!(
+                    "FFmpeg failed (code {:?}): {}\n{}",
+                    status.code(),
+                    stdout_content,
+                    stderr_content
+                ),
+            });
+        }
+        
+        info!("execute_ffmpeg_with_progress: FFmpeg succeeded");
+
+        // Ensure we emit the latest progress once more after completion
         if let Some(progress) = tracker.get_progress() {
             progress_callback(progress);
         }

@@ -4,7 +4,7 @@
 //! for audio conversion, concatenation, and metadata embedding.
 
 use crate::error::{AppError, AppResult};
-use crate::models::{AudioFormat, Chapter, ConversionSettings, Metadata};
+use crate::models::{Chapter, ConversionSettings, Metadata};
 use camino::{Utf8Path, Utf8PathBuf};
 use std::fmt::Write;
 use tracing::debug;
@@ -196,6 +196,14 @@ impl FFmpegCommand {
         self
     }
 
+    /// Enable or disable `-progress pipe:1` (when enabled, FFmpeg writes machine-readable
+    /// progress to stdout instead of the usual human-readable stderr lines).
+    /// Our progress parser expects stderr `time=` lines, so disable this when you need those.
+    pub fn progress_pipe(mut self, enabled: bool) -> Self {
+        self.progress_pipe = enabled;
+        self
+    }
+
     /// Build the command arguments
     pub fn build_args(&self) -> AppResult<Vec<String>> {
         let mut args = Vec::new();
@@ -304,13 +312,13 @@ pub fn build_convert_command(
         cmd = cmd.sample_rate(sr);
     }
 
+    // Disable video processing - audio files may have album artwork as video streams
+    // Artwork will be added separately via embed_artwork_in_m4b
+    cmd = cmd.output_option("-vn".to_string());
+
     // M4B container format
     cmd = cmd.output_option("-f".to_string());
     cmd = cmd.output_option("ipod".to_string());
-
-    // Copy video stream (for artwork)
-    cmd = cmd.output_option("-c:v".to_string());
-    cmd = cmd.output_option("copy".to_string());
 
     debug!("Built convert command for: {} -> {}", input, output);
     cmd
@@ -334,6 +342,10 @@ pub fn build_concat_command(
     if let Some(sr) = settings.sample_rate_hz {
         cmd = cmd.sample_rate(sr);
     }
+
+    // Disable video processing - MP3 files often have album artwork as video streams
+    // which causes FFmpeg to process image frames instead of audio
+    cmd = cmd.output_option("-vn".to_string());
 
     // M4B container format
     cmd = cmd.output_option("-f".to_string());

@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Label } from "./ui/label";
@@ -8,6 +8,7 @@ import * as ConversionApi from "@/api/conversion";
 import * as FilesApi from "@/api/files";
 import type { ConversionSettings, JobStatus } from "@/types/models";
 import { listen } from '@tauri-apps/api/event';
+import { toast } from "@/components/ui/use-toast";
 
 interface ProgressEvent {
     job_id: string;
@@ -38,11 +39,22 @@ export function ConversionPanel() {
     const [jobStatus, setJobStatus] = useState<JobStatus | null>(null);
     const [progress, setProgress] = useState<ProgressEvent | null>(null);
 
-    // Listen to conversion events
+    // Track the job ID in a ref so event listeners always have the latest value
+    const currentJobIdRef = React.useRef<string | null>(null);
+    
+    // Keep the ref in sync with state
     useEffect(() => {
+        currentJobIdRef.current = currentJobId;
+    }, [currentJobId]);
+
+    // Listen to conversion events - set up ONCE on mount (not dependent on currentJobId)
+    useEffect(() => {
+        console.log('[ConversionPanel] Setting up event listeners');
+        
         const unlistenProgress = listen<ProgressEvent>('conversion_progress', (event) => {
             const progressData = event.payload;
-            if (progressData.job_id === currentJobId) {
+            console.log('[ConversionPanel] Received progress event:', progressData.job_id, 'current:', currentJobIdRef.current);
+            if (progressData.job_id === currentJobIdRef.current) {
                 setProgress(progressData);
                 setStatus(`Converting: ${progressData.current_file}`);
             }
@@ -50,7 +62,8 @@ export function ConversionPanel() {
 
         const unlistenComplete = listen<CompletionEvent>('conversion_complete', (event) => {
             const completionData = event.payload;
-            if (completionData.job_id === currentJobId) {
+            console.log('[ConversionPanel] Received completion event:', completionData.job_id, 'current:', currentJobIdRef.current);
+            if (completionData.job_id === currentJobIdRef.current) {
                 setJobStatus('complete');
                 setProgress(null);
                 const durationSec = (completionData.duration_ms / 1000).toFixed(1);
@@ -60,7 +73,8 @@ export function ConversionPanel() {
 
         const unlistenError = listen<ErrorEvent>('conversion_error', (event) => {
             const errorData = event.payload;
-            if (errorData.job_id === currentJobId) {
+            console.log('[ConversionPanel] Received error event:', errorData.job_id, 'current:', currentJobIdRef.current, 'error:', errorData.error_message);
+            if (errorData.job_id === currentJobIdRef.current) {
                 setJobStatus('error');
                 setProgress(null);
                 setStatus(`Error: ${errorData.error_message}`);
@@ -68,11 +82,12 @@ export function ConversionPanel() {
         });
 
         return () => {
+            console.log('[ConversionPanel] Cleaning up event listeners');
             unlistenProgress.then(fn => fn());
             unlistenComplete.then(fn => fn());
             unlistenError.then(fn => fn());
         };
-    }, [currentJobId]);
+    }, []); // Empty dependency array - set up once on mount
 
     const handleStart = async () => {
         if (!activeAudiobook) return;
@@ -93,9 +108,12 @@ export function ConversionPanel() {
             };
 
             const jobId = await ConversionApi.startConversion(activeAudiobook.id, settings);
+            // Set ref immediately so event listeners can match the job ID
+            currentJobIdRef.current = jobId;
             setCurrentJobId(jobId);
             setJobStatus('running');
             setStatus(`Started Job: ${jobId}`);
+            console.log('[ConversionPanel] Started job:', jobId);
         } catch (e) {
             console.error(e);
             setStatus(`Failed to start: ${e}`);
@@ -103,6 +121,52 @@ export function ConversionPanel() {
             setIsStarting(false);
         }
     };
+
+    // Fallback polling in case events don't reach the UI (e.g., running in browser)
+    useEffect(() => {
+        if (!currentJobId || jobStatus !== 'running') return;
+
+        let isCancelled = false;
+        const interval = setInterval(async () => {
+            if (isCancelled) return;
+            try {
+                const status = await ConversionApi.getConversionStatus(currentJobId);
+                // Update progress if available
+                if (status.progress && typeof status.progress.total_progress === 'number') {
+                    setProgress({
+                        job_id: currentJobId,
+                        current_file: status.progress.current_file ?? '',
+                        file_progress: status.progress.file_progress ?? 0,
+                        total_progress: status.progress.total_progress ?? 0,
+                        time_remaining_sec: status.progress.time_remaining_sec ?? 0,
+                    });
+                    setStatus(`Converting: ${status.progress.current_file ?? ''}`);
+                }
+                setJobStatus(status.status);
+
+                // Handle terminal states
+                if (status.status === 'complete') {
+                    setProgress(null);
+                    setStatus(`Completed: ${status.output_path ?? ''}`);
+                } else if (status.status === 'error') {
+                    setProgress(null);
+                    setStatus(`Error: ${status.status_message ?? 'Unknown error'}`);
+                }
+            } catch (e) {
+                console.error(e);
+                toast({
+                    title: "Progress update failed",
+                    description: `${e}`,
+                    variant: "destructive",
+                });
+            }
+        }, 1000);
+
+        return () => {
+            isCancelled = true;
+            clearInterval(interval);
+        };
+    }, [currentJobId, jobStatus]);
 
     const handlePause = async () => {
         if (!currentJobId) return;

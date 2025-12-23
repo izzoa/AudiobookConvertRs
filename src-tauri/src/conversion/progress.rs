@@ -130,6 +130,11 @@ impl ProgressTracker {
         self.stage = ConversionStage::Encoding;
         debug!("Progress tracker started for job {}", self.job_id);
     }
+    
+    /// Get total duration in milliseconds
+    pub fn total_duration_ms(&self) -> u64 {
+        self.total_duration_ms
+    }
 
     /// Set the current file being processed
     pub fn set_current_file(&mut self, index: usize, name: &str, duration_ms: u64) {
@@ -243,11 +248,11 @@ impl ProgressTracker {
     /// Check if enough time has passed to emit an update
     pub fn should_emit(&self) -> bool {
         let elapsed_since_update = self.last_update.elapsed();
-        if elapsed_since_update < MIN_UPDATE_INTERVAL {
-            return false;
+        // Emit if enough time passed OR progress changed by ≥1%
+        if elapsed_since_update >= MIN_UPDATE_INTERVAL {
+            return true;
         }
 
-        // Also emit if progress changed significantly (more than 1%)
         let current_progress = self.progress_percent();
         (current_progress - self.last_emitted_progress).abs() >= 1.0
     }

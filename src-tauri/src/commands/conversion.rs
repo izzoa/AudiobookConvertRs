@@ -1,5 +1,5 @@
 use tauri::{State, Window};
-use crate::models::{ConversionSettings, ConversionJob};
+use crate::models::{ConversionSettings, ConversionJob, JobStatus};
 use crate::state::AppState;
 use crate::conversion::pipeline::{ConversionPipeline, PipelineConfig};
 use crate::ffmpeg::detection::detect_ffmpeg;
@@ -48,65 +48,111 @@ pub async fn start_conversion(
     thread::spawn(move || {
         info!("Starting conversion worker for job {}", job_id_clone);
         
-        // Create pipeline
-        let pipeline = ConversionPipeline::new(ffmpeg_info, PipelineConfig::default());
+        // Clone window for panic handler
+        let window_for_panic = window_clone.clone();
+        let job_id_for_panic = job_id_clone.clone();
+        let state_for_panic = state_clone.clone();
         
-        // Progress callback - emit events to frontend
-        let window_progress = window_clone.clone();
-        let job_id_progress = job_id_clone.clone();
-        let progress_callback = move |progress: crate::conversion::progress::ConversionProgress| {
-            if let Err(e) = emit_progress(&window_progress, crate::events::ConversionProgress {
-                job_id: job_id_progress.clone(),
-                current_file: progress.current_file.clone(),
-                file_progress: progress.file_progress,
-                total_progress: progress.total_progress,
-                time_remaining_sec: progress.time_remaining_sec,
-            }) {
-                error!("Failed to emit progress: {}", e);
+        // Wrap everything in catch_unwind to handle panics
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            // Create pipeline
+            info!("Creating conversion pipeline");
+            let pipeline = ConversionPipeline::new(ffmpeg_info, PipelineConfig::default());
+            
+            // Progress callback - emit events to frontend
+            let window_progress = window_clone.clone();
+            let job_id_progress = job_id_clone.clone();
+            let progress_callback = move |progress: crate::conversion::progress::ConversionProgress| {
+                info!("Emitting progress: {}% for job {}", progress.total_progress, job_id_progress);
+                if let Err(e) = emit_progress(&window_progress, crate::events::ConversionProgress {
+                    job_id: job_id_progress.clone(),
+                    current_file: progress.current_file.clone(),
+                    file_progress: progress.file_progress,
+                    total_progress: progress.total_progress,
+                    time_remaining_sec: progress.time_remaining_sec,
+                }) {
+                    error!("Failed to emit progress: {}", e);
+                }
+            };
+            
+        // Cancel check - consult shared state for cancellation flag
+        let cancel_state = state_clone.clone();
+        let cancel_job_id = job_id_clone.clone();
+        let cancel_check = move || {
+            if let Some(job) = cancel_state.get_job(&cancel_job_id) {
+                job.status == JobStatus::Cancelled
+            } else {
+                false
             }
         };
-        
-        // Cancel check - for now, always return false (no cancellation support yet)
-        let cancel_check = || false;
-        
-        // Run the pipeline
-        let start_time = std::time::Instant::now();
-        match pipeline.run(&job, progress_callback, cancel_check) {
-            Ok(output_path) => {
-                let duration_ms = start_time.elapsed().as_millis() as u64;
-                info!("Conversion completed: {} ({}ms)", output_path, duration_ms);
-                
-                // Emit completion event
-                if let Err(e) = emit_completion(&window_clone, crate::events::ConversionComplete {
-                    job_id: job_id_clone.clone(),
-                    output_path: output_path.to_string(),
-                    duration_ms,
-                }) {
-                    error!("Failed to emit completion: {}", e);
+            
+            // Run the pipeline
+            info!("Running conversion pipeline for {} files", job.audiobook.files.len());
+            let start_time = std::time::Instant::now();
+            match pipeline.run(&job, progress_callback, cancel_check) {
+                Ok(output_path) => {
+                    let duration_ms = start_time.elapsed().as_millis() as u64;
+                    info!("Conversion completed: {} ({}ms)", output_path, duration_ms);
+                    
+                    // Emit completion event
+                    if let Err(e) = emit_completion(&window_clone, crate::events::ConversionComplete {
+                        job_id: job_id_clone.clone(),
+                        output_path: output_path.to_string(),
+                        duration_ms,
+                    }) {
+                        error!("Failed to emit completion: {}", e);
+                    }
+                    
+                    // Update job status in state
+                    let _ = state_clone.update_job_with(&job_id_clone, |j| {
+                        j.complete();
+                    });
                 }
-                
-                // Update job status in state
-                let _ = state_clone.update_job_with(&job_id_clone, |j| {
-                    j.complete();
-                });
-            }
-            Err(e) => {
-                error!("Conversion failed: {}", e);
-                
-                // Emit error event
-                if let Err(err) = emit_error(&window_clone, crate::events::ConversionError {
-                    job_id: job_id_clone.clone(),
-                    error_message: e.to_string(),
-                    recoverable: false,
-                }) {
-                    error!("Failed to emit error: {}", err);
+                Err(e) => {
+                    error!("Conversion failed: {}", e);
+                    
+                    // Emit error event
+                    if let Err(err) = emit_error(&window_clone, crate::events::ConversionError {
+                        job_id: job_id_clone.clone(),
+                        error_message: e.to_string(),
+                        recoverable: false,
+                    }) {
+                        error!("Failed to emit error: {}", err);
+                    }
+                    
+                    // Update job status in state
+                    let _ = state_clone.update_job_with(&job_id_clone, |j| {
+                        j.fail(e.to_string());
+                    });
                 }
-                
-                // Update job status in state
-                let _ = state_clone.update_job_with(&job_id_clone, |j| {
-                    j.fail(e.to_string());
-                });
             }
+        }));
+        
+        // Handle panic
+        if let Err(panic_info) = result {
+            let panic_msg = if let Some(s) = panic_info.downcast_ref::<&str>() {
+                s.to_string()
+            } else if let Some(s) = panic_info.downcast_ref::<String>() {
+                s.clone()
+            } else {
+                "Unknown panic".to_string()
+            };
+            
+            error!("Conversion thread panicked: {}", panic_msg);
+            
+            // Emit error event
+            if let Err(err) = emit_error(&window_for_panic, crate::events::ConversionError {
+                job_id: job_id_for_panic.clone(),
+                error_message: format!("Internal error (panic): {}", panic_msg),
+                recoverable: false,
+            }) {
+                error!("Failed to emit panic error: {}", err);
+            }
+            
+            // Update job status in state
+            let _ = state_for_panic.update_job_with(&job_id_for_panic, |j| {
+                j.fail(format!("Internal error: {}", panic_msg));
+            });
         }
     });
     
