@@ -208,6 +208,10 @@ pub async fn get_conversion_status(
     state.get_job(&job_id).ok_or("Job not found".to_string())
 }
 
+/// DEPRECATED: Pause functionality is not implemented.
+/// FFmpeg cannot be paused in a cross-platform way. This only updates the job status
+/// in memory but does not actually pause the FFmpeg process.
+/// These commands are kept for API compatibility but are not exposed in the UI.
 #[tauri::command]
 pub async fn pause_conversion(
     job_id: String,
@@ -216,6 +220,8 @@ pub async fn pause_conversion(
     state.pause_job(&job_id).map_err(to_string_err)
 }
 
+/// DEPRECATED: Resume functionality is not implemented.
+/// See pause_conversion documentation for details.
 #[tauri::command]
 pub async fn resume_conversion(
     job_id: String,

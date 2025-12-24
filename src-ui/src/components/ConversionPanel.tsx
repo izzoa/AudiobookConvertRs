@@ -168,44 +168,13 @@ export function ConversionPanel() {
         };
     }, [currentJobId, jobStatus]);
 
-    const handlePause = async () => {
-        if (!currentJobId) return;
-        try {
-            const paused = await ConversionApi.pauseConversion(currentJobId);
-            if (paused) {
-                setJobStatus('paused');
-                setStatus("Paused");
-            } else {
-                setStatus("Cannot pause - job not running");
-            }
-        } catch (e) {
-            console.error(e);
-            setStatus(`Failed to pause: ${e}`);
-        }
-    };
-
-    const handleResume = async () => {
-        if (!currentJobId) return;
-        try {
-            const resumed = await ConversionApi.resumeConversion(currentJobId);
-            if (resumed) {
-                setJobStatus('running');
-                setStatus("Resumed");
-            } else {
-                setStatus("Cannot resume - job not paused");
-            }
-        } catch (e) {
-            console.error(e);
-            setStatus(`Failed to resume: ${e}`);
-        }
-    };
-
     const handleCancel = async () => {
         if (!currentJobId) return;
         try {
             await ConversionApi.cancelConversion(currentJobId);
             setJobStatus('cancelled');
             setCurrentJobId(null);
+            setProgress(null); // Clear progress UI
             setStatus("Cancelled");
         } catch (e) {
             console.error(e);
@@ -263,13 +232,13 @@ export function ConversionPanel() {
                             type="button" 
                             variant="outline" 
                             onClick={handleBrowseOutput}
-                            disabled={isStarting || jobStatus === 'running' || jobStatus === 'paused'}
+                            disabled={isStarting || jobStatus === 'running'}
                         >
                             Browse
                         </Button>
                     </div>
                 </div>
-                <Button onClick={handleStart} disabled={isStarting || jobStatus === 'running' || jobStatus === 'paused'}>
+                <Button onClick={handleStart} disabled={isStarting || jobStatus === 'running'}>
                     {isStarting ? "Starting..." : "Start Conversion"}
                 </Button>
             </div>
@@ -287,23 +256,11 @@ export function ConversionPanel() {
                 </div>
             )}
 
-            {currentJobId && (
+            {currentJobId && jobStatus === 'running' && (
                 <div className="flex gap-2">
-                    {jobStatus === 'running' && (
-                        <Button variant="secondary" onClick={handlePause}>
-                            Pause
-                        </Button>
-                    )}
-                    {jobStatus === 'paused' && (
-                        <Button variant="secondary" onClick={handleResume}>
-                            Resume
-                        </Button>
-                    )}
-                    {(jobStatus === 'running' || jobStatus === 'paused') && (
-                        <Button variant="destructive" onClick={handleCancel}>
-                            Cancel
-                        </Button>
-                    )}
+                    <Button variant="destructive" onClick={handleCancel}>
+                        Cancel
+                    </Button>
                 </div>
             )}
         </div>
