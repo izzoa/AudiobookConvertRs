@@ -96,6 +96,9 @@ export interface ConversionJob {
     current_file_index: number;
     total_files: number;
     error_message?: string;
+    progress?: ConversionProgress;
+    output_path?: string;
+    status_message?: string;
     created_at: string; // ISO string
     started_at?: string; // ISO string
     completed_at?: string; // ISO string

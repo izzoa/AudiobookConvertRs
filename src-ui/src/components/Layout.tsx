@@ -1,5 +1,6 @@
 import { TitleBar } from './TitleBar';
 import { Sidebar } from './Sidebar';
+import { Toaster } from './ui/toaster';
 
 interface LayoutProps {
     children: React.ReactNode;
@@ -15,6 +16,7 @@ export function Layout({ children }: LayoutProps) {
                     {children}
                 </main>
             </div>
+            <Toaster />
         </div>
     );
 }
