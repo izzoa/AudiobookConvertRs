@@ -528,6 +528,15 @@ pub struct ConversionJob {
     pub total_files: usize,
     /// Error message if status is Error
     pub error_message: Option<String>,
+    /// Detailed progress information (optional; primarily for UI polling fallback)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub progress: Option<ConversionProgress>,
+    /// Output path when completed (optional)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub output_path: Option<String>,
+    /// Human-readable status message (optional)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub status_message: Option<String>,
     /// When the job was created
     pub created_at: DateTime<Utc>,
     /// When the job started running
@@ -548,6 +557,9 @@ impl ConversionJob {
             progress_percent: 0.0,
             current_file_index: 0,
             error_message: None,
+            progress: None,
+            output_path: None,
+            status_message: None,
             created_at: Utc::now(),
             started_at: None,
             completed_at: None,
@@ -564,6 +576,7 @@ impl ConversionJob {
     pub fn complete(&mut self) {
         self.status = JobStatus::Complete;
         self.progress_percent = 100.0;
+        self.status_message = Some("complete".to_string());
         self.completed_at = Some(Utc::now());
     }
 
@@ -571,12 +584,14 @@ impl ConversionJob {
     pub fn fail(&mut self, error: impl Into<String>) {
         self.status = JobStatus::Error;
         self.error_message = Some(error.into());
+        self.status_message = Some("error".to_string());
         self.completed_at = Some(Utc::now());
     }
 
     /// Mark job as cancelled
     pub fn cancel(&mut self) {
         self.status = JobStatus::Cancelled;
+        self.status_message = Some("cancelled".to_string());
         self.completed_at = Some(Utc::now());
     }
 

@@ -37,6 +37,7 @@ pub async fn start_conversion(
     
     // Add to queue in state
     state.add_job(job.clone());
+    state.set_active_job(Some(job_id.clone()));
     
     // Clone state for thread (AppState implements Clone via Arc)
     let state_clone: AppState = (*state).clone();
@@ -62,8 +63,32 @@ pub async fn start_conversion(
             // Progress callback - emit events to frontend
             let window_progress = window_clone.clone();
             let job_id_progress = job_id_clone.clone();
+            let state_progress = state_clone.clone();
             let progress_callback = move |progress: crate::conversion::progress::ConversionProgress| {
                 info!("Emitting progress: {}% for job {}", progress.total_progress, job_id_progress);
+
+                // Persist progress for UI polling fallback + status queries
+                let job_id_for_update = job_id_progress.clone();
+                let stage_message = progress.stage.to_string();
+                let speed_str = progress.speed.map(|s| format!("{:.2}x", s));
+                if let Err(e) = state_progress.update_job_with(&job_id_for_update, |j| {
+                    j.progress_percent = progress.total_progress;
+                    j.current_file_index = progress.file_index;
+                    j.status_message = Some(stage_message.clone());
+                    j.progress = Some(crate::models::ConversionProgress {
+                        job_id: job_id_for_update.clone(),
+                        file_index: progress.file_index,
+                        current_file: progress.current_file.clone(),
+                        file_progress: progress.file_progress,
+                        total_progress: progress.total_progress,
+                        time_remaining_sec: Some(progress.time_remaining_sec),
+                        speed: speed_str.clone(),
+                        status_message: stage_message.clone(),
+                    });
+                }) {
+                    error!("Failed to persist progress to state: {}", e);
+                }
+
                 if let Err(e) = emit_progress(&window_progress, crate::events::ConversionProgress {
                     job_id: job_id_progress.clone(),
                     current_file: progress.current_file.clone(),
@@ -106,7 +131,9 @@ pub async fn start_conversion(
                     // Update job status in state
                     let _ = state_clone.update_job_with(&job_id_clone, |j| {
                         j.complete();
+                        j.output_path = Some(output_path.to_string());
                     });
+                    state_clone.set_active_job(None);
                 }
                 Err(e) => {
                     error!("Conversion failed: {}", e);
@@ -124,6 +151,7 @@ pub async fn start_conversion(
                     let _ = state_clone.update_job_with(&job_id_clone, |j| {
                         j.fail(e.to_string());
                     });
+                    state_clone.set_active_job(None);
                 }
             }
         }));
@@ -153,6 +181,7 @@ pub async fn start_conversion(
             let _ = state_for_panic.update_job_with(&job_id_for_panic, |j| {
                 j.fail(format!("Internal error: {}", panic_msg));
             });
+            state_for_panic.set_active_job(None);
         }
     });
     
