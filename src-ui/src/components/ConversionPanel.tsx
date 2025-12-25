@@ -98,6 +98,7 @@ export function ConversionPanel() {
         try {
             const settings: ConversionSettings = {
                 bitrate_kbps: 64,
+                encoding_mode: 'vbr',
                 output_format: 'm4b',
                 output_path: outputPath,
                 concurrent_jobs: 1,

@@ -7,12 +7,13 @@
 //! - Recent files list
 
 use crate::error::{AppError, AppResult};
+use crate::models::{EncodingMode, QualityPreset};
 use camino::Utf8PathBuf;
 use once_cell::sync::Lazy;
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
-use tracing::{debug, error, info, warn};
+use tracing::{debug, info, warn};
 
 /// Global configuration instance
 static CONFIG: Lazy<RwLock<UserSettings>> = Lazy::new(|| {
@@ -65,6 +66,12 @@ pub struct UserSettings {
 
     /// Default sample rate for output (None = match source)
     pub default_sample_rate: Option<u32>,
+
+    /// Default quality preset
+    pub default_quality_preset: QualityPreset,
+
+    /// Default encoding mode (VBR or CBR)
+    pub default_encoding_mode: EncodingMode,
 
     /// Whether to embed chapters by default
     pub embed_chapters_by_default: bool,
@@ -134,6 +141,8 @@ impl Default for UserSettings {
             recent_files: Vec::new(),
             max_recent_files: 10,
             default_sample_rate: None,
+            default_quality_preset: QualityPreset::Medium,
+            default_encoding_mode: EncodingMode::Vbr,
             embed_chapters_by_default: true,
             copy_metadata_by_default: true,
             embed_artwork_by_default: true,

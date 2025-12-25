@@ -6,7 +6,8 @@ import { Label } from '@/components/ui/label';
 import { ArrowLeftIcon, FolderOpenIcon, CheckCircleIcon, XCircleIcon } from '@heroicons/react/24/outline';
 import * as SettingsApi from '@/api/settings';
 import * as FilesApi from '@/api/files';
-import type { UserSettings, FFmpegStatus, ConversionDefaults } from '@/types/models';
+import type { UserSettings, FFmpegStatus, ConversionDefaults, QualityPreset, EncodingMode } from '@/types/models';
+import { QualityPreset as QualityPresetValue, EncodingMode as EncodingModeValue } from '@/types/models';
 
 export function SettingsPage() {
     const { settings, updateSettings, refreshSettings, setView, activeProject, setActiveProject } = useApp();
@@ -153,6 +154,7 @@ export function SettingsPage() {
         const defaults = draftProjectDefaults ?? {
             bitrate_kbps: settings?.default_bitrate_kbps ?? 128,
             sample_rate_hz: settings?.default_sample_rate,
+            encoding_mode: settings?.default_encoding_mode ?? (EncodingModeValue.Vbr as EncodingMode),
             overwrite_existing: settings?.overwrite_existing_by_default ?? false,
             embed_chapters: settings?.embed_chapters_by_default ?? true,
             embed_artwork: settings?.embed_artwork_by_default ?? true,
@@ -268,6 +270,41 @@ export function SettingsPage() {
                             />
                             <span className="text-sm">Overwrite existing by default</span>
                         </label>
+                    </div>
+                </div>
+
+                {/* Quality Defaults */}
+                <div className="space-y-4 pt-4 border-t">
+                    <h3 className="text-sm font-medium text-muted-foreground">Quality</h3>
+                    <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                            <Label htmlFor="quality-preset">Default Quality Preset</Label>
+                            <select
+                                id="quality-preset"
+                                className="w-full h-10 px-3 rounded-md border border-input bg-background"
+                                value={draftSettings.default_quality_preset ?? QualityPresetValue.Medium}
+                                onChange={(e) => updateDraft('default_quality_preset', e.target.value as QualityPreset)}
+                            >
+                                <option value={QualityPresetValue.High}>High (256 kbps, 44.1kHz)</option>
+                                <option value={QualityPresetValue.Medium}>Medium (128 kbps, 44.1kHz)</option>
+                                <option value={QualityPresetValue.Low}>Low (64 kbps, 22kHz)</option>
+                                <option value={QualityPresetValue.Custom}>Custom</option>
+                            </select>
+                            <p className="text-xs text-muted-foreground">Default quality preset for new conversions</p>
+                        </div>
+                        <div className="space-y-2">
+                            <Label htmlFor="encoding-mode">Default Encoding Mode</Label>
+                            <select
+                                id="encoding-mode"
+                                className="w-full h-10 px-3 rounded-md border border-input bg-background"
+                                value={draftSettings.default_encoding_mode ?? EncodingModeValue.Vbr}
+                                onChange={(e) => updateDraft('default_encoding_mode', e.target.value as EncodingMode)}
+                            >
+                                <option value={EncodingModeValue.Vbr}>VBR (Variable Bitrate)</option>
+                                <option value={EncodingModeValue.Cbr}>CBR (Constant Bitrate)</option>
+                            </select>
+                            <p className="text-xs text-muted-foreground">VBR offers better quality-to-size ratio</p>
+                        </div>
                     </div>
                 </div>
 

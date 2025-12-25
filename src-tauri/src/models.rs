@@ -15,6 +15,134 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
+/// Quality presets for audio encoding
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "lowercase")]
+pub enum QualityPreset {
+    High,
+    #[default]
+    Medium,
+    Low,
+    Custom,
+}
+
+impl QualityPreset {
+    pub fn bitrate_kbps(&self) -> u32 {
+        match self {
+            QualityPreset::High => 256,
+            QualityPreset::Medium => 128,
+            QualityPreset::Low => 64,
+            QualityPreset::Custom => 128,
+        }
+    }
+
+    pub fn sample_rate_hz(&self) -> u32 {
+        match self {
+            QualityPreset::High => 44100,
+            QualityPreset::Medium => 44100,
+            QualityPreset::Low => 22050,
+            QualityPreset::Custom => 44100,
+        }
+    }
+
+    pub fn is_vbr(&self) -> bool {
+        match self {
+            QualityPreset::High => true,
+            QualityPreset::Medium => true,
+            QualityPreset::Low => false,
+            QualityPreset::Custom => true,
+        }
+    }
+
+    pub fn vbr_quality(&self) -> u8 {
+        match self {
+            QualityPreset::High => 2,
+            QualityPreset::Medium => 4,
+            QualityPreset::Low => 6,
+            QualityPreset::Custom => 4,
+        }
+    }
+
+    pub fn description(&self) -> &'static str {
+        match self {
+            QualityPreset::High => "Best quality, larger files",
+            QualityPreset::Medium => "Good balance of quality and size",
+            QualityPreset::Low => "Smaller files, reduced quality",
+            QualityPreset::Custom => "Manual configuration",
+        }
+    }
+}
+
+impl std::fmt::Display for QualityPreset {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            QualityPreset::High => write!(f, "High"),
+            QualityPreset::Medium => write!(f, "Medium"),
+            QualityPreset::Low => write!(f, "Low"),
+            QualityPreset::Custom => write!(f, "Custom"),
+        }
+    }
+}
+
+/// Encoding mode: VBR (variable) or CBR (constant)
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "lowercase")]
+pub enum EncodingMode {
+    #[default]
+    Vbr,
+    Cbr,
+}
+
+impl EncodingMode {
+    pub fn description(&self) -> &'static str {
+        match self {
+            EncodingMode::Vbr => "Variable bitrate - better quality at same size",
+            EncodingMode::Cbr => "Constant bitrate - consistent file size",
+        }
+    }
+}
+
+impl std::fmt::Display for EncodingMode {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            EncodingMode::Vbr => write!(f, "VBR"),
+            EncodingMode::Cbr => write!(f, "CBR"),
+        }
+    }
+}
+
+/// Estimated file size result
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FileSizeEstimate {
+    pub bytes: u64,
+    pub formatted: String,
+}
+
+impl FileSizeEstimate {
+    pub fn new(bytes: u64) -> Self {
+        Self {
+            bytes,
+            formatted: format_bytes(bytes),
+        }
+    }
+}
+
+/// Estimate output file size based on duration and bitrate
+pub fn estimate_file_size_bytes(duration_ms: u64, bitrate_kbps: u32) -> u64 {
+    (duration_ms * bitrate_kbps as u64) / 8
+}
+
+/// Quality preset info for frontend
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct QualityPresetInfo {
+    pub preset: QualityPreset,
+    pub name: String,
+    pub description: String,
+    pub bitrate_kbps: u32,
+    pub sample_rate_hz: u32,
+    pub is_vbr: bool,
+}
+
 /// Supported audio formats
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
@@ -416,6 +544,8 @@ pub struct ConversionDefaults {
     pub bitrate_kbps: u32,
     /// Output sample rate in Hz (None = use source)
     pub sample_rate_hz: Option<u32>,
+    /// Encoding mode (VBR or CBR)
+    pub encoding_mode: EncodingMode,
     /// Whether to overwrite existing output file
     pub overwrite_existing: bool,
     /// Whether to embed chapters
@@ -431,6 +561,7 @@ impl Default for ConversionDefaults {
         Self {
             bitrate_kbps: 128,
             sample_rate_hz: None,
+            encoding_mode: EncodingMode::Vbr,
             overwrite_existing: false,
             embed_chapters: true,
             embed_artwork: true,
@@ -445,6 +576,7 @@ impl ConversionDefaults {
         Self {
             bitrate_kbps: settings.default_bitrate_kbps,
             sample_rate_hz: settings.default_sample_rate,
+            encoding_mode: settings.default_encoding_mode,
             overwrite_existing: settings.overwrite_existing_by_default,
             embed_chapters: settings.embed_chapters_by_default,
             embed_artwork: settings.embed_artwork_by_default,
@@ -457,6 +589,7 @@ impl ConversionDefaults {
         ConversionSettings {
             bitrate_kbps: self.bitrate_kbps,
             sample_rate_hz: self.sample_rate_hz,
+            encoding_mode: self.encoding_mode,
             output_format: AudioFormat::M4b,
             output_path,
             concurrent_jobs,
@@ -475,6 +608,9 @@ pub struct ConversionSettings {
     pub bitrate_kbps: u32,
     /// Output sample rate in Hz (None = use source)
     pub sample_rate_hz: Option<u32>,
+    /// Encoding mode (VBR or CBR)
+    #[serde(default)]
+    pub encoding_mode: EncodingMode,
     /// Output format (currently always M4B)
     pub output_format: AudioFormat,
     /// Full path to output file
@@ -496,6 +632,7 @@ impl Default for ConversionSettings {
         Self {
             bitrate_kbps: 128,
             sample_rate_hz: None,
+            encoding_mode: EncodingMode::Vbr,
             output_format: AudioFormat::M4b,
             output_path: Utf8PathBuf::new(),
             concurrent_jobs: 1,
@@ -861,6 +998,7 @@ mod tests {
         let defaults = ConversionDefaults {
             bitrate_kbps: 96,
             sample_rate_hz: Some(44100),
+            encoding_mode: EncodingMode::Cbr,
             overwrite_existing: true,
             embed_chapters: false,
             embed_artwork: true,
@@ -871,6 +1009,7 @@ mod tests {
 
         assert_eq!(settings.bitrate_kbps, 96);
         assert_eq!(settings.sample_rate_hz, Some(44100));
+        assert_eq!(settings.encoding_mode, EncodingMode::Cbr);
         assert!(settings.overwrite_existing);
         assert!(!settings.embed_chapters);
         assert!(settings.embed_artwork);
@@ -885,6 +1024,7 @@ mod tests {
         let defaults = ConversionDefaults {
             bitrate_kbps: 192,
             sample_rate_hz: Some(48000),
+            encoding_mode: EncodingMode::Vbr,
             overwrite_existing: false,
             embed_chapters: true,
             embed_artwork: false,
@@ -896,10 +1036,68 @@ mod tests {
 
         assert_eq!(parsed.bitrate_kbps, defaults.bitrate_kbps);
         assert_eq!(parsed.sample_rate_hz, defaults.sample_rate_hz);
+        assert_eq!(parsed.encoding_mode, defaults.encoding_mode);
         assert_eq!(parsed.overwrite_existing, defaults.overwrite_existing);
         assert_eq!(parsed.embed_chapters, defaults.embed_chapters);
         assert_eq!(parsed.embed_artwork, defaults.embed_artwork);
         assert_eq!(parsed.copy_metadata, defaults.copy_metadata);
+    }
+
+    #[test]
+    fn test_quality_preset_bitrates() {
+        assert_eq!(QualityPreset::High.bitrate_kbps(), 256);
+        assert_eq!(QualityPreset::Medium.bitrate_kbps(), 128);
+        assert_eq!(QualityPreset::Low.bitrate_kbps(), 64);
+        assert_eq!(QualityPreset::Custom.bitrate_kbps(), 128);
+    }
+
+    #[test]
+    fn test_quality_preset_sample_rates() {
+        assert_eq!(QualityPreset::High.sample_rate_hz(), 44100);
+        assert_eq!(QualityPreset::Medium.sample_rate_hz(), 44100);
+        assert_eq!(QualityPreset::Low.sample_rate_hz(), 22050);
+        assert_eq!(QualityPreset::Custom.sample_rate_hz(), 44100);
+    }
+
+    #[test]
+    fn test_quality_preset_vbr() {
+        assert!(QualityPreset::High.is_vbr());
+        assert!(QualityPreset::Medium.is_vbr());
+        assert!(!QualityPreset::Low.is_vbr());
+        assert!(QualityPreset::Custom.is_vbr());
+    }
+
+    #[test]
+    fn test_encoding_mode_serialization() {
+        let vbr = EncodingMode::Vbr;
+        let cbr = EncodingMode::Cbr;
+
+        let vbr_json = serde_json::to_string(&vbr).unwrap();
+        let cbr_json = serde_json::to_string(&cbr).unwrap();
+
+        assert_eq!(vbr_json, "\"vbr\"");
+        assert_eq!(cbr_json, "\"cbr\"");
+
+        let parsed_vbr: EncodingMode = serde_json::from_str(&vbr_json).unwrap();
+        let parsed_cbr: EncodingMode = serde_json::from_str(&cbr_json).unwrap();
+
+        assert_eq!(parsed_vbr, EncodingMode::Vbr);
+        assert_eq!(parsed_cbr, EncodingMode::Cbr);
+    }
+
+    #[test]
+    fn test_file_size_estimation() {
+        let duration_ms: u64 = 3600000;
+        let bitrate_kbps: u32 = 128;
+        let estimated = estimate_file_size_bytes(duration_ms, bitrate_kbps);
+        assert_eq!(estimated, 57600000);
+    }
+
+    #[test]
+    fn test_file_size_estimate_formatting() {
+        let estimate = FileSizeEstimate::new(57600000);
+        assert_eq!(estimate.bytes, 57600000);
+        assert_eq!(estimate.formatted, "54.93 MB");
     }
 }
 

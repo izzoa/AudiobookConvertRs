@@ -99,6 +99,7 @@ impl ConversionPreset {
         ConversionSettings {
             bitrate_kbps: self.settings.bitrate_kbps,
             sample_rate_hz: self.settings.sample_rate,
+            encoding_mode: crate::models::EncodingMode::Vbr,
             output_format: crate::models::AudioFormat::M4b,
             output_path,
             concurrent_jobs: self.settings.concurrent_jobs,

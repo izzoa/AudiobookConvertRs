@@ -65,6 +65,7 @@ export function DryRunPreview() {
                 conversionSettings = {
                     bitrate_kbps: defaults.bitrate_kbps,
                     sample_rate_hz: defaults.sample_rate_hz,
+                    encoding_mode: defaults.encoding_mode,
                     output_format: "m4b",
                     output_path: settings?.default_output_directory
                         ? `${settings.default_output_directory}/${activeAudiobook.title}.m4b`

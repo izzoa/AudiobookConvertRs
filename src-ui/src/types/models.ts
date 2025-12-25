@@ -1,5 +1,33 @@
 export type AudioFormat = 'mp3' | 'flac' | 'm4a' | 'm4b' | 'wav' | 'ogg' | 'wma' | 'aac';
 
+export type QualityPreset = 'high' | 'medium' | 'low' | 'custom';
+export const QualityPreset = {
+    High: 'high',
+    Medium: 'medium',
+    Low: 'low',
+    Custom: 'custom',
+} as const;
+
+export type EncodingMode = 'vbr' | 'cbr';
+export const EncodingMode = {
+    Vbr: 'vbr',
+    Cbr: 'cbr',
+} as const;
+
+export interface FileSizeEstimate {
+    bytes: number;
+    formatted: string;
+}
+
+export interface QualityPresetInfo {
+    preset: QualityPreset;
+    name: string;
+    description: string;
+    bitrate_kbps: number;
+    sample_rate_hz: number;
+    is_vbr: boolean;
+}
+
 export interface Metadata {
     title?: string;
     artist?: string;
@@ -68,6 +96,7 @@ export interface AudioBook {
 export interface ConversionSettings {
     bitrate_kbps: number;
     sample_rate_hz?: number;
+    encoding_mode: EncodingMode;
     output_format: AudioFormat;
     output_path: string;
     concurrent_jobs: number;
@@ -150,12 +179,17 @@ export interface UserSettings {
 
     // Debug
     log_level: 'error' | 'warn' | 'info' | 'debug' | 'trace';
+
+    // Quality defaults
+    default_quality_preset: QualityPreset;
+    default_encoding_mode: EncodingMode;
 }
 
 /// Conversion defaults without output path (for global/project defaults)
 export interface ConversionDefaults {
     bitrate_kbps: number;
     sample_rate_hz?: number;
+    encoding_mode: EncodingMode;
     overwrite_existing: boolean;
     embed_chapters: boolean;
     embed_artwork: boolean;

@@ -164,6 +164,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         const globalDefaults: ConversionDefaults = {
             bitrate_kbps: settings?.default_bitrate_kbps ?? 128,
             sample_rate_hz: settings?.default_sample_rate,
+            encoding_mode: settings?.default_encoding_mode ?? 'vbr',
             overwrite_existing: settings?.overwrite_existing_by_default ?? false,
             embed_chapters: settings?.embed_chapters_by_default ?? true,
             embed_artwork: settings?.embed_artwork_by_default ?? true,

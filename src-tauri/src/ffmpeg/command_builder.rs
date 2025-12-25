@@ -4,7 +4,7 @@
 //! for audio conversion, concatenation, and metadata embedding.
 
 use crate::error::{AppError, AppResult};
-use crate::models::{Chapter, ConversionSettings, Metadata};
+use crate::models::{Chapter, ConversionSettings, EncodingMode, Metadata};
 use camino::{Utf8Path, Utf8PathBuf};
 use std::fmt::Write;
 use tracing::debug;
@@ -26,6 +26,10 @@ pub struct FFmpegCommand {
     sample_rate_hz: Option<u32>,
     /// Number of audio channels
     channels: Option<u8>,
+    /// Encoding mode (VBR or CBR)
+    encoding_mode: EncodingMode,
+    /// VBR quality (0-9 for AAC, lower = better)
+    vbr_quality: Option<u8>,
     /// Metadata to embed
     metadata: Vec<(String, String)>,
     /// Additional filters
@@ -57,6 +61,8 @@ impl Default for FFmpegCommand {
             bitrate_kbps: None,
             sample_rate_hz: None,
             channels: None,
+            encoding_mode: EncodingMode::Vbr,
+            vbr_quality: None,
             metadata: Vec::new(),
             filters: Vec::new(),
             output_options: Vec::new(),
@@ -130,6 +136,18 @@ impl FFmpegCommand {
     /// Set the number of audio channels
     pub fn channels(mut self, num: u8) -> Self {
         self.channels = Some(num);
+        self
+    }
+
+    /// Set the encoding mode (VBR or CBR)
+    pub fn encoding_mode(mut self, mode: EncodingMode) -> Self {
+        self.encoding_mode = mode;
+        self
+    }
+
+    /// Set VBR quality (0-9 for AAC, lower = better)
+    pub fn vbr_quality(mut self, quality: u8) -> Self {
+        self.vbr_quality = Some(quality);
         self
     }
 
@@ -240,10 +258,23 @@ impl FFmpegCommand {
             args.push(codec.clone());
         }
 
-        // Bitrate
-        if let Some(bitrate) = self.bitrate_kbps {
-            args.push("-b:a".to_string());
-            args.push(format!("{}k", bitrate));
+        // Bitrate/Quality based on encoding mode
+        match self.encoding_mode {
+            EncodingMode::Cbr => {
+                if let Some(bitrate) = self.bitrate_kbps {
+                    args.push("-b:a".to_string());
+                    args.push(format!("{}k", bitrate));
+                }
+            }
+            EncodingMode::Vbr => {
+                if let Some(quality) = self.vbr_quality {
+                    args.push("-q:a".to_string());
+                    args.push(quality.to_string());
+                } else if let Some(bitrate) = self.bitrate_kbps {
+                    args.push("-b:a".to_string());
+                    args.push(format!("{}k", bitrate));
+                }
+            }
         }
 
         // Sample rate
@@ -306,6 +337,7 @@ pub fn build_convert_command(
         .output(output)
         .audio_codec(encoder)
         .bitrate(settings.bitrate_kbps)
+        .encoding_mode(settings.encoding_mode)
         .overwrite_output(settings.overwrite_existing);
 
     if let Some(sr) = settings.sample_rate_hz {
@@ -337,6 +369,7 @@ pub fn build_concat_command(
         .output(output)
         .audio_codec(encoder)
         .bitrate(settings.bitrate_kbps)
+        .encoding_mode(settings.encoding_mode)
         .overwrite_output(settings.overwrite_existing);
 
     if let Some(sr) = settings.sample_rate_hz {

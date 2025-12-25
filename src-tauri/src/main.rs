@@ -122,6 +122,8 @@ fn main() {
             audiobookconvert_rs::commands::quality::analyze_audio_levels,
             audiobookconvert_rs::commands::quality::suggest_normalization,
             audiobookconvert_rs::commands::quality::apply_audio_normalization,
+            audiobookconvert_rs::commands::quality::estimate_output_size,
+            audiobookconvert_rs::commands::quality::get_quality_preset_info,
             // Presets
             audiobookconvert_rs::commands::presets::list_presets,
             audiobookconvert_rs::commands::presets::get_preset,
