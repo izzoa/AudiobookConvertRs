@@ -149,18 +149,6 @@ ffmpeg -i input.mp3 -c:a libopus -b:a 64k output.opus
 
 **Goal**: Import FLAC files with CUE sheets, mapping tracks to chapters.
 
-**Tasks**:
-- [ ] Add CUE sheet parser (custom or `cue_sheet` crate)
-- [ ] Detect `.cue` files alongside `.flac` files
-- [ ] Parse CUE to extract:
-  - Track boundaries (INDEX 01 timestamps)
-  - Track titles (TITLE)
-  - Performers (PERFORMER)
-  - ISRCs if present
-- [ ] Auto-generate chapters from CUE tracks
-- [ ] UI: Prompt when CUE file detected
-- [ ] Handle multi-file CUE sheets
-
 **CUE format example**:
 ```
 FILE "album.flac" WAVE
@@ -173,12 +161,79 @@ FILE "album.flac" WAVE
     INDEX 01 05:32:15
 ```
 
-**Files to create**:
-- `src-tauri/src/metadata/cue_parser.rs` - CUE sheet parsing
+#### Phase 6.1: Research & Dependencies
+- [ ] Research `cue_sheet` crate vs custom parser trade-offs
+- [ ] Add `cue_sheet` crate to Cargo.toml (or decide on custom implementation)
+- [ ] Review existing `Chapter` struct in `models.rs` for compatibility
 
-**Files to modify**:
-- `src-tauri/src/audio/loader.rs` - Detect and process CUE
-- `src-tauri/src/metadata/chapters.rs` - Generate chapters from CUE
+#### Phase 6.2: CUE Parser Module
+- [ ] Create `src-tauri/src/metadata/cue_parser.rs`
+- [ ] Define `CueSheet` struct (file references, tracks, metadata)
+- [ ] Define `CueTrack` struct (index, title, performer, start_time)
+- [ ] Implement `parse_cue_file(path: &Path) -> Result<CueSheet, CueError>`
+- [ ] Handle CUE timestamp format (MM:SS:FF where FF is frames, 75 frames/sec)
+- [ ] Convert CUE timestamps to milliseconds
+- [ ] Parse TITLE, PERFORMER, FILE, TRACK, INDEX commands
+- [ ] Handle quoted strings and escape sequences
+- [ ] Add unit tests with sample CUE content
+
+#### Phase 6.3: CUE Detection in Audio Loader
+- [ ] Modify `src-tauri/src/audio/loader.rs`
+- [ ] Add `find_cue_file(flac_path: &Path) -> Option<PathBuf>` function
+- [ ] Check for `.cue` file with same base name as `.flac`
+- [ ] Check for `.cue` file in same directory with matching FILE reference
+- [ ] Return CUE path if found
+
+#### Phase 6.4: Chapter Generation from CUE
+- [ ] Modify `src-tauri/src/metadata/chapters.rs`
+- [ ] Add `generate_chapters_from_cue(cue: &CueSheet, total_duration_ms: u64) -> Vec<Chapter>`
+- [ ] Map each `CueTrack` to a `Chapter`
+- [ ] Calculate chapter end times (next track start or total duration)
+- [ ] Use track TITLE as chapter title (fallback to "Track N")
+- [ ] Preserve PERFORMER in chapter metadata if available
+
+#### Phase 6.5: Multi-file CUE Support
+- [ ] Handle CUE sheets referencing multiple FILE entries
+- [ ] Map each FILE to corresponding audio file
+- [ ] Calculate cumulative offsets for multi-file chapters
+- [ ] Validate all referenced files exist
+
+#### Phase 6.6: IPC Command Integration
+- [ ] Add `detect_cue_file` command to `commands/files.rs`
+- [ ] Add `import_chapters_from_cue` command to `commands/metadata.rs`
+- [ ] Return structured response with CUE detection status and track count
+
+#### Phase 6.7: Frontend UI
+- [ ] Modify `ChapterPanel.tsx` or create `CueImportDialog.tsx`
+- [ ] Show notification when CUE file detected alongside FLAC
+- [ ] Display parsed track list for user confirmation
+- [ ] Add "Import as Chapters" button
+- [ ] Update chapter list after import
+
+#### Phase 6.8: Testing & Edge Cases
+- [ ] Test with single-file CUE sheets
+- [ ] Test with multi-file CUE sheets
+- [ ] Test with Unicode track titles (Japanese, Cyrillic, etc.)
+- [ ] Test with missing/malformed INDEX entries
+- [ ] Test with hidden Track 00 (pregap)
+- [ ] Integration test: FLAC + CUE -> M4B with chapters
+
+**Dependency Flow**:
+```
+[6.1 Research] --> [6.2 Parser] --> [6.3 Detection]
+                        |                  |
+                        v                  v
+                   [6.4 Chapters] <--------+
+                        |
+                        v
+                   [6.5 Multi-file]
+                        |
+                        v
+                   [6.6 IPC Commands] --> [6.7 Frontend UI]
+                                                |
+                                                v
+                                          [6.8 Testing]
+```
 
 ---
 

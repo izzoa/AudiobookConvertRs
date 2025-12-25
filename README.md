@@ -25,6 +25,10 @@
 
 ---
 
+> ⚠️ **ALPHA STATUS**: This project is in early alpha development. Features may be incomplete, APIs may change, and bugs are expected. Contributions and PRs are very welcome!
+
+---
+
 ## Overview
 
 AudiobookConvertRs converts your audio files (MP3, FLAC, M4A, WAV, OGG) into the M4B audiobook format with full support for chapters, metadata, and cover artwork. Built with Rust for performance and Tauri for a lightweight, native UI experience.
@@ -276,11 +280,24 @@ Contributions are welcome! Please read our contributing guidelines before submit
 
 ## Roadmap
 
+See [PARITY.md](PARITY.md) for detailed implementation plans.
+
+### High Priority
+- [ ] **Audio Preview/Playback** - Listen to audio before converting
+- [ ] **Smart Artwork Discovery** - Auto-detect cover images from file directories
+
+### Medium Priority
+- [ ] **MP3 Output Format** - Export to MP3 with chapter support via ID3v2
+- [ ] **OGG/Opus Output Format** - Export to open Opus format
+
+### Lower Priority
+- [ ] **FLAC/CUE Sheet Support** - Import FLAC with CUE, map tracks to chapters
+- [ ] **WMA Input Support** - Import Windows Media Audio files
+
+### Polish & Enhancements
+- [ ] **Quality Management UI** - Bitrate slider with file size estimation
 - [ ] Audio normalization options
-- [ ] Batch conversion improvements
 - [ ] Additional metadata providers (Google Books, Audible)
-- [ ] Audio preview/playback
-- [ ] Dark/light theme toggle
 - [ ] Localization support
 
 ## License
