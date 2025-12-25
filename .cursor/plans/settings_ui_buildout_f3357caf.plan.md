@@ -168,5 +168,3 @@ flowchart TD
 - Update [`/Users/anthonyizzo/Development/AudiobookConvertRs/API.md`](/Users/anthonyizzo/Development/AudiobookConvertRs/API.md) to match actual command names (`update_settings`, `reset_settings`) and settings schema.
 
 ## Acceptance checklist
-
-- Sidebar “Settings” opens the Settings page and Back returns to workflow.

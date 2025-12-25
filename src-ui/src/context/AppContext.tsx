@@ -112,12 +112,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
     useEffect(() => {
         async function loadInitialData() {
+            console.log("AppContext: Starting initial data load...");
             try {
+                console.log("AppContext: Fetching settings...");
                 const loadedSettings = await SettingsApi.getSettings();
+                console.log("AppContext: Settings loaded:", loadedSettings);
                 setSettings(loadedSettings);
                 await refreshUndoState();
+                console.log("AppContext: Initial data load complete");
             } catch (error) {
-                console.error("Failed to load settings:", error);
+                console.error("AppContext: Failed to load settings:", error);
             } finally {
                 setIsLoading(false);
             }

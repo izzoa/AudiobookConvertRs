@@ -22,7 +22,17 @@ export const ConversionSettingsDialog: React.FC<ConversionSettingsDialogProps> =
 
     const [outputPath, setOutputPath] = useState('');
     const [bitrate, setBitrate] = useState(defaults.bitrate_kbps);
+    const [matchBitrate, setMatchBitrate] = useState(false);
     const [sampleRate, setSampleRate] = useState<number | undefined>(defaults.sample_rate_hz);
+
+    const sourceBitrate = React.useMemo(() => {
+        const bitrates = audiobook.files
+            .map(f => f.bitrate_kbps)
+            .filter((b): b is number => b !== undefined && b > 0);
+        if (bitrates.length === 0) return undefined;
+        const avg = Math.round(bitrates.reduce((a, b) => a + b, 0) / bitrates.length);
+        return avg;
+    }, [audiobook.files]);
     const [embedChapters, setEmbedChapters] = useState(defaults.embed_chapters);
     const [embedArtwork, setEmbedArtwork] = useState(defaults.embed_artwork);
     const [copyMetadata, setCopyMetadata] = useState(defaults.copy_metadata);
@@ -53,9 +63,10 @@ export const ConversionSettingsDialog: React.FC<ConversionSettingsDialogProps> =
             return;
         }
 
+        const effectiveBitrate = matchBitrate && sourceBitrate ? sourceBitrate : bitrate;
         const conversionSettings: ConversionSettings = {
             output_path: outputPath,
-            bitrate_kbps: bitrate,
+            bitrate_kbps: effectiveBitrate,
             sample_rate_hz: sampleRate,
             output_format: 'm4b',
             concurrent_jobs: settings?.concurrent_jobs ?? 1,
@@ -99,10 +110,20 @@ export const ConversionSettingsDialog: React.FC<ConversionSettingsDialogProps> =
                         <Label htmlFor="bitrate">Bitrate (kbps)</Label>
                         <select
                             id="bitrate"
-                            value={bitrate}
-                            onChange={(e) => setBitrate(parseInt(e.target.value))}
+                            value={matchBitrate ? 'match' : bitrate}
+                            onChange={(e) => {
+                                if (e.target.value === 'match') {
+                                    setMatchBitrate(true);
+                                } else {
+                                    setMatchBitrate(false);
+                                    setBitrate(parseInt(e.target.value));
+                                }
+                            }}
                             className="w-full px-3 py-2 border rounded-md bg-background"
                         >
+                            {sourceBitrate && (
+                                <option value="match">Match source (~{sourceBitrate} kbps)</option>
+                            )}
                             <option value="32">32 kbps</option>
                             <option value="48">48 kbps</option>
                             <option value="64">64 kbps</option>
@@ -110,6 +131,7 @@ export const ConversionSettingsDialog: React.FC<ConversionSettingsDialogProps> =
                             <option value="128">128 kbps</option>
                             <option value="192">192 kbps</option>
                             <option value="256">256 kbps</option>
+                            <option value="320">320 kbps</option>
                         </select>
                     </div>
 

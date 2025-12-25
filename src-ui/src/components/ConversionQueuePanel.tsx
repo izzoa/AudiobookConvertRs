@@ -530,10 +530,12 @@ export const ConversionQueuePanel: React.FC = () => {
                                         </span>
                                     </div>
                                     <div className="flex justify-between text-sm text-muted-foreground">
-                                        <span>{job.status_message}</span>
-                                        {jobTimeRemaining[job.id] !== undefined && jobTimeRemaining[job.id] > 0 && (
-                                            <span>{formatTimeRemaining(jobTimeRemaining[job.id])}</span>
-                                        )}
+                                        <span>{job.status_message || 'Processing...'}</span>
+                                        <span>
+                                            {jobTimeRemaining[job.id] !== undefined && jobTimeRemaining[job.id] > 0
+                                                ? formatTimeRemaining(jobTimeRemaining[job.id])
+                                                : 'Calculating ETA...'}
+                                        </span>
                                     </div>
                                 </>
                             )}

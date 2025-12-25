@@ -6,8 +6,76 @@ import { useApp } from "@/context/AppContext";
 import * as ChaptersApi from "@/api/chapters";
 import * as FilesApi from "@/api/files";
 import type { Chapter } from "@/types/models";
+import { GripVertical } from "lucide-react";
+import {
+    DndContext,
+    closestCenter,
+    KeyboardSensor,
+    PointerSensor,
+    useSensor,
+    useSensors,
+    type DragEndEvent,
+} from "@dnd-kit/core";
+import {
+    arrayMove,
+    SortableContext,
+    sortableKeyboardCoordinates,
+    useSortable,
+    verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 
 type ChapterFormat = "audacity" | "ffmetadata" | "csv";
+
+interface SortableChapterProps {
+    chapter: Chapter;
+    displayIndex: number;
+    formatDuration: (ms: number) => string;
+}
+
+function SortableChapter({ chapter, displayIndex, formatDuration }: SortableChapterProps) {
+    const {
+        attributes,
+        listeners,
+        setNodeRef,
+        transform,
+        transition,
+        isDragging,
+    } = useSortable({ id: chapter.index.toString() });
+
+    const style = {
+        transform: CSS.Transform.toString(transform),
+        transition,
+        opacity: isDragging ? 0.5 : 1,
+        zIndex: isDragging ? 1 : 0,
+    };
+
+    return (
+        <div
+            ref={setNodeRef}
+            style={style}
+            className={`flex items-center justify-between p-2 border rounded text-sm bg-card ${
+                isDragging ? 'shadow-lg border-primary' : 'hover:bg-muted/50'
+            }`}
+        >
+            <div className="flex items-center gap-2 flex-1 min-w-0">
+                <button
+                    {...attributes}
+                    {...listeners}
+                    className="cursor-grab active:cursor-grabbing touch-none p-1 hover:bg-muted rounded"
+                    aria-label="Drag to reorder"
+                >
+                    <GripVertical className="h-4 w-4 text-muted-foreground" />
+                </button>
+                <span className="font-medium">{displayIndex + 1}. </span>
+                <span className="truncate">{chapter.title}</span>
+            </div>
+            <div className="text-muted-foreground text-xs ml-4 flex-shrink-0">
+                {formatDuration(chapter.start_time_ms)} - {formatDuration(chapter.end_time_ms)}
+            </div>
+        </div>
+    );
+}
 
 export function ChapterEditor() {
     const { activeAudiobook, setActiveAudiobook } = useApp();
@@ -19,6 +87,17 @@ export function ChapterEditor() {
     const [regexPresets, setRegexPresets] = useState<ChaptersApi.RegexPreset[]>([]);
     const [customPattern, setCustomPattern] = useState("");
     const [customReplacement, setCustomReplacement] = useState("");
+
+    const sensors = useSensors(
+        useSensor(PointerSensor, {
+            activationConstraint: {
+                distance: 8,
+            },
+        }),
+        useSensor(KeyboardSensor, {
+            coordinateGetter: sortableKeyboardCoordinates,
+        })
+    );
 
     useEffect(() => {
         async function loadPresets() {
@@ -51,16 +130,13 @@ export function ChapterEditor() {
                 return;
             }
 
-            // Detect format from extension
             const ext = path.split('.').pop()?.toLowerCase();
             let format: ChapterFormat = "audacity";
             if (ext === "csv") format = "csv";
             else if (ext === "ffmeta" || ext === "ffmetadata") format = "ffmetadata";
 
-            // Read file content
             const content = await FilesApi.readTextFile(path);
-            
-            // Import and apply
+
             const updated = await ChaptersApi.importChapters(
                 activeAudiobook.id,
                 format,
@@ -82,21 +158,16 @@ export function ChapterEditor() {
         setError(null);
 
         try {
-            // Get the extension for the format
             const ext = format === "ffmetadata" ? "ffmeta" : format === "csv" ? "csv" : "txt";
             const defaultName = `${activeAudiobook.title || "chapters"}_chapters.${ext}`;
-            
-            // Pick save location
+
             const path = await FilesApi.pickExportSummaryFile(defaultName);
             if (!path) {
                 setIsExporting(false);
                 return;
             }
 
-            // Export chapters
             const content = await ChaptersApi.exportChapters(activeAudiobook.id, format);
-
-            // Write to file
             await FilesApi.writeTextFile(path, content);
             setError(null);
         } catch (e) {
@@ -170,7 +241,7 @@ export function ChapterEditor() {
         const hours = Math.floor(totalSeconds / 3600);
         const minutes = Math.floor((totalSeconds % 3600) / 60);
         const seconds = totalSeconds % 60;
-        
+
         if (hours > 0) {
             return `${hours}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
         }
@@ -179,26 +250,74 @@ export function ChapterEditor() {
 
     const validateChapters = (chapters: Chapter[]) => {
         const warnings: string[] = [];
-        
-        // Check for overlaps
+
         for (let i = 0; i < chapters.length - 1; i++) {
             if (chapters[i].end_time_ms > chapters[i + 1].start_time_ms) {
                 warnings.push(`Overlap between chapter ${i + 1} and ${i + 2}`);
             }
         }
-        
-        // Check for gaps
+
         for (let i = 0; i < chapters.length - 1; i++) {
             const gap = chapters[i + 1].start_time_ms - chapters[i].end_time_ms;
-            if (gap > 1000) { // More than 1 second gap
+            if (gap > 1000) {
                 warnings.push(`Gap of ${formatDuration(gap)} between chapter ${i + 1} and ${i + 2}`);
             }
         }
-        
+
         return warnings;
     };
 
     const warnings = validateChapters(activeAudiobook.chapters);
+
+    const recalculateChapterTimings = (chapters: Chapter[]): Chapter[] => {
+        let currentTime = 0;
+        return chapters.map((chapter, idx) => {
+            const duration = chapter.end_time_ms - chapter.start_time_ms;
+            const newChapter = {
+                ...chapter,
+                index: idx,
+                start_time_ms: currentTime,
+                end_time_ms: currentTime + duration,
+            };
+            currentTime += duration;
+            return newChapter;
+        });
+    };
+
+    const handleDragEnd = async (event: DragEndEvent) => {
+        const { active, over } = event;
+
+        if (!over || active.id === over.id || !activeAudiobook) {
+            return;
+        }
+
+        const oldIndex = activeAudiobook.chapters.findIndex(
+            (ch) => ch.index.toString() === active.id
+        );
+        const newIndex = activeAudiobook.chapters.findIndex(
+            (ch) => ch.index.toString() === over.id
+        );
+
+        if (oldIndex === -1 || newIndex === -1) return;
+
+        const reorderedChapters = arrayMove(activeAudiobook.chapters, oldIndex, newIndex);
+        const reindexedChapters = recalculateChapterTimings(reorderedChapters);
+
+        const previousAudiobook = activeAudiobook;
+        setActiveAudiobook({ ...activeAudiobook, chapters: reindexedChapters });
+
+        try {
+            const updated = await ChaptersApi.setChapters(activeAudiobook.id, reindexedChapters);
+            setActiveAudiobook(updated);
+            setError(null);
+        } catch (err) {
+            console.error("Failed to reorder chapters:", err);
+            setError(`Reorder failed: ${err}`);
+            setActiveAudiobook(previousAudiobook);
+        }
+    };
+
+    const chapterIds = activeAudiobook.chapters.map((ch) => ch.index.toString());
 
     return (
         <div className="space-y-6">
@@ -225,22 +344,27 @@ export function ChapterEditor() {
                 )}
 
                 {activeAudiobook.chapters.length > 0 ? (
-                    <div className="space-y-2 max-h-60 overflow-y-auto">
-                        {activeAudiobook.chapters.map((chapter, idx) => (
-                            <div
-                                key={idx}
-                                className="flex items-center justify-between p-2 border rounded text-sm hover:bg-muted/50"
-                            >
-                                <div className="flex-1 min-w-0">
-                                    <span className="font-medium">{idx + 1}. </span>
-                                    <span className="truncate">{chapter.title}</span>
-                                </div>
-                                <div className="text-muted-foreground text-xs ml-4">
-                                    {formatDuration(chapter.start_time_ms)} - {formatDuration(chapter.end_time_ms)}
-                                </div>
+                    <DndContext
+                        sensors={sensors}
+                        collisionDetection={closestCenter}
+                        onDragEnd={handleDragEnd}
+                    >
+                        <SortableContext
+                            items={chapterIds}
+                            strategy={verticalListSortingStrategy}
+                        >
+                            <div className="space-y-1 max-h-60 overflow-y-auto">
+                                {activeAudiobook.chapters.map((chapter, idx) => (
+                                    <SortableChapter
+                                        key={chapter.index}
+                                        chapter={chapter}
+                                        displayIndex={idx}
+                                        formatDuration={formatDuration}
+                                    />
+                                ))}
                             </div>
-                        ))}
-                    </div>
+                        </SortableContext>
+                    </DndContext>
                 ) : (
                     <p className="text-sm text-muted-foreground">No chapters defined yet.</p>
                 )}
@@ -249,7 +373,7 @@ export function ChapterEditor() {
             {/* Import/Export Actions */}
             <div className="p-4 border rounded-lg bg-card space-y-4">
                 <Label className="text-base font-semibold">Chapter Tools</Label>
-                
+
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {/* Import */}
                     <div className="space-y-2">
@@ -309,7 +433,7 @@ export function ChapterEditor() {
             {/* Smart Generation */}
             <div className="p-4 border rounded-lg bg-card space-y-4">
                 <Label className="text-base font-semibold">Smart Generation</Label>
-                
+
                 {/* Extract from Source */}
                 <div className="space-y-2">
                     <Label className="text-sm font-medium">Extract from Source Metadata</Label>
@@ -329,7 +453,7 @@ export function ChapterEditor() {
                 {/* Title Cleanup */}
                 <div className="space-y-2">
                     <Label className="text-sm font-medium">Title Cleanup (Regex)</Label>
-                    
+
                     {/* Presets */}
                     <div className="space-y-2">
                         <Label className="text-xs text-muted-foreground">Quick Presets:</Label>
@@ -390,4 +514,3 @@ export function ChapterEditor() {
         </div>
     );
 }
-
