@@ -360,6 +360,7 @@ impl ConversionPipeline {
 
         info!("execute_ffmpeg_with_progress: starting stdout read loop");
         let mut last_progress_log = std::time::Instant::now();
+        let mut no_output_warning_logged = false;
         loop {
             line.clear();
             if cancel_check() {
@@ -376,13 +377,16 @@ impl ConversionPipeline {
                 info!("execute_ffmpeg_with_progress: EOF reached after {} lines", lines_read);
                 break; // EOF
             }
-            
+
             lines_read += 1;
-            
-            // Log first few lines and occasionally thereafter for debugging
-            // Changed to INFO level to ensure we see these
-            if lines_read <= 20 || lines_read % 200 == 0 {
-                info!("execute_ffmpeg_with_progress: line {}: {:?}", lines_read, line.trim());
+
+            // Log ALL lines for debugging - this is critical to understand what's happening
+            info!("execute_ffmpeg_with_progress: line {}: {:?}", lines_read, line.trim());
+
+            // Warn if we haven't seen output in a while
+            if lines_read == 0 && last_progress_log.elapsed().as_secs() >= 3 && !no_output_warning_logged {
+                warn!("execute_ffmpeg_with_progress: No output from FFmpeg after 3 seconds");
+                no_output_warning_logged = true;
             }
 
             // Accumulate stdout for diagnostics

@@ -42,7 +42,7 @@ function formatTime(seconds: number): string {
 }
 
 export function DryRunPreview() {
-    const { activeAudiobook, getEffectiveConversionDefaults, settings } = useApp();
+    const { activeAudiobook, getEffectiveConversionDefaults, settings, pendingConversionSettings } = useApp();
     const [result, setResult] = useState<DryRunResult | null>(null);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -55,22 +55,27 @@ export function DryRunPreview() {
         setResult(null);
 
         try {
-            // Use effective defaults (project overrides > global)
-            const defaults = getEffectiveConversionDefaults();
+            // Use pending conversion settings if available, otherwise use effective defaults
+            let conversionSettings: ConversionSettings;
 
-            const conversionSettings: ConversionSettings = {
-                bitrate_kbps: defaults.bitrate_kbps,
-                sample_rate_hz: defaults.sample_rate_hz,
-                output_format: "m4b",
-                output_path: settings?.default_output_directory
-                    ? `${settings.default_output_directory}/${activeAudiobook.title}.m4b`
-                    : "output.m4b",
-                concurrent_jobs: settings?.concurrent_jobs ?? 1,
-                overwrite_existing: defaults.overwrite_existing,
-                embed_chapters: defaults.embed_chapters,
-                embed_artwork: defaults.embed_artwork,
-                copy_metadata: defaults.copy_metadata,
-            };
+            if (pendingConversionSettings) {
+                conversionSettings = pendingConversionSettings;
+            } else {
+                const defaults = getEffectiveConversionDefaults();
+                conversionSettings = {
+                    bitrate_kbps: defaults.bitrate_kbps,
+                    sample_rate_hz: defaults.sample_rate_hz,
+                    output_format: "m4b",
+                    output_path: settings?.default_output_directory
+                        ? `${settings.default_output_directory}/${activeAudiobook.title}.m4b`
+                        : "output.m4b",
+                    concurrent_jobs: settings?.concurrent_jobs ?? 1,
+                    overwrite_existing: defaults.overwrite_existing,
+                    embed_chapters: defaults.embed_chapters,
+                    embed_artwork: defaults.embed_artwork,
+                    copy_metadata: defaults.copy_metadata,
+                };
+            }
 
             const dryRunResult = await dryRunConversion(conversionSettings);
             setResult(dryRunResult);
@@ -84,7 +89,15 @@ export function DryRunPreview() {
 
     if (!activeAudiobook) return null;
 
-    const defaults = getEffectiveConversionDefaults();
+    // Display settings - use pending if available, otherwise defaults
+    const displaySettings = pendingConversionSettings ?? (() => {
+        const defaults = getEffectiveConversionDefaults();
+        return {
+            bitrate_kbps: defaults.bitrate_kbps,
+            embed_chapters: defaults.embed_chapters,
+            embed_artwork: defaults.embed_artwork,
+        };
+    })();
 
     return (
         <div className="p-4 border rounded-lg bg-card mt-4 space-y-4">
@@ -97,9 +110,9 @@ export function DryRunPreview() {
 
             {/* Show current effective settings */}
             <div className="text-xs text-muted-foreground grid grid-cols-3 gap-2">
-                <span>Bitrate: {defaults.bitrate_kbps} kbps</span>
-                <span>Chapters: {defaults.embed_chapters ? 'Yes' : 'No'}</span>
-                <span>Artwork: {defaults.embed_artwork ? 'Yes' : 'No'}</span>
+                <span>Bitrate: {displaySettings.bitrate_kbps} kbps</span>
+                <span>Chapters: {displaySettings.embed_chapters ? 'Yes' : 'No'}</span>
+                <span>Artwork: {displaySettings.embed_artwork ? 'Yes' : 'No'}</span>
             </div>
 
             {loading && (

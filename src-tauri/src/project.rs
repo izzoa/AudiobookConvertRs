@@ -164,7 +164,7 @@ pub struct RecentProject {
     /// When it was last opened
     pub last_opened: DateTime<Utc>,
     /// Whether the file still exists
-    #[serde(skip)]
+    #[serde(skip_deserializing, default)]
     pub exists: bool,
 }
 

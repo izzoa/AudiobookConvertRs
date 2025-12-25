@@ -70,7 +70,7 @@ export function Sidebar() {
     };
 
     const handleHelp = () => {
-        console.log("Help clicked - TODO: implement help panel");
+        setView('help');
     };
 
     return (
@@ -122,10 +122,11 @@ export function Sidebar() {
             )}
 
             <div className="px-2 mt-auto">
-                <NavItem 
-                    icon={<QuestionMarkCircleIcon className="w-5 h-5" />} 
-                    label="Help" 
+                <NavItem
+                    icon={<QuestionMarkCircleIcon className="w-5 h-5" />}
+                    label="Help"
                     onClick={handleHelp}
+                    active={view === 'help'}
                 />
             </div>
         </aside>

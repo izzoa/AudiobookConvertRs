@@ -336,11 +336,71 @@ impl ConversionQueue {
         active.len()
     }
 
+    /// Check if a job has been cancelled
+    pub fn is_job_cancelled(&self, job_id: &str) -> bool {
+        // Check in active jobs
+        {
+            let active = self.active.read();
+            if let Some(job) = active.get(job_id) {
+                return job.status == JobStatus::Cancelled;
+            }
+        }
+        // Check in completed jobs (job may have been moved there after cancellation)
+        {
+            let completed = self.completed.read();
+            for job in completed.iter() {
+                if job.id == job_id {
+                    return job.status == JobStatus::Cancelled;
+                }
+            }
+        }
+        false
+    }
+
+    /// Remove a job from the queue (completed or pending only, not active)
+    pub fn remove_job(&self, job_id: &str) -> AppResult<()> {
+        // Try to remove from completed
+        {
+            let mut completed = self.completed.write();
+            if let Some(pos) = completed.iter().position(|j| j.id == job_id) {
+                completed.remove(pos);
+                drop(completed);
+                self.save_to_disk()?;
+                return Ok(());
+            }
+        }
+
+        // Try to remove from pending
+        {
+            let mut pending = self.pending.write();
+            if let Some(pos) = pending.iter().position(|j| j.id == job_id) {
+                pending.remove(pos);
+                drop(pending);
+                self.save_to_disk()?;
+                return Ok(());
+            }
+        }
+
+        Err(AppError::StateError(format!(
+            "Job not found or is currently running: {}",
+            job_id
+        )))
+    }
+
     /// Clear all completed jobs
     pub fn clear_completed(&self) -> AppResult<()> {
         {
             let mut completed = self.completed.write();
             completed.clear();
+        }
+        self.save_to_disk()
+    }
+
+    /// Clear all pending (queued) jobs
+    pub fn clear_pending(&self) -> AppResult<()> {
+        {
+            let mut pending = self.pending.write();
+            pending.clear();
         }
         self.save_to_disk()
     }

@@ -45,7 +45,7 @@ struct WorkerHandle {
 /// Manages conversion workers and job processing
 pub struct ConversionManager {
     /// Queue instance
-    queue: SharedQueue,
+    pub queue: SharedQueue,
     /// App handle for emitting events
     app_handle: Arc<RwLock<Option<AppHandle>>>,
     /// Worker threads
@@ -276,8 +276,10 @@ impl ConversionManager {
             }
         };
 
-        // Check for cancellation
-        let cancel_check = || false; // For now, we don't support cancellation in the runner
+        // Check for cancellation - queries the queue for job status
+        let job_id_cancel = job_id.clone();
+        let queue_cancel = Arc::clone(queue);
+        let cancel_check = move || queue_cancel.is_job_cancelled(&job_id_cancel);
 
         // Get FFmpeg info
         let ffmpeg_info = match crate::ffmpeg::detection::detect_ffmpeg() {

@@ -25,6 +25,7 @@ import {
     listConversionJobs,
     removeConversionJob,
     clearCompletedJobs,
+    clearPendingJobs,
     cancelConversion
 } from '../api/conversion';
 import { useApp } from '@/context/AppContext';
@@ -51,7 +52,7 @@ interface ConversionErrorEvent {
 }
 
 export const ConversionQueuePanel: React.FC = () => {
-    const { activeAudiobook, settings } = useApp();
+    const { activeAudiobook, settings, setPendingConversionSettings } = useApp();
     const audiobook = activeAudiobook;
     const { toast } = useToast();
 
@@ -61,6 +62,7 @@ export const ConversionQueuePanel: React.FC = () => {
     const [isLoading, setIsLoading] = useState(false);
     const [showSettings, setShowSettings] = useState(false);
     const [conversionSettings, setConversionSettings] = useState<ConversionSettings | null>(null);
+    const [jobTimeRemaining, setJobTimeRemaining] = useState<Record<string, number>>({});
 
     // Update maxConcurrent when settings change
     React.useEffect(() => {
@@ -69,35 +71,45 @@ export const ConversionQueuePanel: React.FC = () => {
         }
     }, [settings?.concurrent_jobs]);
 
-    // Load jobs on mount and set up event listeners
+    // Load jobs on mount and set up event listeners + polling
     useEffect(() => {
         loadJobs();
 
         // Set up event listeners
-        const unlisteners: UnlistenFn[] = [];
+        let unlisteners: UnlistenFn[] = [];
 
         const setupListeners = async () => {
             // Progress events
             unlisteners.push(await listen<ConversionProgressEvent>('conversion_progress', (event) => {
+                console.log('Progress event received:', event.payload);
                 updateJobProgress(event.payload);
             }));
 
             // Completion events
             unlisteners.push(await listen<ConversionCompleteEvent>('conversion_complete', (event) => {
+                console.log('Completion event received:', event.payload);
                 handleJobComplete(event.payload);
             }));
 
             // Error events
             unlisteners.push(await listen<ConversionErrorEvent>('conversion_error', (event) => {
+                console.log('Error event received:', event.payload);
                 handleJobError(event.payload);
             }));
         };
 
         setupListeners();
 
+        // Poll for updates every second as fallback
+        const pollInterval = setInterval(() => {
+            loadJobs();
+        }, 1000);
+
         // Cleanup
         return () => {
+            console.log('Cleaning up event listeners');
             unlisteners.forEach(unlisten => unlisten());
+            clearInterval(pollInterval);
         };
     }, []);
 
@@ -120,17 +132,25 @@ export const ConversionQueuePanel: React.FC = () => {
     };
 
     const updateJobProgress = (progress: ConversionProgressEvent) => {
-        setJobs(prevJobs =>
-            prevJobs.map(job =>
-                job.id === progress.job_id
-                    ? {
+        setJobs(prevJobs => {
+            return prevJobs.map(job => {
+                if (job.id === progress.job_id) {
+                    return {
                         ...job,
                         progress_percent: progress.total_progress,
                         status_message: `Processing: ${progress.current_file}`,
-                    }
-                    : job
-            )
-        );
+                    };
+                }
+                return job;
+            });
+        });
+        // Update time remaining separately
+        if (progress.time_remaining_sec !== undefined) {
+            setJobTimeRemaining(prev => ({
+                ...prev,
+                [progress.job_id]: progress.time_remaining_sec!
+            }));
+        }
     };
 
     const handleJobComplete = (complete: ConversionCompleteEvent) => {
@@ -301,6 +321,24 @@ export const ConversionQueuePanel: React.FC = () => {
         }
     };
 
+    const handleClearQueue = async () => {
+        try {
+            await clearPendingJobs();
+            toast({
+                title: 'Queue Cleared',
+                description: 'All pending jobs have been removed',
+            });
+            await loadJobs();
+        } catch (error) {
+            console.error('Failed to clear queue:', error);
+            toast({
+                title: 'Error',
+                description: `Failed to clear queue: ${error}`,
+                variant: 'destructive',
+            });
+        }
+    };
+
     const getStatusIcon = (status: string) => {
         switch (status) {
             case JobStatus.Queued:
@@ -323,6 +361,20 @@ export const ConversionQueuePanel: React.FC = () => {
     const completedJobs = jobs.filter(job =>
         job.status === JobStatus.Complete || job.status === JobStatus.Error || job.status === JobStatus.Cancelled
     );
+
+    const formatTimeRemaining = (seconds: number): string => {
+        if (seconds < 60) {
+            return `${Math.round(seconds)}s remaining`;
+        } else if (seconds < 3600) {
+            const mins = Math.floor(seconds / 60);
+            const secs = Math.round(seconds % 60);
+            return `${mins}m ${secs}s remaining`;
+        } else {
+            const hours = Math.floor(seconds / 3600);
+            const mins = Math.floor((seconds % 3600) / 60);
+            return `${hours}h ${mins}m remaining`;
+        }
+    };
 
     return (
         <div className="space-y-4 p-4 border rounded-lg">
@@ -397,6 +449,13 @@ export const ConversionQueuePanel: React.FC = () => {
                     )}
                     <Button
                         variant="outline"
+                        onClick={handleClearQueue}
+                        disabled={isLoading || isQueueRunning || pendingJobs.length === 0}
+                    >
+                        Clear Queue
+                    </Button>
+                    <Button
+                        variant="outline"
                         onClick={handleClearCompleted}
                         disabled={isLoading || completedJobs.length === 0}
                     >
@@ -464,12 +523,18 @@ export const ConversionQueuePanel: React.FC = () => {
 
                             {job.status === JobStatus.Running && (
                                 <>
-                                    <Progress value={job.progress_percent || 0} />
-                                    {job.status_message && (
-                                        <p className="text-sm text-muted-foreground">
-                                            {job.status_message}
-                                        </p>
-                                    )}
+                                    <div className="flex items-center gap-2">
+                                        <Progress value={job.progress_percent || 0} className="flex-1" />
+                                        <span className="text-sm text-muted-foreground whitespace-nowrap">
+                                            {Math.round(job.progress_percent || 0)}%
+                                        </span>
+                                    </div>
+                                    <div className="flex justify-between text-sm text-muted-foreground">
+                                        <span>{job.status_message}</span>
+                                        {jobTimeRemaining[job.id] !== undefined && jobTimeRemaining[job.id] > 0 && (
+                                            <span>{formatTimeRemaining(jobTimeRemaining[job.id])}</span>
+                                        )}
+                                    </div>
                                 </>
                             )}
 
@@ -495,6 +560,7 @@ export const ConversionQueuePanel: React.FC = () => {
                     audiobook={audiobook}
                     onConfirm={(settings) => {
                         setConversionSettings(settings);
+                        setPendingConversionSettings(settings);
                         setShowSettings(false);
                         toast({
                             title: 'Settings Configured',

@@ -101,6 +101,7 @@ fn main() {
             audiobookconvert_rs::commands::conversion::list_conversion_jobs,
             audiobookconvert_rs::commands::conversion::remove_conversion_job,
             audiobookconvert_rs::commands::conversion::clear_completed_jobs,
+            audiobookconvert_rs::commands::conversion::clear_pending_jobs,
             audiobookconvert_rs::commands::conversion::cancel_conversion,
             audiobookconvert_rs::commands::conversion::get_conversion_status,
             audiobookconvert_rs::commands::conversion::pause_conversion,

@@ -36,6 +36,11 @@ export async function clearCompletedJobs(): Promise<void> {
     return await invoke('clear_completed_jobs');
 }
 
+export async function clearPendingJobs(): Promise<void> {
+    // Backend: clear_pending_jobs() -> AppResult<()>
+    return await invoke('clear_pending_jobs');
+}
+
 export async function cancelConversion(jobId: string): Promise<void> {
     return await invoke('cancel_conversion', { jobId });
 }

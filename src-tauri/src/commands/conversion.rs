@@ -77,18 +77,14 @@ pub async fn remove_conversion_job(
     job_id: String,
     manager: State<'_, SharedManager>,
 ) -> Result<(), String> {
-    // For now, just return OK as this isn't fully implemented
-    // TODO: Add remove functionality to ConversionManager
-    Ok(())
+    manager.queue.remove_job(&job_id).map_err(to_string_err)
 }
 
 #[tauri::command]
 pub async fn clear_completed_jobs(
     manager: State<'_, SharedManager>,
 ) -> Result<(), String> {
-    // This would need to be implemented in the ConversionManager
-    // For now, return OK
-    Ok(())
+    manager.queue.clear_completed().map_err(to_string_err)
 }
 
 // Legacy command for backward compatibility - enqueues and starts queue if not running
@@ -116,12 +112,9 @@ pub async fn start_conversion(
 #[tauri::command]
 pub async fn cancel_conversion(
     job_id: String,
-    state: State<'_, AppState>
+    manager: State<'_, SharedManager>
 ) -> Result<(), String> {
-    // Logic to cancel job
-    // This requires communicating with the worker (Phase 5)
-    // For now, we update status if it's in queue
-    state.cancel_job(&job_id).map_err(to_string_err)?;
+    manager.queue.cancel_job(&job_id).map_err(to_string_err)?;
     Ok(())
 }
 
@@ -153,4 +146,11 @@ pub async fn resume_conversion(
     state: State<'_, AppState>
 ) -> Result<bool, String> {
     state.resume_job(&job_id).map_err(to_string_err)
+}
+
+#[tauri::command]
+pub async fn clear_pending_jobs(
+    manager: State<'_, SharedManager>
+) -> Result<(), String> {
+    manager.queue.clear_pending().map_err(to_string_err)
 }

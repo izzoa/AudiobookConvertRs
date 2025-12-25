@@ -1,10 +1,10 @@
 import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from 'react';
-import type { AudioBook, UserSettings, ConversionJob, UndoState, ConversionDefaults, Project } from '../types/models';
+import type { AudioBook, UserSettings, ConversionJob, UndoState, ConversionDefaults, Project, ConversionSettings } from '../types/models';
 import * as SettingsApi from '../api/settings';
 import * as UndoApi from '../api/undo';
 import * as AudiobookApi from '../api/audiobook';
 
-export type AppView = 'workflow' | 'settings';
+export type AppView = 'workflow' | 'settings' | 'help';
 
 interface AppState {
     // Navigation
@@ -24,6 +24,10 @@ interface AppState {
 
     // Effective defaults (project overrides > global)
     getEffectiveConversionDefaults: () => ConversionDefaults;
+
+    // Pending conversion settings (set by ConversionSettingsDialog, used by DryRunPreview)
+    pendingConversionSettings: ConversionSettings | null;
+    setPendingConversionSettings: (settings: ConversionSettings | null) => void;
 
     // Conversion queue
     conversionQueue: ConversionJob[];
@@ -46,6 +50,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const [activeAudiobook, setActiveAudiobook] = useState<AudioBook | null>(null);
     const [activeProject, setActiveProject] = useState<Project | null>(null);
     const [settings, setSettings] = useState<UserSettings | null>(null);
+    const [pendingConversionSettings, setPendingConversionSettings] = useState<ConversionSettings | null>(null);
     const [conversionQueue, setConversionQueue] = useState<ConversionJob[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [undoState, setUndoState] = useState<UndoState>({
@@ -181,6 +186,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
             updateSettings: handleUpdateSettings,
             refreshSettings,
             getEffectiveConversionDefaults,
+            pendingConversionSettings,
+            setPendingConversionSettings,
             conversionQueue,
             addToQueue,
             isLoading,

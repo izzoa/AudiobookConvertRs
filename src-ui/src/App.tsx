@@ -7,6 +7,7 @@ import { NormalizationPanel } from "@/components/NormalizationPanel";
 import { DryRunPreview } from "@/components/DryRunPreview";
 import { ProjectManager } from "@/components/ProjectManager";
 import { SettingsPage } from "@/components/SettingsPage";
+import { HelpPage } from "@/components/HelpPage";
 import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
 import { useApp } from "@/context/AppContext";
 
@@ -65,9 +66,20 @@ function App() {
     },
   });
 
+  const renderView = () => {
+    switch (view) {
+      case 'settings':
+        return <SettingsPage />;
+      case 'help':
+        return <HelpPage />;
+      default:
+        return <WorkflowContent />;
+    }
+  };
+
   return (
     <Layout>
-      {view === 'settings' ? <SettingsPage /> : <WorkflowContent />}
+      {renderView()}
     </Layout>
   );
 }

@@ -170,6 +170,3 @@ flowchart TD
 ## Acceptance checklist
 
 - Sidebar “Settings” opens the Settings page and Back returns to workflow.
-- Global defaults save and persist across restart.
-- Project overrides load from `.abcproj` and override global defaults while that project is active.
-- Conversion dialog and dry-run preview reflect effective defaults.
