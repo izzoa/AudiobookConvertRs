@@ -33,8 +33,9 @@ dist/
 # Tauri
 /src-tauri/target/
 /src-tauri/WixTools/
-/src-tauri/icons/*.ico
-/src-tauri/icons/*.icns
+
+# Temporary icon generation files (keep actual icons)
+/src-tauri/icons/app-icon-1024.png
 
 # Test artifacts
 *.m4b
