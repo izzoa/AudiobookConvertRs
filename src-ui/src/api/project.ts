@@ -20,3 +20,7 @@ export async function clearRecentProjects(): Promise<void> {
 export async function exportProjectSummary(): Promise<ProjectExport> {
     return await invoke('export_project_summary');
 }
+
+export async function clearProject(): Promise<void> {
+    return await invoke('clear_project');
+}

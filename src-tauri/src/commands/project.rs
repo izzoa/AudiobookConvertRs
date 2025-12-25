@@ -99,3 +99,10 @@ pub async fn export_project_summary(
     let project = Project::new(audiobook);
     Ok(export_project_metadata(&project))
 }
+
+/// Clear the current project (removes active audiobook)
+#[tauri::command]
+pub async fn clear_project(state: State<'_, AppState>) -> Result<(), String> {
+    state.clear_audiobooks();
+    Ok(())
+}

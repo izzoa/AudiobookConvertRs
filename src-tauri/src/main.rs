@@ -122,6 +122,7 @@ fn main() {
             audiobookconvert_rs::commands::project::list_recent_projects,
             audiobookconvert_rs::commands::project::clear_recent_projects,
             audiobookconvert_rs::commands::project::export_project_summary,
+            audiobookconvert_rs::commands::project::clear_project,
             // Undo
             audiobookconvert_rs::commands::undo::undo,
             audiobookconvert_rs::commands::undo::redo,

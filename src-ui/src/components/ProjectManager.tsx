@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Button } from "./ui/button";
-import { saveProject, loadProject, listRecentProjects, exportProjectSummary } from "@/api/project";
+import { saveProject, loadProject, listRecentProjects, exportProjectSummary, clearProject } from "@/api/project";
 import { pickSaveProjectFile, pickOpenProjectFile, pickExportSummaryFile, writeTextFile } from "@/api/files";
 import { useApp } from "@/context/AppContext";
 import type { RecentProject, ProjectExport } from "@/types/models";
@@ -11,6 +11,7 @@ export function ProjectManager() {
     const [isSaving, setIsSaving] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
     const [isExporting, setIsExporting] = useState(false);
+    const [isClearing, setIsClearing] = useState(false);
 
     useEffect(() => {
         loadRecentProjects();
@@ -88,6 +89,19 @@ export function ProjectManager() {
         }
     };
 
+    const handleClearProject = async () => {
+        setIsClearing(true);
+        try {
+            await clearProject();
+            setActiveAudiobook(null);
+            setActiveProject(null);
+        } catch (error) {
+            console.error("Failed to clear project:", error);
+        } finally {
+            setIsClearing(false);
+        }
+    };
+
     const formatSummaryAsText = (summary: ProjectExport): string => {
         const lines = [
             `Title: ${summary.title}`,
@@ -118,6 +132,9 @@ export function ProjectManager() {
                 </Button>
                 <Button variant="outline" onClick={handleExportSummary} disabled={isExporting}>
                     {isExporting ? "Exporting..." : "Export Summary"}
+                </Button>
+                <Button variant="destructive" onClick={handleClearProject} disabled={isClearing}>
+                    {isClearing ? "Clearing..." : "Clear Project"}
                 </Button>
             </div>
 
