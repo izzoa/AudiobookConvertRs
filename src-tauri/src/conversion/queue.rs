@@ -8,7 +8,7 @@ use crate::models::{AudioBook, ConversionJob, ConversionSettings, JobStatus};
 use camino::{Utf8Path, Utf8PathBuf};
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
-use std::collections::VecDeque;
+use std::collections::{HashMap, VecDeque};
 use std::fs;
 use std::sync::Arc;
 use tracing::{debug, error, info, warn};
@@ -18,8 +18,8 @@ use tracing::{debug, error, info, warn};
 struct QueueState {
     /// All jobs in the queue
     jobs: Vec<ConversionJob>,
-    /// Currently active job ID
-    active_job_id: Option<String>,
+    /// Currently active job IDs
+    active_job_ids: Vec<String>,
 }
 
 /// Thread-safe conversion job queue
@@ -27,8 +27,8 @@ struct QueueState {
 pub struct ConversionQueue {
     /// Jobs waiting to be processed
     pending: RwLock<VecDeque<ConversionJob>>,
-    /// Jobs currently being processed
-    active: RwLock<Option<ConversionJob>>,
+    /// Jobs currently being processed (multiple parallel jobs)
+    active: RwLock<HashMap<String, ConversionJob>>,
     /// Completed jobs (kept for history)
     completed: RwLock<Vec<ConversionJob>>,
     /// Path to persistence file
@@ -42,7 +42,7 @@ impl ConversionQueue {
     pub fn new() -> Self {
         Self {
             pending: RwLock::new(VecDeque::new()),
-            active: RwLock::new(None),
+            active: RwLock::new(HashMap::new()),
             completed: RwLock::new(Vec::new()),
             persistence_path: None,
             max_completed: 50,
@@ -96,65 +96,59 @@ impl ConversionQueue {
         pending.front().cloned()
     }
 
-    /// Get the next job and mark it as active
-    pub fn get_next_job(&self) -> Option<ConversionJob> {
-        // Check if there's already an active job
-        {
-            let active = self.active.read();
-            if active.is_some() {
-                debug!("Cannot get next job: there's already an active job");
-                return None;
-            }
-        }
-
+    /// Claim the next pending job and mark it as active
+    pub fn claim_next_job(&self) -> Option<ConversionJob> {
         let mut pending = self.pending.write();
         if let Some(mut job) = pending.pop_front() {
             job.start();
-            
+
             let mut active = self.active.write();
-            *active = Some(job.clone());
-            
+            active.insert(job.id.clone(), job.clone());
+
             drop(pending);
             drop(active);
-            
+
             if let Err(e) = self.save_to_disk() {
                 error!("Failed to save queue state: {}", e);
             }
-            
+
             Some(job)
         } else {
             None
         }
     }
 
+    /// Get the next job and mark it as active (backward compatibility)
+    pub fn get_next_job(&self) -> Option<ConversionJob> {
+        self.claim_next_job()
+    }
+
     /// Update the status of a job
     pub fn update_job_status(&self, job_id: &str, status: JobStatus) -> AppResult<()> {
         debug!("Updating job {} status to {:?}", job_id, status);
 
-        // Check active job first
+        // Check active jobs first
         {
             let mut active = self.active.write();
-            if let Some(ref mut job) = *active {
-                if job.id == job_id {
-                    job.status = status;
-                    
-                    // If job is terminal, move to completed
-                    if status.is_terminal() {
-                        let completed_job = active.take().unwrap();
-                        drop(active);
-                        
-                        let mut completed = self.completed.write();
-                        completed.push(completed_job);
-                        
-                        // Trim completed list if too long
-                        while completed.len() > self.max_completed {
-                            completed.remove(0);
-                        }
+            if let Some(job) = active.get_mut(job_id) {
+                job.status = status;
+
+                // If job is terminal, move to completed
+                if status.is_terminal() {
+                    let completed_job = active.remove(job_id).unwrap();
+                    drop(active);
+
+                    let mut completed = self.completed.write();
+                    completed.push(completed_job);
+
+                    // Trim completed list if too long
+                    while completed.len() > self.max_completed {
+                        completed.remove(0);
                     }
-                    
-                    self.save_to_disk()?;
-                    return Ok(());
                 }
+
+                self.save_to_disk()?;
+                return Ok(());
             }
         }
 
@@ -179,11 +173,9 @@ impl ConversionQueue {
     /// Update job progress
     pub fn update_job_progress(&self, job_id: &str, progress: f32, file_index: usize) {
         let mut active = self.active.write();
-        if let Some(ref mut job) = *active {
-            if job.id == job_id {
-                job.progress_percent = progress;
-                job.current_file_index = file_index;
-            }
+        if let Some(job) = active.get_mut(job_id) {
+            job.progress_percent = progress;
+            job.current_file_index = file_index;
         }
     }
 
@@ -197,13 +189,11 @@ impl ConversionQueue {
         // Update error message
         {
             let mut active = self.active.write();
-            if let Some(ref mut job) = *active {
-                if job.id == job_id {
-                    job.error_message = Some(error.to_string());
-                }
+            if let Some(job) = active.get_mut(job_id) {
+                job.error_message = Some(error.to_string());
             }
         }
-        
+
         self.update_job_status(job_id, JobStatus::Error)
     }
 
@@ -211,14 +201,12 @@ impl ConversionQueue {
     pub fn cancel_job(&self, job_id: &str) -> AppResult<()> {
         info!("Cancelling job {}", job_id);
 
-        // Check if it's the active job
+        // Check if it's an active job
         {
             let active = self.active.read();
-            if let Some(ref job) = *active {
-                if job.id == job_id {
-                    drop(active);
-                    return self.update_job_status(job_id, JobStatus::Cancelled);
-                }
+            if active.contains_key(job_id) {
+                drop(active);
+                return self.update_job_status(job_id, JobStatus::Cancelled);
             }
         }
 
@@ -256,12 +244,10 @@ impl ConversionQueue {
             jobs.extend(pending.iter().cloned());
         }
 
-        // Add active job
+        // Add active jobs
         {
             let active = self.active.read();
-            if let Some(ref job) = *active {
-                jobs.push(job.clone());
-            }
+            jobs.extend(active.values().cloned());
         }
 
         // Add completed jobs
@@ -279,10 +265,16 @@ impl ConversionQueue {
         pending.iter().cloned().collect()
     }
 
-    /// Get the currently active job
+    /// Get the currently active jobs
+    pub fn get_active_jobs(&self) -> Vec<ConversionJob> {
+        let active = self.active.read();
+        active.values().cloned().collect()
+    }
+
+    /// Get the first currently active job (backward compatibility)
     pub fn get_active_job(&self) -> Option<ConversionJob> {
         let active = self.active.read();
-        active.clone()
+        active.values().next().cloned()
     }
 
     /// Get completed jobs
@@ -296,10 +288,8 @@ impl ConversionQueue {
         // Check active
         {
             let active = self.active.read();
-            if let Some(ref job) = *active {
-                if job.id == job_id {
-                    return Some(job.clone());
-                }
+            if let Some(job) = active.get(job_id) {
+                return Some(job.clone());
             }
         }
 
@@ -337,7 +327,13 @@ impl ConversionQueue {
     /// Check if there's an active job
     pub fn has_active_job(&self) -> bool {
         let active = self.active.read();
-        active.is_some()
+        !active.is_empty()
+    }
+
+    /// Get the number of active jobs
+    pub fn active_job_count(&self) -> usize {
+        let active = self.active.read();
+        active.len()
     }
 
     /// Clear all completed jobs
@@ -361,15 +357,16 @@ impl ConversionQueue {
             let completed = self.completed.read();
 
             let mut jobs: Vec<ConversionJob> = pending.iter().cloned().collect();
-            let active_id = active.as_ref().map(|j| {
-                jobs.push(j.clone());
-                j.id.clone()
-            });
+            let mut active_ids = Vec::new();
+            for job in active.values() {
+                jobs.push(job.clone());
+                active_ids.push(job.id.clone());
+            }
             jobs.extend(completed.iter().cloned());
 
             QueueState {
                 jobs,
-                active_job_id: active_id,
+                active_job_ids: active_ids,
             }
         };
 
@@ -414,11 +411,12 @@ impl ConversionQueue {
         let mut completed = self.completed.write();
 
         pending.clear();
-        *active = None;
+        active.clear();
         completed.clear();
 
         for job in state.jobs {
-            if state.active_job_id.as_ref() == Some(&job.id) && job.status == JobStatus::Running {
+            // Check if it was an active job that was running
+            if state.active_job_ids.contains(&job.id) && job.status == JobStatus::Running {
                 // Resume active job as queued (it was interrupted)
                 let mut resumed_job = job;
                 resumed_job.status = JobStatus::Queued;

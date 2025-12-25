@@ -42,7 +42,7 @@ function formatTime(seconds: number): string {
 }
 
 export function DryRunPreview() {
-    const { activeAudiobook } = useApp();
+    const { activeAudiobook, getEffectiveConversionDefaults, settings } = useApp();
     const [result, setResult] = useState<DryRunResult | null>(null);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -55,18 +55,24 @@ export function DryRunPreview() {
         setResult(null);
 
         try {
-            const settings: ConversionSettings = {
-                bitrate_kbps: 64,
+            // Use effective defaults (project overrides > global)
+            const defaults = getEffectiveConversionDefaults();
+
+            const conversionSettings: ConversionSettings = {
+                bitrate_kbps: defaults.bitrate_kbps,
+                sample_rate_hz: defaults.sample_rate_hz,
                 output_format: "m4b",
-                output_path: "output.m4b",
-                concurrent_jobs: 1,
-                overwrite_existing: false,
-                embed_chapters: true,
-                embed_artwork: true,
-                copy_metadata: true,
+                output_path: settings?.default_output_directory
+                    ? `${settings.default_output_directory}/${activeAudiobook.title}.m4b`
+                    : "output.m4b",
+                concurrent_jobs: settings?.concurrent_jobs ?? 1,
+                overwrite_existing: defaults.overwrite_existing,
+                embed_chapters: defaults.embed_chapters,
+                embed_artwork: defaults.embed_artwork,
+                copy_metadata: defaults.copy_metadata,
             };
 
-            const dryRunResult = await dryRunConversion(settings);
+            const dryRunResult = await dryRunConversion(conversionSettings);
             setResult(dryRunResult);
         } catch (e) {
             console.error(e);
@@ -78,6 +84,8 @@ export function DryRunPreview() {
 
     if (!activeAudiobook) return null;
 
+    const defaults = getEffectiveConversionDefaults();
+
     return (
         <div className="p-4 border rounded-lg bg-card mt-4 space-y-4">
             <div className="flex justify-between items-center">
@@ -85,6 +93,13 @@ export function DryRunPreview() {
                 <Button onClick={handlePreview} disabled={loading} variant="secondary">
                     {loading ? "Analyzing..." : "Preview Conversion"}
                 </Button>
+            </div>
+
+            {/* Show current effective settings */}
+            <div className="text-xs text-muted-foreground grid grid-cols-3 gap-2">
+                <span>Bitrate: {defaults.bitrate_kbps} kbps</span>
+                <span>Chapters: {defaults.embed_chapters ? 'Yes' : 'No'}</span>
+                <span>Artwork: {defaults.embed_artwork ? 'Yes' : 'No'}</span>
             </div>
 
             {loading && (
@@ -128,7 +143,7 @@ export function DryRunPreview() {
 
                     {result.output_exists && (
                         <div className="text-amber-600">
-                            ⚠ Output file already exists: {result.output_path}
+                            Warning: Output file already exists: {result.output_path}
                         </div>
                     )}
 
@@ -136,7 +151,7 @@ export function DryRunPreview() {
                         <div className="space-y-1">
                             {result.warnings.map((warning, index) => (
                                 <div key={index} className="text-amber-600">
-                                    ⚠ {warning}
+                                    Warning: {warning}
                                 </div>
                             ))}
                         </div>

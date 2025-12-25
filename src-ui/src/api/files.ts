@@ -5,7 +5,7 @@ export async function pickFiles(): Promise<string[]> {
     return await invoke('pick_files');
 }
 
-export async function pickDirectory(): Promise<string[]> {
+export async function pickDirectory(): Promise<string | null> {
     return await invoke('pick_directory');
 }
 

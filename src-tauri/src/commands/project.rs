@@ -3,6 +3,7 @@
 use camino::Utf8PathBuf;
 use tauri::State;
 
+use crate::models::ConversionDefaults;
 use crate::project::{
     Project, ProjectExport, RecentProject, RecentProjectsManager, export_project_metadata,
 };
@@ -21,6 +22,7 @@ fn get_recent_projects_path() -> Utf8PathBuf {
 #[tauri::command]
 pub async fn save_project(
     path: String,
+    conversion_defaults: Option<ConversionDefaults>,
     state: State<'_, AppState>,
 ) -> Result<(), String> {
     let audiobook = state
@@ -29,6 +31,7 @@ pub async fn save_project(
 
     let project_path = Utf8PathBuf::from(&path);
     let mut project = Project::new(audiobook.clone());
+    project.conversion_defaults = conversion_defaults;
     project.save(&project_path).map_err(|e| e.to_string())?;
 
     // Add to recent projects

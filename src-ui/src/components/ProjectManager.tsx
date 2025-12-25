@@ -6,7 +6,7 @@ import { useApp } from "@/context/AppContext";
 import type { RecentProject, ProjectExport } from "@/types/models";
 
 export function ProjectManager() {
-    const { setActiveAudiobook } = useApp();
+    const { setActiveAudiobook, setActiveProject, activeProject } = useApp();
     const [recentProjects, setRecentProjects] = useState<RecentProject[]>([]);
     const [isSaving, setIsSaving] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
@@ -30,7 +30,8 @@ export function ProjectManager() {
         try {
             const path = await pickSaveProjectFile();
             if (path) {
-                await saveProject(path);
+                // Pass conversion_defaults from active project if set
+                await saveProject(path, activeProject?.conversion_defaults);
                 await loadRecentProjects();
             }
         } catch (error) {
@@ -59,6 +60,7 @@ export function ProjectManager() {
         try {
             const project = await loadProject(path);
             setActiveAudiobook(project.audiobook);
+            setActiveProject(project);
             await loadRecentProjects();
         } catch (error) {
             console.error("Failed to load project:", error);
@@ -118,6 +120,13 @@ export function ProjectManager() {
                     {isExporting ? "Exporting..." : "Export Summary"}
                 </Button>
             </div>
+
+            {/* Show project defaults indicator if set */}
+            {activeProject?.conversion_defaults && (
+                <div className="text-xs text-muted-foreground">
+                    Project has custom conversion defaults
+                </div>
+            )}
 
             {recentProjects.length > 0 && (
                 <div className="space-y-2">

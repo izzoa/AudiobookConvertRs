@@ -21,6 +21,7 @@ static CONFIG: Lazy<RwLock<UserSettings>> = Lazy::new(|| {
 
 /// User-configurable settings
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
 pub struct UserSettings {
     /// Default output audio bitrate in kbps
     pub default_bitrate_kbps: u32,
@@ -70,6 +71,12 @@ pub struct UserSettings {
 
     /// Whether to copy metadata by default
     pub copy_metadata_by_default: bool,
+
+    /// Whether to embed artwork by default
+    pub embed_artwork_by_default: bool,
+
+    /// Whether to overwrite existing files by default
+    pub overwrite_existing_by_default: bool,
 
     /// Log level for debugging
     pub log_level: LogLevel,
@@ -129,6 +136,8 @@ impl Default for UserSettings {
             default_sample_rate: None,
             embed_chapters_by_default: true,
             copy_metadata_by_default: true,
+            embed_artwork_by_default: true,
+            overwrite_existing_by_default: false,
             log_level: LogLevel::Info,
         }
     }

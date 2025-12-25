@@ -12,6 +12,7 @@ pub mod pipeline;
 pub mod progress;
 pub mod queue;
 pub mod recovery;
+pub mod runner;
 pub mod temp;
 pub mod worker;
 
@@ -20,5 +21,6 @@ pub use pipeline::*;
 pub use progress::*;
 pub use queue::*;
 pub use recovery::*;
+pub use runner::*;
 pub use temp::*;
 pub use worker::*;

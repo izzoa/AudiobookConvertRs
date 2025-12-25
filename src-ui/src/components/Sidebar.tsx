@@ -7,7 +7,7 @@ import { useApp } from '@/context/AppContext';
 import type { RecentProject } from '@/types/models';
 
 export function Sidebar() {
-    const { setActiveAudiobook } = useApp();
+    const { setActiveAudiobook, setActiveProject, view, setView } = useApp();
     const [recentProjects, setRecentProjects] = useState<RecentProject[]>([]);
     const [showRecent, setShowRecent] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -19,6 +19,7 @@ export function Sidebar() {
             if (path) {
                 const project = await ProjectApi.loadProject(path);
                 setActiveAudiobook(project.audiobook);
+                setActiveProject(project);
             }
         } catch (error) {
             console.error("Failed to open project:", error);
@@ -57,6 +58,7 @@ export function Sidebar() {
         try {
             const project = await ProjectApi.loadProject(path);
             setActiveAudiobook(project.audiobook);
+            setActiveProject(project);
         } catch (error) {
             console.error("Failed to open recent project:", error);
             setError("Could not open selected recent project.");
@@ -64,7 +66,7 @@ export function Sidebar() {
     };
 
     const handleSettings = () => {
-        setError("Settings are coming soon.");
+        setView('settings');
     };
 
     const handleHelp = () => {
@@ -105,11 +107,11 @@ export function Sidebar() {
                         ))}
                     </div>
                 )}
-                <NavItem 
-                    icon={<Cog6ToothIcon className="w-5 h-5" />} 
-                    label="Settings" 
+                <NavItem
+                    icon={<Cog6ToothIcon className="w-5 h-5" />}
+                    label="Settings"
                     onClick={handleSettings}
-                    disabled
+                    active={view === 'settings'}
                 />
             </nav>
 

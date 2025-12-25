@@ -1,8 +1,8 @@
 import { invoke } from '@tauri-apps/api/core';
-import type { Project, RecentProject, ProjectExport } from '../types/models';
+import type { Project, RecentProject, ProjectExport, ConversionDefaults } from '../types/models';
 
-export async function saveProject(path: string): Promise<void> {
-    return await invoke('save_project', { path });
+export async function saveProject(path: string, conversionDefaults?: ConversionDefaults): Promise<void> {
+    return await invoke('save_project', { path, conversionDefaults });
 }
 
 export async function loadProject(path: string): Promise<Project> {

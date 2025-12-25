@@ -984,5 +984,146 @@ This project is designed to be self-sufficient, but if you need clarification:
 
 ---
 
+## Patterns Learned During Development
+
+### Tauri 2.x API Changes
+
+**Event Emission from Background Threads**:
+- Tauri 2.x requires importing `Emitter` trait to use `emit()` on `AppHandle`
+- Use `handle.emit("event_name", payload)` after importing `tauri::Emitter`
+- The old `emit_all()` method no longer exists
+
+```rust
+use tauri::{AppHandle, Emitter, Manager};
+
+// Correct way to emit events in Tauri 2.x
+if let Err(e) = handle.emit("conversion_progress", event) {
+    error!("Failed to emit event: {}", e);
+}
+```
+
+**State Management in Commands**:
+- Cannot construct `State<T>` directly - it's a wrapper with private fields
+- Use `State<'_, T>` as parameter, Tauri injects it automatically
+- For sharing state between commands and background tasks, use `Arc<T>`
+
+### parking_lot vs std Synchronization
+
+**Condvar Usage**:
+- `parking_lot::Condvar::wait_for()` takes `&mut MutexGuard`, not `&MutexGuard`
+- Must declare guard as mutable: `let mut guard = lock.lock();`
+- Different API than `std::sync::Condvar`
+
+```rust
+use parking_lot::{Condvar, Mutex};
+
+let (lock, cvar) = &*work_available;
+let mut guard = lock.lock();  // Note: mut required
+let _result = cvar.wait_for(&mut guard, Duration::from_secs(5));
+```
+
+### Path Handling (camino vs std)
+
+**Converting Between Path Types**:
+- `camino::Utf8PathBuf` doesn't implement `From<Cow<str>>`
+- Convert via `.to_string()` first when using `to_string_lossy()`
+
+```rust
+use camino::Utf8PathBuf;
+
+// Correct conversion from std::path::PathBuf
+let std_path = std::path::PathBuf::from("/some/path");
+let utf8_path = Utf8PathBuf::from(std_path.to_string_lossy().to_string());
+```
+
+### Frontend TypeScript Patterns
+
+**JobStatus as Type and Value**:
+- TypeScript types exist at compile time only
+- To use as runtime values, export both type and const object:
+
+```typescript
+// In types/models.ts
+export type JobStatus = 'queued' | 'running' | 'complete' | 'error' | 'cancelled';
+export const JobStatus = {
+    Queued: 'queued',
+    Running: 'running',
+    Complete: 'complete',
+    Error: 'error',
+    Cancelled: 'cancelled',
+} as const;
+
+// Usage - import value, not just type
+import { JobStatus } from '../types/models';
+job.status === JobStatus.Running  // Runtime comparison
+```
+
+**Type-only Imports**:
+- With `verbatimModuleSyntax`, use `type` keyword for type-only imports
+- Mix regular and type imports when needed:
+
+```typescript
+import { JobStatus } from '../types/models';  // Value import
+import type { ConversionJob } from '../types/models';  // Type-only import
+```
+
+**Tauri Event Listeners**:
+- Use `type UnlistenFn` for the unlisten function type
+- Clean up listeners in useEffect return function
+
+```typescript
+import { listen, type UnlistenFn } from '@tauri-apps/api/event';
+
+useEffect(() => {
+    const unlisteners: UnlistenFn[] = [];
+
+    const setup = async () => {
+        unlisteners.push(await listen<EventType>('event_name', handler));
+    };
+    setup();
+
+    return () => unlisteners.forEach(fn => fn());
+}, []);
+```
+
+### Module Export Patterns
+
+**Re-exporting from mod.rs**:
+- When adding new modules, add both `pub mod` and `pub use`:
+
+```rust
+// In conversion/mod.rs
+pub mod runner;  // Declare module
+pub use runner::*;  // Re-export public items
+```
+
+**Checking Available Exports**:
+- Use `cargo check` to verify module visibility
+- Check actual location of types before importing (e.g., `UserSettings` is in `config`, not `models`)
+
+### UI Component Availability
+
+**Check Existing Components First**:
+- Before importing UI components, verify they exist in `src/components/ui/`
+- Available base components: `button`, `input`, `label`, `progress`, `toast`
+- Use native HTML elements (select, checkbox) when Radix components unavailable
+- Can build simple modals with divs + fixed positioning
+
+### Build & Compile Workflow
+
+**Iterative Error Fixing**:
+1. Run `cargo check` (faster than `cargo build`)
+2. Fix errors one category at a time
+3. For frontend: `npm run build` shows TypeScript errors
+4. Check both lib and bin compilation separately
+
+**Common Error Categories**:
+- E0432: Unresolved import - check module path and exports
+- E0599: Method not found - check trait imports (e.g., `Emitter`, `Manager`)
+- E0308: Type mismatch - check function signatures and conversions
+- E0596: Cannot borrow as mutable - add `mut` keyword
+
+---
+
 **Good luck! This is a well-planned, achievable project. Follow the tasks systematically and you'll have a high-quality Rust audiobook converter. 🚀**
 

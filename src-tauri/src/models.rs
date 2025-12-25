@@ -407,6 +407,67 @@ impl AudioBook {
     }
 }
 
+/// Conversion defaults (no output path - used for global/project defaults)
+/// This represents the default values that can be overridden at project level
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
+pub struct ConversionDefaults {
+    /// Output audio bitrate in kbps
+    pub bitrate_kbps: u32,
+    /// Output sample rate in Hz (None = use source)
+    pub sample_rate_hz: Option<u32>,
+    /// Whether to overwrite existing output file
+    pub overwrite_existing: bool,
+    /// Whether to embed chapters
+    pub embed_chapters: bool,
+    /// Whether to embed artwork
+    pub embed_artwork: bool,
+    /// Whether to copy metadata from source
+    pub copy_metadata: bool,
+}
+
+impl Default for ConversionDefaults {
+    fn default() -> Self {
+        Self {
+            bitrate_kbps: 128,
+            sample_rate_hz: None,
+            overwrite_existing: false,
+            embed_chapters: true,
+            embed_artwork: true,
+            copy_metadata: true,
+        }
+    }
+}
+
+impl ConversionDefaults {
+    /// Create ConversionDefaults from UserSettings
+    pub fn from_user_settings(settings: &crate::config::UserSettings) -> Self {
+        Self {
+            bitrate_kbps: settings.default_bitrate_kbps,
+            sample_rate_hz: settings.default_sample_rate,
+            overwrite_existing: settings.overwrite_existing_by_default,
+            embed_chapters: settings.embed_chapters_by_default,
+            embed_artwork: settings.embed_artwork_by_default,
+            copy_metadata: settings.copy_metadata_by_default,
+        }
+    }
+
+    /// Convert to full ConversionSettings by adding output path
+    pub fn to_settings(&self, output_path: camino::Utf8PathBuf, concurrent_jobs: u8) -> ConversionSettings {
+        ConversionSettings {
+            bitrate_kbps: self.bitrate_kbps,
+            sample_rate_hz: self.sample_rate_hz,
+            output_format: AudioFormat::M4b,
+            output_path,
+            concurrent_jobs,
+            overwrite_existing: self.overwrite_existing,
+            embed_chapters: self.embed_chapters,
+            embed_artwork: self.embed_artwork,
+            copy_metadata: self.copy_metadata,
+        }
+    }
+}
+
 /// Settings for audio conversion
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ConversionSettings {
@@ -782,6 +843,63 @@ mod tests {
         assert!(JobStatus::Error.is_terminal());
         assert!(!JobStatus::Running.is_terminal());
         assert!(JobStatus::Running.is_active());
+    }
+
+    #[test]
+    fn test_conversion_defaults_default() {
+        let defaults = ConversionDefaults::default();
+        assert_eq!(defaults.bitrate_kbps, 128);
+        assert_eq!(defaults.sample_rate_hz, None);
+        assert!(!defaults.overwrite_existing);
+        assert!(defaults.embed_chapters);
+        assert!(defaults.embed_artwork);
+        assert!(defaults.copy_metadata);
+    }
+
+    #[test]
+    fn test_conversion_defaults_to_settings() {
+        let defaults = ConversionDefaults {
+            bitrate_kbps: 96,
+            sample_rate_hz: Some(44100),
+            overwrite_existing: true,
+            embed_chapters: false,
+            embed_artwork: true,
+            copy_metadata: false,
+        };
+
+        let settings = defaults.to_settings("/output/test.m4b".into(), 2);
+
+        assert_eq!(settings.bitrate_kbps, 96);
+        assert_eq!(settings.sample_rate_hz, Some(44100));
+        assert!(settings.overwrite_existing);
+        assert!(!settings.embed_chapters);
+        assert!(settings.embed_artwork);
+        assert!(!settings.copy_metadata);
+        assert_eq!(settings.output_path.as_str(), "/output/test.m4b");
+        assert_eq!(settings.concurrent_jobs, 2);
+        assert_eq!(settings.output_format, AudioFormat::M4b);
+    }
+
+    #[test]
+    fn test_conversion_defaults_serde_roundtrip() {
+        let defaults = ConversionDefaults {
+            bitrate_kbps: 192,
+            sample_rate_hz: Some(48000),
+            overwrite_existing: false,
+            embed_chapters: true,
+            embed_artwork: false,
+            copy_metadata: true,
+        };
+
+        let json = serde_json::to_string(&defaults).expect("Serialize failed");
+        let parsed: ConversionDefaults = serde_json::from_str(&json).expect("Deserialize failed");
+
+        assert_eq!(parsed.bitrate_kbps, defaults.bitrate_kbps);
+        assert_eq!(parsed.sample_rate_hz, defaults.sample_rate_hz);
+        assert_eq!(parsed.overwrite_existing, defaults.overwrite_existing);
+        assert_eq!(parsed.embed_chapters, defaults.embed_chapters);
+        assert_eq!(parsed.embed_artwork, defaults.embed_artwork);
+        assert_eq!(parsed.copy_metadata, defaults.copy_metadata);
     }
 }
 

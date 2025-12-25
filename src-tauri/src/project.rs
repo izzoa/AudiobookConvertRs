@@ -7,7 +7,7 @@
 //! - Project file versioning for compatibility
 
 use crate::error::{AppError, AppResult};
-use crate::models::{AudioBook, ConversionSettings};
+use crate::models::{AudioBook, ConversionDefaults, ConversionSettings};
 use camino::{Utf8Path, Utf8PathBuf};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
@@ -22,13 +22,18 @@ pub const PROJECT_EXTENSION: &str = "abcproj";
 
 /// A saved audiobook project
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
 pub struct Project {
     /// Project file format version
     pub version: u32,
     /// The audiobook data
     pub audiobook: AudioBook,
-    /// Optional saved conversion settings
+    /// Optional saved conversion settings (legacy, kept for backwards compatibility)
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub conversion_settings: Option<ConversionSettings>,
+    /// Project-level conversion defaults (overrides global defaults)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub conversion_defaults: Option<ConversionDefaults>,
     /// When the project was created
     pub created_at: DateTime<Utc>,
     /// When the project was last saved
@@ -36,7 +41,24 @@ pub struct Project {
     /// Application version that created this project
     pub app_version: String,
     /// Optional notes/description
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub notes: Option<String>,
+}
+
+impl Default for Project {
+    fn default() -> Self {
+        let now = Utc::now();
+        Self {
+            version: PROJECT_VERSION,
+            audiobook: AudioBook::new("Untitled".to_string()),
+            conversion_settings: None,
+            conversion_defaults: None,
+            created_at: now,
+            saved_at: now,
+            app_version: env!("CARGO_PKG_VERSION").to_string(),
+            notes: None,
+        }
+    }
 }
 
 impl Project {
@@ -47,6 +69,7 @@ impl Project {
             version: PROJECT_VERSION,
             audiobook,
             conversion_settings: None,
+            conversion_defaults: None,
             created_at: now,
             saved_at: now,
             app_version: env!("CARGO_PKG_VERSION").to_string(),

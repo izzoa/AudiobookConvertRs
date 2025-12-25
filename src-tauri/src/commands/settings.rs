@@ -1,3 +1,4 @@
+use serde::Serialize;
 use tauri::State;
 use crate::config::{self, UserSettings};
 use crate::state::AppState;
@@ -5,6 +6,19 @@ use crate::ffmpeg::detection;
 
 fn to_string_err<E: ToString>(err: E) -> String {
     err.to_string()
+}
+
+/// Serializable FFmpeg info for the frontend
+#[derive(Debug, Clone, Serialize)]
+pub struct FFmpegStatus {
+    /// Whether FFmpeg is available
+    pub available: bool,
+    /// Path to ffmpeg executable
+    pub path: Option<String>,
+    /// Version string
+    pub version: Option<String>,
+    /// Whether libfdk_aac encoder is available (better quality)
+    pub supports_libfdk_aac: bool,
 }
 
 #[tauri::command]
@@ -77,4 +91,30 @@ pub async fn get_ffmpeg_version(
             info.version
         })
         .map_err(to_string_err)
+}
+
+#[tauri::command]
+pub async fn get_ffmpeg_info(
+    state: State<'_, AppState>
+) -> Result<FFmpegStatus, String> {
+    match detection::detect_ffmpeg() {
+        Ok(info) => {
+            state.set_ffmpeg_status(true, Some(info.version.clone()));
+            Ok(FFmpegStatus {
+                available: true,
+                path: Some(info.path.to_string()),
+                version: Some(info.version),
+                supports_libfdk_aac: info.supports_libfdk_aac,
+            })
+        }
+        Err(_) => {
+            state.set_ffmpeg_status(false, None);
+            Ok(FFmpegStatus {
+                available: false,
+                path: None,
+                version: None,
+                supports_libfdk_aac: false,
+            })
+        }
+    }
 }

@@ -115,13 +115,62 @@ export interface ConversionProgress {
     status_message: string;
 }
 
+/// User settings matching Rust UserSettings struct
 export interface UserSettings {
+    // Conversion defaults
+    default_bitrate_kbps: number;
+    default_output_directory?: string;
+    default_sample_rate?: number;
+    embed_chapters_by_default: boolean;
+    copy_metadata_by_default: boolean;
+    embed_artwork_by_default: boolean;
+    overwrite_existing_by_default: boolean;
+
+    // Artwork behavior
+    auto_detect_artwork: boolean;
+    scan_for_cover_images: boolean;
+
+    // Queue defaults
+    concurrent_jobs: number;
+
+    // FFmpeg
+    ffmpeg_path?: string;
+
+    // UI preferences
     theme: 'light' | 'dark' | 'system';
-    default_output_dir?: string;
-    default_conversion_settings: ConversionSettings;
-    check_for_updates: boolean;
+    window_width: number;
+    window_height: number;
+    show_advanced_options: boolean;
+    confirm_overwrite: boolean;
+    notification_sound: boolean;
+
+    // Recent files
+    recent_files: string[];
+    max_recent_files: number;
+
+    // Debug
+    log_level: 'error' | 'warn' | 'info' | 'debug' | 'trace';
 }
 
+/// Conversion defaults without output path (for global/project defaults)
+export interface ConversionDefaults {
+    bitrate_kbps: number;
+    sample_rate_hz?: number;
+    overwrite_existing: boolean;
+    embed_chapters: boolean;
+    embed_artwork: boolean;
+    copy_metadata: boolean;
+}
+
+/// FFmpeg status from backend
+export interface FFmpegStatus {
+    available: boolean;
+    path?: string;
+    version?: string;
+    supports_libfdk_aac: boolean;
+}
+
+// Legacy FFmpegInfo - kept for backwards compatibility
 export interface FFmpegInfo {
     version: string;
     path: string;
@@ -194,6 +243,7 @@ export interface Project {
     version: number;
     audiobook: AudioBook;
     conversion_settings?: ConversionSettings;
+    conversion_defaults?: ConversionDefaults;
     created_at: string;
     saved_at: string;
     app_version: string;
