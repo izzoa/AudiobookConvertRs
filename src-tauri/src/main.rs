@@ -72,6 +72,8 @@ fn main() {
             audiobookconvert_rs::commands::metadata::generate_chapters_from_source,
             audiobookconvert_rs::commands::metadata::rename_chapters_with_regex,
             audiobookconvert_rs::commands::metadata::get_chapter_regex_presets,
+            audiobookconvert_rs::commands::metadata::import_chapters_from_cue,
+            audiobookconvert_rs::commands::metadata::parse_cue_file_info,
             // Files
             audiobookconvert_rs::commands::files::pick_files,
             audiobookconvert_rs::commands::files::pick_directory,
@@ -85,6 +87,9 @@ fn main() {
             audiobookconvert_rs::commands::files::pick_chapters_file,
             audiobookconvert_rs::commands::files::read_text_file,
             audiobookconvert_rs::commands::files::pick_output_file,
+            audiobookconvert_rs::commands::files::detect_cue_file,
+            audiobookconvert_rs::commands::files::find_cue_for_audio,
+            audiobookconvert_rs::commands::files::pick_cue_file,
             // Settings
             audiobookconvert_rs::commands::settings::get_settings,
             audiobookconvert_rs::commands::settings::update_settings,

@@ -3,6 +3,7 @@ use tauri_plugin_dialog::DialogExt;
 use camino::Utf8PathBuf;
 use crate::models::{AudioFile, AudioFormat};
 use crate::audio::{loader, format};
+use crate::metadata::cue_parser::{CueDetectionResult, detect_cue_for_files, find_cue_file};
 
 // Helper to convert Result to String for IPC
 fn to_string_err<E: ToString>(err: E) -> String {
@@ -179,12 +180,39 @@ pub async fn pick_output_file(app: AppHandle, default_name: Option<String>) -> R
     let mut dialog = app.dialog()
         .file()
         .add_filter("M4B Audiobook", &["m4b"]);
-    
+
     if let Some(name) = default_name {
         dialog = dialog.set_file_name(&name);
     }
-    
+
     let file_path = dialog.blocking_save_file();
+
+    match file_path {
+        Some(path) => {
+            Ok(Some(path.as_path().map(|p| p.to_string_lossy().to_string()).unwrap_or_default()))
+        },
+        None => Ok(None)
+    }
+}
+
+#[tauri::command]
+pub async fn detect_cue_file(paths: Vec<String>) -> Result<Option<CueDetectionResult>, String> {
+    let utf8_paths: Vec<Utf8PathBuf> = paths.iter().map(|p| Utf8PathBuf::from(p)).collect();
+    Ok(detect_cue_for_files(&utf8_paths))
+}
+
+#[tauri::command]
+pub async fn find_cue_for_audio(path: String) -> Result<Option<String>, String> {
+    let utf8_path = Utf8PathBuf::from(path);
+    Ok(find_cue_file(&utf8_path).map(|p| p.to_string()))
+}
+
+#[tauri::command]
+pub async fn pick_cue_file(app: AppHandle) -> Result<Option<String>, String> {
+    let file_path = app.dialog()
+        .file()
+        .add_filter("CUE Sheet", &["cue"])
+        .blocking_pick_file();
 
     match file_path {
         Some(path) => {

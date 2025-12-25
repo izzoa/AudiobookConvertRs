@@ -48,3 +48,23 @@ export async function getChapterRegexPresets(): Promise<RegexPreset[]> {
     return await invoke('get_chapter_regex_presets');
 }
 
+export interface CueInfo {
+    cue_path: string;
+    audio_files: string[];
+    track_count: number;
+    is_multi_file: boolean;
+    album_title: string | null;
+    album_artist: string | null;
+}
+
+export async function importChaptersFromCue(
+    audiobookId: string,
+    cuePath: string
+): Promise<AudioBook> {
+    return await invoke('import_chapters_from_cue', { audiobookId, cuePath });
+}
+
+export async function parseCueFileInfo(cuePath: string): Promise<CueInfo> {
+    return await invoke('parse_cue_file_info', { cuePath });
+}
+

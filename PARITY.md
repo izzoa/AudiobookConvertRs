@@ -11,7 +11,7 @@ AudiobookConvertRs already implements core functionality. The following features
 | Category | Feature | Status |
 |----------|---------|--------|
 | Input Formats | WMA support | Not implemented |
-| Input Formats | FLAC/CUE sheet support | Not implemented |
+| Input Formats | FLAC/CUE sheet support | ✅ Complete |
 | Output Formats | OGG/Opus output | Not implemented |
 | Output Formats | MP3 (LAME) output | Not implemented |
 | Playback | Audio preview before conversion | Not implemented |
@@ -162,60 +162,60 @@ FILE "album.flac" WAVE
 ```
 
 #### Phase 6.1: Research & Dependencies
-- [ ] Research `cue_sheet` crate vs custom parser trade-offs
-- [ ] Add `cue_sheet` crate to Cargo.toml (or decide on custom implementation)
-- [ ] Review existing `Chapter` struct in `models.rs` for compatibility
+- [x] Research `cue_sheet` crate vs custom parser trade-offs
+- [x] Add `cue_sheet` crate to Cargo.toml (or decide on custom implementation)
+- [x] Review existing `Chapter` struct in `models.rs` for compatibility
 
 #### Phase 6.2: CUE Parser Module
-- [ ] Create `src-tauri/src/metadata/cue_parser.rs`
-- [ ] Define `CueSheet` struct (file references, tracks, metadata)
-- [ ] Define `CueTrack` struct (index, title, performer, start_time)
-- [ ] Implement `parse_cue_file(path: &Path) -> Result<CueSheet, CueError>`
-- [ ] Handle CUE timestamp format (MM:SS:FF where FF is frames, 75 frames/sec)
-- [ ] Convert CUE timestamps to milliseconds
-- [ ] Parse TITLE, PERFORMER, FILE, TRACK, INDEX commands
-- [ ] Handle quoted strings and escape sequences
-- [ ] Add unit tests with sample CUE content
+- [x] Create `src-tauri/src/metadata/cue_parser.rs`
+- [x] Define `CueSheet` struct (file references, tracks, metadata)
+- [x] Define `CueTrack` struct (index, title, performer, start_time)
+- [x] Implement `parse_cue_file(path: &Path) -> Result<CueSheet, CueError>`
+- [x] Handle CUE timestamp format (MM:SS:FF where FF is frames, 75 frames/sec)
+- [x] Convert CUE timestamps to milliseconds
+- [x] Parse TITLE, PERFORMER, FILE, TRACK, INDEX commands
+- [x] Handle quoted strings and escape sequences
+- [x] Add unit tests with sample CUE content
 
 #### Phase 6.3: CUE Detection in Audio Loader
-- [ ] Modify `src-tauri/src/audio/loader.rs`
-- [ ] Add `find_cue_file(flac_path: &Path) -> Option<PathBuf>` function
-- [ ] Check for `.cue` file with same base name as `.flac`
-- [ ] Check for `.cue` file in same directory with matching FILE reference
-- [ ] Return CUE path if found
+- [x] Modify `src-tauri/src/audio/loader.rs`
+- [x] Add `find_cue_file(flac_path: &Path) -> Option<PathBuf>` function
+- [x] Check for `.cue` file with same base name as `.flac`
+- [x] Check for `.cue` file in same directory with matching FILE reference
+- [x] Return CUE path if found
 
 #### Phase 6.4: Chapter Generation from CUE
-- [ ] Modify `src-tauri/src/metadata/chapters.rs`
-- [ ] Add `generate_chapters_from_cue(cue: &CueSheet, total_duration_ms: u64) -> Vec<Chapter>`
-- [ ] Map each `CueTrack` to a `Chapter`
-- [ ] Calculate chapter end times (next track start or total duration)
-- [ ] Use track TITLE as chapter title (fallback to "Track N")
-- [ ] Preserve PERFORMER in chapter metadata if available
+- [x] Modify `src-tauri/src/metadata/chapters.rs`
+- [x] Add `generate_chapters_from_cue(cue: &CueSheet, total_duration_ms: u64) -> Vec<Chapter>`
+- [x] Map each `CueTrack` to a `Chapter`
+- [x] Calculate chapter end times (next track start or total duration)
+- [x] Use track TITLE as chapter title (fallback to "Track N")
+- [x] Preserve PERFORMER in chapter metadata if available
 
 #### Phase 6.5: Multi-file CUE Support
-- [ ] Handle CUE sheets referencing multiple FILE entries
-- [ ] Map each FILE to corresponding audio file
-- [ ] Calculate cumulative offsets for multi-file chapters
-- [ ] Validate all referenced files exist
+- [x] Handle CUE sheets referencing multiple FILE entries
+- [x] Map each FILE to corresponding audio file
+- [x] Calculate cumulative offsets for multi-file chapters
+- [x] Validate all referenced files exist
 
 #### Phase 6.6: IPC Command Integration
-- [ ] Add `detect_cue_file` command to `commands/files.rs`
-- [ ] Add `import_chapters_from_cue` command to `commands/metadata.rs`
-- [ ] Return structured response with CUE detection status and track count
+- [x] Add `detect_cue_file` command to `commands/files.rs`
+- [x] Add `import_chapters_from_cue` command to `commands/metadata.rs`
+- [x] Return structured response with CUE detection status and track count
 
 #### Phase 6.7: Frontend UI
-- [ ] Modify `ChapterPanel.tsx` or create `CueImportDialog.tsx`
-- [ ] Show notification when CUE file detected alongside FLAC
-- [ ] Display parsed track list for user confirmation
-- [ ] Add "Import as Chapters" button
-- [ ] Update chapter list after import
+- [x] Modify `ChapterPanel.tsx` or create `CueImportDialog.tsx`
+- [x] Show notification when CUE file detected alongside FLAC
+- [x] Display parsed track list for user confirmation
+- [x] Add "Import as Chapters" button
+- [x] Update chapter list after import
 
 #### Phase 6.8: Testing & Edge Cases
-- [ ] Test with single-file CUE sheets
-- [ ] Test with multi-file CUE sheets
-- [ ] Test with Unicode track titles (Japanese, Cyrillic, etc.)
-- [ ] Test with missing/malformed INDEX entries
-- [ ] Test with hidden Track 00 (pregap)
+- [x] Test with single-file CUE sheets
+- [x] Test with multi-file CUE sheets
+- [x] Test with Unicode track titles (Japanese, Cyrillic, etc.)
+- [x] Test with missing/malformed INDEX entries
+- [x] Test with hidden Track 00 (pregap)
 - [ ] Integration test: FLAC + CUE -> M4B with chapters
 
 **Dependency Flow**:
@@ -344,7 +344,7 @@ ffprobe -v quiet -print_format json -show_format -show_streams input.wma
 Feature parity is achieved when:
 
 - [ ] Can import WMA files
-- [ ] Can import FLAC with CUE sheets (tracks become chapters)
+- [x] Can import FLAC with CUE sheets (tracks become chapters)
 - [ ] Can output to M4B, MP3, and OGG/Opus
 - [ ] Can preview audio before conversion
 - [ ] Auto-discovers cover art from directories

@@ -1,9 +1,11 @@
 use tauri::State;
+use camino::Utf8PathBuf;
 use crate::models::{Metadata, Chapter, AudioBook};
 use crate::metadata::editor::{self, ChapterUpdate};
 use crate::metadata::chapter_io::{ChapterFormat, parse_chapters, render_chapters};
 use crate::metadata::chapters::validate_chapters;
 use crate::metadata::chapter_generation::{extract_chapters_from_sources, rename_chapters_regex, get_regex_presets};
+use crate::metadata::cue_parser::{parse_cue_file, generate_chapters_from_cue, CueDetectionResult};
 use crate::state::AppState;
 use crate::commands::undo::UndoState;
 use crate::undo::EditCommand;
@@ -363,4 +365,65 @@ pub async fn get_chapter_regex_presets() -> Result<Vec<RegexPresetInfo>, String>
         replacement: p.replacement.to_string(),
     }).collect();
     Ok(info)
+}
+
+#[tauri::command]
+pub async fn import_chapters_from_cue(
+    audiobook_id: String,
+    cue_path: String,
+    state: State<'_, AppState>,
+    undo_state: State<'_, UndoState>
+) -> Result<AudioBook, String> {
+    let mut current = state.get_audiobook(&audiobook_id)
+        .ok_or_else(|| format!("Audiobook not found: {}", audiobook_id))?;
+
+    let cue_utf8_path = Utf8PathBuf::from(&cue_path);
+    let cue = parse_cue_file(&cue_utf8_path).map_err(to_string_err)?;
+
+    let chapters = generate_chapters_from_cue(&cue, current.total_duration_ms);
+
+    if chapters.is_empty() {
+        return Err("No tracks found in CUE file".to_string());
+    }
+
+    validate_chapters(&chapters, current.total_duration_ms).map_err(to_string_err)?;
+
+    let old_chapters = current.chapters.clone();
+
+    let command = EditCommand::ReplaceChapters {
+        audiobook_id: audiobook_id.clone(),
+        old_chapters,
+        new_chapters: chapters,
+    };
+
+    undo_state.execute(&mut current, command).map_err(to_string_err)?;
+
+    if let Some(title) = cue.title {
+        if current.output_metadata.title.is_none() || current.output_metadata.title.as_deref() == Some("") {
+            current.output_metadata.title = Some(title);
+        }
+    }
+    if let Some(performer) = cue.performer {
+        if current.output_metadata.artist.is_none() || current.output_metadata.artist.as_deref() == Some("") {
+            current.output_metadata.artist = Some(performer);
+        }
+    }
+
+    state.update_audiobook(current.clone()).map_err(to_string_err)?;
+    Ok(current)
+}
+
+#[tauri::command]
+pub async fn parse_cue_file_info(cue_path: String) -> Result<CueDetectionResult, String> {
+    let cue_utf8_path = Utf8PathBuf::from(&cue_path);
+    let cue = parse_cue_file(&cue_utf8_path).map_err(to_string_err)?;
+
+    Ok(CueDetectionResult {
+        cue_path,
+        audio_files: cue.files.iter().map(|f| f.path.clone()).collect(),
+        track_count: cue.tracks.len(),
+        is_multi_file: cue.is_multi_file(),
+        album_title: cue.title,
+        album_artist: cue.performer,
+    })
 }

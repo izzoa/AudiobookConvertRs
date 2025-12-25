@@ -55,3 +55,24 @@ export async function readTextFile(path: string): Promise<string> {
 export async function pickOutputFile(defaultName?: string): Promise<string | null> {
     return await invoke('pick_output_file', { defaultName });
 }
+
+export interface CueDetectionResult {
+    cue_path: string;
+    audio_files: string[];
+    track_count: number;
+    is_multi_file: boolean;
+    album_title: string | null;
+    album_artist: string | null;
+}
+
+export async function detectCueFile(paths: string[]): Promise<CueDetectionResult | null> {
+    return await invoke('detect_cue_file', { paths });
+}
+
+export async function findCueForAudio(path: string): Promise<string | null> {
+    return await invoke('find_cue_for_audio', { path });
+}
+
+export async function pickCueFile(): Promise<string | null> {
+    return await invoke('pick_cue_file');
+}

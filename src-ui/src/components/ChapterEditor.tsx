@@ -6,6 +6,7 @@ import { useApp } from "@/context/AppContext";
 import * as ChaptersApi from "@/api/chapters";
 import * as FilesApi from "@/api/files";
 import type { Chapter } from "@/types/models";
+import type { CueDetectionResult } from "@/api/files";
 import { GripVertical } from "lucide-react";
 import {
     DndContext,
@@ -87,6 +88,8 @@ export function ChapterEditor() {
     const [regexPresets, setRegexPresets] = useState<ChaptersApi.RegexPreset[]>([]);
     const [customPattern, setCustomPattern] = useState("");
     const [customReplacement, setCustomReplacement] = useState("");
+    const [detectedCue, setDetectedCue] = useState<CueDetectionResult | null>(null);
+    const [isImportingCue, setIsImportingCue] = useState(false);
 
     const sensors = useSensors(
         useSensor(PointerSensor, {
@@ -110,6 +113,24 @@ export function ChapterEditor() {
         }
         loadPresets();
     }, []);
+
+    useEffect(() => {
+        async function detectCue() {
+            if (!activeAudiobook?.files?.length) {
+                setDetectedCue(null);
+                return;
+            }
+            try {
+                const paths = activeAudiobook.files.map(f => f.path);
+                const result = await FilesApi.detectCueFile(paths);
+                setDetectedCue(result);
+            } catch (e) {
+                console.error("Failed to detect CUE:", e);
+                setDetectedCue(null);
+            }
+        }
+        detectCue();
+    }, [activeAudiobook?.files]);
 
     if (!activeAudiobook) {
         return (
@@ -191,6 +212,38 @@ export function ChapterEditor() {
             setError(`Generation failed: ${e}`);
         } finally {
             setIsGenerating(false);
+        }
+    };
+
+    const handleImportFromCue = async (cuePath: string) => {
+        if (!activeAudiobook) return;
+        setIsImportingCue(true);
+        setError(null);
+
+        try {
+            const updated = await ChaptersApi.importChaptersFromCue(activeAudiobook.id, cuePath);
+            setActiveAudiobook(updated);
+            setDetectedCue(null);
+        } catch (e) {
+            console.error("Failed to import CUE:", e);
+            setError(`CUE import failed: ${e}`);
+        } finally {
+            setIsImportingCue(false);
+        }
+    };
+
+    const handlePickCueFile = async () => {
+        if (!activeAudiobook) return;
+        setError(null);
+
+        try {
+            const path = await FilesApi.pickCueFile();
+            if (path) {
+                await handleImportFromCue(path);
+            }
+        } catch (e) {
+            console.error("Failed to pick CUE file:", e);
+            setError(`Failed to pick CUE file: ${e}`);
         }
     };
 
@@ -433,6 +486,50 @@ export function ChapterEditor() {
             {/* Smart Generation */}
             <div className="p-4 border rounded-lg bg-card space-y-4">
                 <Label className="text-base font-semibold">Smart Generation</Label>
+
+                {/* CUE Sheet Detection */}
+                {detectedCue && (
+                    <div className="p-3 border border-blue-500/30 rounded bg-blue-500/5 space-y-2">
+                        <div className="flex items-start justify-between">
+                            <div>
+                                <p className="text-sm font-medium text-blue-600 dark:text-blue-400">
+                                    CUE Sheet Detected
+                                </p>
+                                <p className="text-xs text-muted-foreground mt-1">
+                                    {detectedCue.track_count} track(s) found
+                                    {detectedCue.album_title && ` - "${detectedCue.album_title}"`}
+                                </p>
+                            </div>
+                            <Button
+                                onClick={() => handleImportFromCue(detectedCue.cue_path)}
+                                disabled={isImportingCue}
+                                size="sm"
+                                variant="default"
+                            >
+                                {isImportingCue ? "Importing..." : "Import as Chapters"}
+                            </Button>
+                        </div>
+                        <p className="text-xs text-muted-foreground truncate" title={detectedCue.cue_path}>
+                            {detectedCue.cue_path.split(/[/\\]/).pop()}
+                        </p>
+                    </div>
+                )}
+
+                {/* Import CUE Manually */}
+                <div className="space-y-2">
+                    <Label className="text-sm font-medium">Import from CUE Sheet</Label>
+                    <Button
+                        onClick={handlePickCueFile}
+                        disabled={isImportingCue}
+                        className="w-full"
+                        variant="outline"
+                    >
+                        {isImportingCue ? "Importing..." : "Select CUE File..."}
+                    </Button>
+                    <p className="text-xs text-muted-foreground">
+                        Import chapter markers from a CUE sheet file (.cue)
+                    </p>
+                </div>
 
                 {/* Extract from Source */}
                 <div className="space-y-2">
