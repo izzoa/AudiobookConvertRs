@@ -202,14 +202,22 @@ export function SettingsPage() {
                     <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-2">
                             <Label htmlFor="bitrate">Default Bitrate (kbps)</Label>
-                            <Input
+                            <select
                                 id="bitrate"
-                                type="number"
-                                min={8}
-                                max={320}
+                                className="w-full h-10 px-3 rounded-md border border-input bg-background"
                                 value={draftSettings.default_bitrate_kbps}
-                                onChange={(e) => updateDraft('default_bitrate_kbps', parseInt(e.target.value) || 128)}
-                            />
+                                onChange={(e) => updateDraft('default_bitrate_kbps', parseInt(e.target.value))}
+                            >
+                                <option value="320">320 kbps</option>
+                                <option value="256">256 kbps</option>
+                                <option value="192">192 kbps</option>
+                                <option value="160">160 kbps</option>
+                                <option value="128">128 kbps</option>
+                                <option value="96">96 kbps</option>
+                                <option value="64">64 kbps</option>
+                                <option value="48">48 kbps</option>
+                                <option value="32">32 kbps</option>
+                            </select>
                         </div>
                         <div className="space-y-2">
                             <Label htmlFor="sample-rate">Sample Rate (Hz)</Label>
@@ -436,14 +444,22 @@ export function SettingsPage() {
                         <div className="grid grid-cols-2 gap-4">
                             <div className="space-y-2">
                                 <Label htmlFor="project-bitrate">Bitrate (kbps)</Label>
-                                <Input
+                                <select
                                     id="project-bitrate"
-                                    type="number"
-                                    min={8}
-                                    max={320}
+                                    className="w-full h-10 px-3 rounded-md border border-input bg-background"
                                     value={draftProjectDefaults?.bitrate_kbps ?? settings?.default_bitrate_kbps ?? 128}
-                                    onChange={(e) => updateProjectDraft('bitrate_kbps', parseInt(e.target.value) || 128)}
-                                />
+                                    onChange={(e) => updateProjectDraft('bitrate_kbps', parseInt(e.target.value))}
+                                >
+                                    <option value="320">320 kbps</option>
+                                    <option value="256">256 kbps</option>
+                                    <option value="192">192 kbps</option>
+                                    <option value="160">160 kbps</option>
+                                    <option value="128">128 kbps</option>
+                                    <option value="96">96 kbps</option>
+                                    <option value="64">64 kbps</option>
+                                    <option value="48">48 kbps</option>
+                                    <option value="32">32 kbps</option>
+                                </select>
                             </div>
                             <div className="space-y-2">
                                 <Label htmlFor="project-sample-rate">Sample Rate (Hz)</Label>
