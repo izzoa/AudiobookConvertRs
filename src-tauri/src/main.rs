@@ -10,6 +10,7 @@ use audiobookconvert_rs::commands::undo::UndoState;
 use audiobookconvert_rs::conversion::runner::create_shared_manager;
 use audiobookconvert_rs::ffmpeg::detect_ffmpeg;
 use audiobookconvert_rs::config::UserSettings;
+use audiobookconvert_rs::audio::player::create_shared_player;
 use camino::Utf8PathBuf;
 use tracing::{info, warn};
 
@@ -41,6 +42,9 @@ fn main() {
     let manager = create_shared_manager(Some(queue_path))
         .expect("Failed to create conversion manager");
 
+    // Create audio player for preview functionality
+    let player = create_shared_player();
+
     // Build and run Tauri application
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
@@ -49,6 +53,7 @@ fn main() {
         .manage(AppState::new())
         .manage(UndoState::new())
         .manage(manager)
+        .manage(player)
         .invoke_handler(tauri::generate_handler![
             // Audiobook
             audiobookconvert_rs::commands::audiobook::create_audiobook_from_files,
@@ -74,6 +79,8 @@ fn main() {
             audiobookconvert_rs::commands::metadata::get_chapter_regex_presets,
             audiobookconvert_rs::commands::metadata::import_chapters_from_cue,
             audiobookconvert_rs::commands::metadata::parse_cue_file_info,
+            audiobookconvert_rs::commands::metadata::discover_artwork,
+            audiobookconvert_rs::commands::metadata::select_discovered_artwork,
             // Files
             audiobookconvert_rs::commands::files::pick_files,
             audiobookconvert_rs::commands::files::pick_directory,
@@ -139,6 +146,14 @@ fn main() {
             // Open Library
             audiobookconvert_rs::commands::open_library::open_library_search,
             audiobookconvert_rs::commands::open_library::open_library_apply,
+            // Playback
+            audiobookconvert_rs::commands::playback::play_audio,
+            audiobookconvert_rs::commands::playback::pause_audio,
+            audiobookconvert_rs::commands::playback::resume_audio,
+            audiobookconvert_rs::commands::playback::stop_audio,
+            audiobookconvert_rs::commands::playback::seek_audio,
+            audiobookconvert_rs::commands::playback::set_audio_volume,
+            audiobookconvert_rs::commands::playback::get_playback_status,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -14,8 +14,8 @@ AudiobookConvertRs already implements core functionality. The following features
 | Input Formats | FLAC/CUE sheet support | ✅ Complete |
 | Output Formats | OGG/Opus output | Not implemented |
 | Output Formats | MP3 (LAME) output | Not implemented |
-| Playback | Audio preview before conversion | Not implemented |
-| Artwork | Smart directory artwork discovery | Not implemented |
+| Playback | Audio preview before conversion | ✅ Complete |
+| Artwork | Smart directory artwork discovery | ✅ Complete |
 | UI | Quality management slider | Partial |
 | Processing | Parallel book preparation | Partial |
 
@@ -23,50 +23,50 @@ AudiobookConvertRs already implements core functionality. The following features
 
 ## Implementation Plan
 
-### Phase 1: Smart Artwork Discovery
+### Phase 1: Smart Artwork Discovery ✅
 
 **Goal**: Automatically find cover artwork from input file directories.
 
 **Tasks**:
-- [ ] Scan input file directories for common cover image names
-- [ ] Search patterns: `cover.jpg`, `cover.png`, `folder.jpg`, `album.jpg`, `front.jpg`
-- [ ] Implement priority order: embedded > cover.* > folder.* > album.*
-- [ ] Add UI to show discovered artwork options
-- [ ] Allow user to choose between multiple found images
+- [x] Scan input file directories for common cover image names
+- [x] Search patterns: `cover.jpg`, `cover.png`, `folder.jpg`, `album.jpg`, `front.jpg`
+- [x] Implement priority order: embedded > cover.* > folder.* > album.*
+- [x] Add UI to show discovered artwork options
+- [x] Allow user to choose between multiple found images
 
-**Files to modify**:
-- `src-tauri/src/metadata/artwork.rs` - Add directory scanning
-- `src-tauri/src/commands/metadata.rs` - Add discovery command
-- `src-ui/src/components/ArtworkPicker.tsx` - Show discovered options
+**Files modified**:
+- `src-tauri/src/metadata/artwork.rs` - Added `discover_artwork_options()`, `DiscoveredArtwork`, `ArtworkSource`
+- `src-tauri/src/commands/metadata.rs` - Added `discover_artwork`, `select_discovered_artwork` commands
+- `src-ui/src/components/ArtworkPicker.tsx` - Auto-scans on file load, shows discovered options with priority badges
 
 ---
 
-### Phase 2: Audio Preview/Playback
+### Phase 2: Audio Preview/Playback ✅
 
 **Goal**: Allow users to preview audio before conversion.
 
 **Approach**: Use `rodio` crate for native Rust audio playback.
 
 **Tasks**:
-- [ ] Add `rodio` dependency to Cargo.toml
-- [ ] Create audio player service (`src-tauri/src/audio/player.rs`)
-- [ ] Implement playback state management
-- [ ] Add IPC commands:
+- [x] Add `rodio` dependency to Cargo.toml
+- [x] Create audio player service (`src-tauri/src/audio/player.rs`)
+- [x] Implement playback state management
+- [x] Add IPC commands:
   - `play_audio(path, start_ms)` - Start playback
   - `pause_audio()` - Pause playback
   - `stop_audio()` - Stop playback
   - `seek_audio(position_ms)` - Seek to position
   - `get_playback_status()` - Get current position/state
-- [ ] Add play button to file list items
-- [ ] Add play button to chapter list items
-- [ ] Show playback position indicator
-- [ ] Handle seeking within chapters
+- [x] Add play button to chapter list items
+- [x] Show playback position indicator
+- [ ] Add play button to file list items (optional enhancement)
 
-**Fallback**: If rodio has cross-platform issues, use HTML5 Audio with blob URLs.
-
-**Files to create**:
-- `src-tauri/src/audio/player.rs` - Playback service
-- `src-ui/src/components/AudioPlayer.tsx` - Player controls
+**Files created/modified**:
+- `src-tauri/src/audio/player.rs` - Thread-based playback service using mpsc channels
+- `src-tauri/src/commands/playback.rs` - IPC commands
+- `src-ui/src/api/playback.ts` - TypeScript API
+- `src-ui/src/components/AudioPlayer.tsx` - Fixed bottom player bar with controls
+- `src-ui/src/components/ChapterEditor.tsx` - Play buttons on chapters
 
 ---
 
@@ -346,8 +346,8 @@ Feature parity is achieved when:
 - [ ] Can import WMA files
 - [x] Can import FLAC with CUE sheets (tracks become chapters)
 - [ ] Can output to M4B, MP3, and OGG/Opus
-- [ ] Can preview audio before conversion
-- [ ] Auto-discovers cover art from directories
+- [x] Can preview audio before conversion
+- [x] Auto-discovers cover art from directories
 - [ ] Quality slider with file size estimation
 - [ ] All features work on Windows, macOS, and Linux
 

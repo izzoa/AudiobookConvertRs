@@ -5,9 +5,10 @@ import { Input } from "./ui/input";
 import { useApp } from "@/context/AppContext";
 import * as ChaptersApi from "@/api/chapters";
 import * as FilesApi from "@/api/files";
+import * as PlaybackApi from "@/api/playback";
 import type { Chapter } from "@/types/models";
 import type { CueDetectionResult } from "@/api/files";
-import { GripVertical } from "lucide-react";
+import { GripVertical, Play, Square } from "lucide-react";
 import {
     DndContext,
     closestCenter,
@@ -32,9 +33,11 @@ interface SortableChapterProps {
     chapter: Chapter;
     displayIndex: number;
     formatDuration: (ms: number) => string;
+    onPlay: (chapter: Chapter) => void;
+    isPlaying: boolean;
 }
 
-function SortableChapter({ chapter, displayIndex, formatDuration }: SortableChapterProps) {
+function SortableChapter({ chapter, displayIndex, formatDuration, onPlay, isPlaying }: SortableChapterProps) {
     const {
         attributes,
         listeners,
@@ -60,6 +63,18 @@ function SortableChapter({ chapter, displayIndex, formatDuration }: SortableChap
             }`}
         >
             <div className="flex items-center gap-2 flex-1 min-w-0">
+                <button
+                    onClick={(e) => { e.stopPropagation(); onPlay(chapter); }}
+                    className="p-1 hover:bg-muted rounded"
+                    aria-label={isPlaying ? "Stop" : "Play chapter"}
+                    title={isPlaying ? "Stop" : "Play chapter"}
+                >
+                    {isPlaying ? (
+                        <Square className="h-3 w-3 text-primary" />
+                    ) : (
+                        <Play className="h-3 w-3 text-muted-foreground" />
+                    )}
+                </button>
                 <button
                     {...attributes}
                     {...listeners}
@@ -90,6 +105,7 @@ export function ChapterEditor() {
     const [customReplacement, setCustomReplacement] = useState("");
     const [detectedCue, setDetectedCue] = useState<CueDetectionResult | null>(null);
     const [isImportingCue, setIsImportingCue] = useState(false);
+    const [playingChapterIndex, setPlayingChapterIndex] = useState<number | null>(null);
 
     const sensors = useSensors(
         useSensor(PointerSensor, {
@@ -131,6 +147,56 @@ export function ChapterEditor() {
         }
         detectCue();
     }, [activeAudiobook?.files]);
+
+    const findFileForChapter = (chapter: Chapter): { path: string; offsetMs: number } | null => {
+        if (!activeAudiobook?.files?.length) return null;
+        let cumulativeDuration = 0;
+        for (const file of activeAudiobook.files) {
+            if (chapter.start_time_ms < cumulativeDuration + file.duration_ms) {
+                return {
+                    path: file.path,
+                    offsetMs: chapter.start_time_ms - cumulativeDuration
+                };
+            }
+            cumulativeDuration += file.duration_ms;
+        }
+        return activeAudiobook.files.length > 0
+            ? { path: activeAudiobook.files[0].path, offsetMs: chapter.start_time_ms }
+            : null;
+    };
+
+    const handlePlayChapter = async (chapter: Chapter) => {
+        try {
+            if (playingChapterIndex === chapter.index) {
+                await PlaybackApi.stopAudio();
+                setPlayingChapterIndex(null);
+            } else {
+                const fileInfo = findFileForChapter(chapter);
+                if (fileInfo) {
+                    await PlaybackApi.playAudio(fileInfo.path, fileInfo.offsetMs);
+                    setPlayingChapterIndex(chapter.index);
+                }
+            }
+        } catch (e) {
+            console.error("Playback error:", e);
+            setPlayingChapterIndex(null);
+        }
+    };
+
+    useEffect(() => {
+        const checkPlaybackStatus = async () => {
+            try {
+                const status = await PlaybackApi.getPlaybackStatus();
+                if (status.state === 'stopped') {
+                    setPlayingChapterIndex(null);
+                }
+            } catch (e) {
+                console.error("Failed to check playback status:", e);
+            }
+        };
+        const interval = setInterval(checkPlaybackStatus, 1000);
+        return () => clearInterval(interval);
+    }, []);
 
     if (!activeAudiobook) {
         return (
@@ -413,6 +479,8 @@ export function ChapterEditor() {
                                         chapter={chapter}
                                         displayIndex={idx}
                                         formatDuration={formatDuration}
+                                        onPlay={handlePlayChapter}
+                                        isPlaying={playingChapterIndex === chapter.index}
                                     />
                                 ))}
                             </div>

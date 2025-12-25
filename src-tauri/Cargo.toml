@@ -22,6 +22,8 @@ tauri-plugin-fs = "2"
 symphonia.workspace = true
 # MP4/M4B metadata writing
 mp4ameta.workspace = true
+# Audio playback for preview
+rodio.workspace = true
 
 # Image processing for artwork
 image.workspace = true

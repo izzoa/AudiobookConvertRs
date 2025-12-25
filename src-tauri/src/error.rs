@@ -48,6 +48,12 @@ pub enum AppError {
     #[error("Invalid audio duration: {0}")]
     InvalidDuration(String),
 
+    #[error("Audio decode error: {0}")]
+    AudioDecode(String),
+
+    #[error("Audio playback error: {0}")]
+    AudioPlayback(String),
+
     // ============================================
     // Metadata Errors
     // ============================================

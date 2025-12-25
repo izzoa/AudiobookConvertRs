@@ -14,6 +14,7 @@ use symphonia::core::formats::FormatOptions;
 use symphonia::core::io::MediaSourceStream;
 use symphonia::core::meta::MetadataOptions;
 use symphonia::core::probe::Hint;
+use serde::{Deserialize, Serialize};
 use tracing::{debug, info, warn};
 
 /// Supported image formats
@@ -71,6 +72,23 @@ const ARTWORK_FILENAMES: &[&str] = &[
     "front.jpeg",
     "front.png",
 ];
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ArtworkSource {
+    Embedded { file_path: String },
+    File { path: String },
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DiscoveredArtwork {
+    pub source: ArtworkSource,
+    pub priority: u32,
+    pub width: Option<u32>,
+    pub height: Option<u32>,
+    pub size_bytes: usize,
+    pub name: String,
+}
 
 /// Extract embedded artwork from an audio file
 ///
@@ -297,6 +315,160 @@ pub fn get_artwork_dimensions(data: &[u8]) -> AppResult<(u32, u32)> {
     let img = image::load_from_memory(data)
         .map_err(|e| AppError::ArtworkError(format!("Failed to load image: {}", e)))?;
     Ok(img.dimensions())
+}
+
+fn get_file_priority(filename: &str) -> u32 {
+    let lower = filename.to_lowercase();
+    if lower.starts_with("cover") {
+        1
+    } else if lower.starts_with("folder") {
+        2
+    } else if lower.starts_with("front") {
+        3
+    } else if lower.starts_with("album") {
+        4
+    } else if lower.starts_with("artwork") {
+        5
+    } else {
+        10
+    }
+}
+
+pub fn discover_artwork_options(
+    audio_files: &[Utf8PathBuf],
+) -> AppResult<Vec<DiscoveredArtwork>> {
+    let mut discovered: Vec<DiscoveredArtwork> = Vec::new();
+    let mut seen_paths: std::collections::HashSet<String> = std::collections::HashSet::new();
+
+    for audio_path in audio_files {
+        if let Ok(Some(data)) = extract_embedded_artwork(audio_path) {
+            let key = format!("embedded:{}", audio_path);
+            if seen_paths.insert(key) {
+                let (width, height) = get_artwork_dimensions(&data).unwrap_or((0, 0));
+                let filename = audio_path.file_name().unwrap_or("unknown");
+                discovered.push(DiscoveredArtwork {
+                    source: ArtworkSource::Embedded {
+                        file_path: audio_path.to_string(),
+                    },
+                    priority: 0,
+                    width: if width > 0 { Some(width) } else { None },
+                    height: if height > 0 { Some(height) } else { None },
+                    size_bytes: data.len(),
+                    name: format!("Embedded ({})", filename),
+                });
+            }
+        }
+
+        if let Some(parent) = audio_path.parent() {
+            let parent_str = parent.to_string();
+            if !seen_paths.contains(&parent_str) {
+                seen_paths.insert(parent_str);
+
+                for filename in ARTWORK_FILENAMES {
+                    let path = parent.join(filename);
+                    if path.exists() {
+                        let key = path.to_string();
+                        if seen_paths.insert(key.clone()) {
+                            if let Ok(metadata) = std::fs::metadata(path.as_std_path()) {
+                                let size = metadata.len() as usize;
+                                let (width, height) = if let Ok(data) = std::fs::read(path.as_std_path()) {
+                                    get_artwork_dimensions(&data).unwrap_or((0, 0))
+                                } else {
+                                    (0, 0)
+                                };
+
+                                discovered.push(DiscoveredArtwork {
+                                    source: ArtworkSource::File { path: path.to_string() },
+                                    priority: get_file_priority(filename),
+                                    width: if width > 0 { Some(width) } else { None },
+                                    height: if height > 0 { Some(height) } else { None },
+                                    size_bytes: size,
+                                    name: filename.to_string(),
+                                });
+                            }
+                        }
+                    }
+
+                    let path_upper = parent.join(filename.to_uppercase());
+                    if path_upper.exists() {
+                        let key = path_upper.to_string();
+                        if seen_paths.insert(key.clone()) {
+                            if let Ok(metadata) = std::fs::metadata(path_upper.as_std_path()) {
+                                let size = metadata.len() as usize;
+                                let (width, height) = if let Ok(data) = std::fs::read(path_upper.as_std_path()) {
+                                    get_artwork_dimensions(&data).unwrap_or((0, 0))
+                                } else {
+                                    (0, 0)
+                                };
+
+                                discovered.push(DiscoveredArtwork {
+                                    source: ArtworkSource::File { path: path_upper.to_string() },
+                                    priority: get_file_priority(filename),
+                                    width: if width > 0 { Some(width) } else { None },
+                                    height: if height > 0 { Some(height) } else { None },
+                                    size_bytes: size,
+                                    name: filename.to_uppercase(),
+                                });
+                            }
+                        }
+                    }
+                }
+
+                if let Ok(entries) = std::fs::read_dir(parent.as_std_path()) {
+                    for entry in entries.flatten() {
+                        if let Some(name) = entry.file_name().to_str() {
+                            let name_lower = name.to_lowercase();
+                            if (name_lower.ends_with(".jpg")
+                                || name_lower.ends_with(".jpeg")
+                                || name_lower.ends_with(".png"))
+                                && !ARTWORK_FILENAMES.iter().any(|&f| {
+                                    f.to_lowercase() == name_lower
+                                })
+                            {
+                                if let Ok(path) = Utf8PathBuf::try_from(entry.path()) {
+                                    let key = path.to_string();
+                                    if seen_paths.insert(key.clone()) {
+                                        if let Ok(metadata) = entry.metadata() {
+                                            let size = metadata.len() as usize;
+                                            let (width, height) = if let Ok(data) = std::fs::read(path.as_std_path()) {
+                                                get_artwork_dimensions(&data).unwrap_or((0, 0))
+                                            } else {
+                                                (0, 0)
+                                            };
+
+                                            discovered.push(DiscoveredArtwork {
+                                                source: ArtworkSource::File { path: path.to_string() },
+                                                priority: 20,
+                                                width: if width > 0 { Some(width) } else { None },
+                                                height: if height > 0 { Some(height) } else { None },
+                                                size_bytes: size,
+                                                name: name.to_string(),
+                                            });
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    discovered.sort_by_key(|a| a.priority);
+
+    info!("Discovered {} artwork options", discovered.len());
+    for art in &discovered {
+        debug!(
+            "  - {} (priority {}, {}x{})",
+            art.name,
+            art.priority,
+            art.width.unwrap_or(0),
+            art.height.unwrap_or(0)
+        );
+    }
+
+    Ok(discovered)
 }
 
 #[cfg(test)]

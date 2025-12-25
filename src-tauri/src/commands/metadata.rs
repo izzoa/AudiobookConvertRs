@@ -6,6 +6,7 @@ use crate::metadata::chapter_io::{ChapterFormat, parse_chapters, render_chapters
 use crate::metadata::chapters::validate_chapters;
 use crate::metadata::chapter_generation::{extract_chapters_from_sources, rename_chapters_regex, get_regex_presets};
 use crate::metadata::cue_parser::{parse_cue_file, generate_chapters_from_cue, CueDetectionResult};
+use crate::metadata::artwork::{discover_artwork_options, DiscoveredArtwork, ArtworkSource, extract_embedded_artwork};
 use crate::state::AppState;
 use crate::commands::undo::UndoState;
 use crate::undo::EditCommand;
@@ -426,4 +427,48 @@ pub async fn parse_cue_file_info(cue_path: String) -> Result<CueDetectionResult,
         album_title: cue.title,
         album_artist: cue.performer,
     })
+}
+
+#[tauri::command]
+pub async fn discover_artwork(
+    audiobook_id: String,
+    state: State<'_, AppState>
+) -> Result<Vec<DiscoveredArtwork>, String> {
+    let current = state.get_audiobook(&audiobook_id)
+        .ok_or_else(|| format!("Audiobook not found: {}", audiobook_id))?;
+
+    let file_paths: Vec<Utf8PathBuf> = current.files.iter()
+        .map(|f| Utf8PathBuf::from(&f.path))
+        .collect();
+
+    discover_artwork_options(&file_paths).map_err(to_string_err)
+}
+
+#[tauri::command]
+pub async fn select_discovered_artwork(
+    audiobook_id: String,
+    source: ArtworkSource,
+    state: State<'_, AppState>
+) -> Result<AudioBook, String> {
+    let mut current = state.get_audiobook(&audiobook_id)
+        .ok_or_else(|| format!("Audiobook not found: {}", audiobook_id))?;
+
+    let artwork_bytes = match &source {
+        ArtworkSource::Embedded { file_path } => {
+            let path = Utf8PathBuf::from(file_path);
+            extract_embedded_artwork(&path)
+                .map_err(to_string_err)?
+                .ok_or_else(|| "No embedded artwork found".to_string())?
+        }
+        ArtworkSource::File { path } => {
+            std::fs::read(path)
+                .map_err(|e| format!("Failed to read artwork file: {}", e))?
+        }
+    };
+
+    editor::set_artwork_bytes(&mut current, &artwork_bytes)
+        .map_err(to_string_err)?;
+
+    state.update_audiobook(current.clone()).map_err(to_string_err)?;
+    Ok(current)
 }

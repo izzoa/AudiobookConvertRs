@@ -65,9 +65,10 @@ AudiobookConvertRs is inspired by the excellent [AudioBookConverter](https://git
 | Open Library integration | ✅ | ❌ |
 | Project save/load | ✅ | ❌ |
 | Undo/redo | ✅ | ❌ |
-| FLAC/CUE support | ❌ | ✅ |
+| FLAC/CUE support | ✅ | ✅ |
 | WMA input | ❌ | ✅ |
-| Instant playback preview | ❌ | ✅ |
+| Instant playback preview | ✅ | ✅ |
+| Smart artwork discovery | ✅ | ✅ |
 | Steam distribution | ❌ | ✅ |
 | Windows | ✅ | ✅ |
 | macOS | ✅ | ⚠️ Experimental |
@@ -85,14 +86,16 @@ AudiobookConvertRs is inspired by the excellent [AudioBookConverter](https://git
 ### Why Choose AudioBookConverter (Java)?
 
 - **More output formats** - Supports OGG/Opus and MP3 output
-- **More input formats** - WMA and FLAC/CUE support
-- **Audio preview** - Listen before converting
+- **More input formats** - WMA support
 - **Mature & stable** - 8+ years of development, 100+ releases
 - **Steam distribution** - Easy installation via Steam
 
 ## Features
 
 - **Multi-format Support** - Import MP3, FLAC, M4A, WAV, and OGG files
+- **FLAC/CUE Sheet Support** - Import FLAC with CUE sheets, tracks become chapters
+- **Audio Preview** - Listen to audio files and chapters before converting (rodio-powered)
+- **Smart Artwork Discovery** - Auto-detect cover images from embedded metadata and file directories
 - **Chapter Management** - Create, edit, reorder, and auto-generate chapters
 - **Metadata Editing** - Edit title, author, narrator, year, genre, and more
 - **Cover Artwork** - Drag-and-drop, file picker, or fetch from Open Library
@@ -282,16 +285,16 @@ Contributions are welcome! Please read our contributing guidelines before submit
 
 See [PARITY.md](PARITY.md) for detailed implementation plans.
 
-### High Priority
-- [ ] **Audio Preview/Playback** - Listen to audio before converting
-- [ ] **Smart Artwork Discovery** - Auto-detect cover images from file directories
+### Completed
+- [x] **Audio Preview/Playback** - Listen to audio before converting
+- [x] **Smart Artwork Discovery** - Auto-detect cover images from file directories
+- [x] **FLAC/CUE Sheet Support** - Import FLAC with CUE, map tracks to chapters
 
 ### Medium Priority
 - [ ] **MP3 Output Format** - Export to MP3 with chapter support via ID3v2
 - [ ] **OGG/Opus Output Format** - Export to open Opus format
 
 ### Lower Priority
-- [ ] **FLAC/CUE Sheet Support** - Import FLAC with CUE, map tracks to chapters
 - [ ] **WMA Input Support** - Import Windows Media Audio files
 
 ### Polish & Enhancements

@@ -36,3 +36,24 @@ export async function setArtworkBase64(audiobookId: string, artworkBase64: strin
 export async function clearArtwork(audiobookId: string): Promise<AudioBook> {
     return await invoke('clear_artwork', { audiobookId });
 }
+
+export type ArtworkSource =
+    | { embedded: { file_path: string } }
+    | { file: { path: string } };
+
+export interface DiscoveredArtwork {
+    source: ArtworkSource;
+    priority: number;
+    width: number | null;
+    height: number | null;
+    size_bytes: number;
+    name: string;
+}
+
+export async function discoverArtwork(audiobookId: string): Promise<DiscoveredArtwork[]> {
+    return await invoke('discover_artwork', { audiobookId });
+}
+
+export async function selectDiscoveredArtwork(audiobookId: string, source: ArtworkSource): Promise<AudioBook> {
+    return await invoke('select_discovered_artwork', { audiobookId, source });
+}

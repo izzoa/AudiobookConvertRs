@@ -8,6 +8,7 @@ import { DryRunPreview } from "@/components/DryRunPreview";
 import { ProjectManager } from "@/components/ProjectManager";
 import { SettingsPage } from "@/components/SettingsPage";
 import { HelpPage } from "@/components/HelpPage";
+import { AudioPlayer } from "@/components/AudioPlayer";
 import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
 import { useApp } from "@/context/AppContext";
 
@@ -80,6 +81,7 @@ function App() {
   return (
     <Layout>
       {renderView()}
+      <AudioPlayer />
     </Layout>
   );
 }
