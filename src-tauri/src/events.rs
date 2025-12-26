@@ -1,13 +1,20 @@
+use chrono::{DateTime, Utc};
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, Manager, Window};
+
+use crate::conversion::progress::ConversionStage;
 
 #[derive(Clone, Serialize)]
 pub struct ConversionProgress {
     pub job_id: String,
+    pub file_index: usize,
     pub current_file: String,
     pub file_progress: f32,
     pub total_progress: f32,
     pub time_remaining_sec: u32,
+    pub estimated_finish: Option<DateTime<Utc>>,
+    pub speed: Option<f32>,
+    pub stage: ConversionStage,
 }
 
 #[derive(Clone, Serialize)]

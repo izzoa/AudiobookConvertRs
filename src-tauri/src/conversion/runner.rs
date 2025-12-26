@@ -261,14 +261,18 @@ impl ConversionManager {
                 progress.file_index,
             );
 
-            // Emit progress event
+            // Emit progress event with full payload
             if let Some(ref handle) = *app_handle_progress.read() {
                 let event = EventProgress {
                     job_id: job_id_progress.clone(),
+                    file_index: progress.file_index,
                     current_file: progress.current_file.clone(),
                     file_progress: progress.file_progress,
                     total_progress: progress.total_progress,
                     time_remaining_sec: progress.time_remaining_sec,
+                    estimated_finish: Some(progress.estimated_finish),
+                    speed: progress.speed,
+                    stage: progress.stage,
                 };
                 if let Err(e) = handle.emit("conversion_progress", event) {
                     error!("Failed to emit conversion progress event: {}", e);

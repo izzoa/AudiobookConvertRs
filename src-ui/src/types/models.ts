@@ -142,6 +142,29 @@ export interface ConversionJob {
     completed_at?: string; // ISO string
 }
 
+export type ConversionStage = 'preparing' | 'normalizing' | 'encoding' | 'metadata' | 'chapters' | 'verifying' | 'finalizing' | 'complete';
+export const ConversionStage = {
+    Preparing: 'preparing',
+    Normalizing: 'normalizing',
+    Encoding: 'encoding',
+    Metadata: 'metadata',
+    Chapters: 'chapters',
+    Verifying: 'verifying',
+    Finalizing: 'finalizing',
+    Complete: 'complete',
+} as const;
+
+export const ConversionStageLabels: Record<ConversionStage, string> = {
+    preparing: 'Preparing',
+    normalizing: 'Normalizing audio',
+    encoding: 'Encoding',
+    metadata: 'Embedding metadata',
+    chapters: 'Embedding chapters',
+    verifying: 'Verifying',
+    finalizing: 'Finalizing',
+    complete: 'Complete',
+};
+
 export interface ConversionProgress {
     job_id: string;
     file_index: number;
@@ -149,8 +172,16 @@ export interface ConversionProgress {
     file_progress: number;
     total_progress: number;
     time_remaining_sec?: number;
-    speed?: string;
-    status_message: string;
+    estimated_finish?: string;
+    speed?: number;
+    stage: ConversionStage;
+}
+
+export interface QueueState {
+    state: 'stopped' | 'running' | 'stopping';
+    worker_count: number;
+    active_jobs: number;
+    pending_jobs: number;
 }
 
 /// User settings matching Rust UserSettings struct

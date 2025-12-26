@@ -80,3 +80,7 @@ export async function pickCueFile(): Promise<string | null> {
 export async function pickNormalizedOutputFile(defaultName?: string): Promise<string | null> {
     return await invoke('pick_normalized_output_file', { defaultName });
 }
+
+export async function revealInFileManager(path: string): Promise<void> {
+    return await invoke('reveal_in_file_manager', { path });
+}

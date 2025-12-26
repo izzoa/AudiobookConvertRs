@@ -241,3 +241,42 @@ pub async fn pick_normalized_output_file(app: AppHandle, default_name: Option<St
         None => Ok(None)
     }
 }
+
+#[tauri::command]
+pub async fn reveal_in_file_manager(path: String) -> Result<(), String> {
+    let path_buf = std::path::PathBuf::from(&path);
+
+    if !path_buf.exists() {
+        return Err(format!("Path does not exist: {}", path));
+    }
+
+    #[cfg(target_os = "macos")]
+    {
+        std::process::Command::new("open")
+            .arg("-R")
+            .arg(&path)
+            .spawn()
+            .map_err(|e| format!("Failed to reveal in Finder: {}", e))?;
+    }
+
+    #[cfg(target_os = "windows")]
+    {
+        std::process::Command::new("explorer")
+            .arg("/select,")
+            .arg(&path)
+            .spawn()
+            .map_err(|e| format!("Failed to reveal in Explorer: {}", e))?;
+    }
+
+    #[cfg(target_os = "linux")]
+    {
+        if let Some(parent) = path_buf.parent() {
+            std::process::Command::new("xdg-open")
+                .arg(parent)
+                .spawn()
+                .map_err(|e| format!("Failed to open file manager: {}", e))?;
+        }
+    }
+
+    Ok(())
+}

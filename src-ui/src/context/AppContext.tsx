@@ -4,7 +4,7 @@ import * as SettingsApi from '../api/settings';
 import * as UndoApi from '../api/undo';
 import * as AudiobookApi from '../api/audiobook';
 
-export type AppView = 'workflow' | 'settings' | 'help';
+export type AppView = 'workflow' | 'jobs' | 'settings' | 'help';
 
 interface AppState {
     // Navigation

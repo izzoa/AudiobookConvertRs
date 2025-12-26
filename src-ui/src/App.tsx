@@ -8,6 +8,7 @@ import { DryRunPreview } from "@/components/DryRunPreview";
 import { ProjectManager } from "@/components/ProjectManager";
 import { SettingsPage } from "@/components/SettingsPage";
 import { HelpPage } from "@/components/HelpPage";
+import { ConversionJobsPage } from "@/components/ConversionJobsPage";
 import { AudioPlayer } from "@/components/AudioPlayer";
 import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
 import { useApp } from "@/context/AppContext";
@@ -69,6 +70,8 @@ function App() {
 
   const renderView = () => {
     switch (view) {
+      case 'jobs':
+        return <ConversionJobsPage />;
       case 'settings':
         return <SettingsPage />;
       case 'help':

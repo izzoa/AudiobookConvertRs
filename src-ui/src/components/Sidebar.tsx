@@ -1,4 +1,4 @@
-import { FolderOpenIcon, Cog6ToothIcon, QuestionMarkCircleIcon, ClockIcon, DocumentPlusIcon } from '@heroicons/react/24/outline';
+import { FolderOpenIcon, Cog6ToothIcon, QuestionMarkCircleIcon, ClockIcon, DocumentPlusIcon, QueueListIcon } from '@heroicons/react/24/outline';
 import { useState } from 'react';
 import * as FilesApi from '@/api/files';
 import * as ProjectApi from '@/api/project';
@@ -65,6 +65,10 @@ export function Sidebar() {
         }
     };
 
+    const handleJobs = () => {
+        setView('jobs');
+    };
+
     const handleSettings = () => {
         setView('settings');
     };
@@ -107,6 +111,12 @@ export function Sidebar() {
                         ))}
                     </div>
                 )}
+                <NavItem
+                    icon={<QueueListIcon className="w-5 h-5" />}
+                    label="Jobs"
+                    onClick={handleJobs}
+                    active={view === 'jobs'}
+                />
                 <NavItem
                     icon={<Cog6ToothIcon className="w-5 h-5" />}
                     label="Settings"

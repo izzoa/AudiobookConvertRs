@@ -75,6 +75,7 @@ export function DryRunPreview() {
                     embed_chapters: defaults.embed_chapters,
                     embed_artwork: defaults.embed_artwork,
                     copy_metadata: defaults.copy_metadata,
+                    normalize_audio: false,
                 };
             }
 

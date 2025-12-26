@@ -106,6 +106,7 @@ export function ConversionPanel() {
                 embed_chapters: true,
                 embed_artwork: true,
                 copy_metadata: true,
+                normalize_audio: false,
             };
 
             const jobId = await ConversionApi.startConversion(activeAudiobook.id, settings);

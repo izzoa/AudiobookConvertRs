@@ -154,3 +154,50 @@ pub async fn clear_pending_jobs(
 ) -> Result<(), String> {
     manager.queue.clear_pending().map_err(to_string_err)
 }
+
+#[derive(serde::Serialize)]
+pub struct QueueState {
+    pub state: String,
+    pub worker_count: usize,
+    pub active_jobs: usize,
+    pub pending_jobs: usize,
+}
+
+#[tauri::command]
+pub async fn get_conversion_queue_state(
+    manager: State<'_, SharedManager>,
+) -> Result<QueueState, String> {
+    let (state, pending, active, workers) = manager.get_queue_state();
+    let state_str = match state {
+        crate::conversion::runner::ManagerState::Stopped => "stopped",
+        crate::conversion::runner::ManagerState::Running => "running",
+        crate::conversion::runner::ManagerState::Stopping => "stopping",
+    };
+    Ok(QueueState {
+        state: state_str.to_string(),
+        worker_count: workers,
+        active_jobs: active,
+        pending_jobs: pending,
+    })
+}
+
+#[tauri::command]
+pub async fn retry_conversion(
+    job_id: String,
+    manager: State<'_, SharedManager>,
+) -> Result<String, String> {
+    let job = manager.queue.get_job(&job_id)
+        .ok_or_else(|| format!("Job not found: {}", job_id))?;
+
+    if !job.status.is_terminal() {
+        return Err("Can only retry completed, failed, or cancelled jobs".to_string());
+    }
+
+    let new_job = crate::models::ConversionJob::new(job.audiobook.clone(), job.settings.clone());
+    let new_job_id = new_job.id.clone();
+
+    manager.enqueue_job(new_job)
+        .map_err(|e| format!("Failed to enqueue retry job: {}", e))?;
+
+    Ok(new_job_id)
+}
