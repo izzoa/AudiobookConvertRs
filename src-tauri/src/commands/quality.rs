@@ -1,7 +1,7 @@
 //! Tauri commands for audio quality analysis and normalization
 
 use camino::Utf8PathBuf;
-use tauri::State;
+use tauri::{AppHandle, State};
 
 use crate::audio::quality::{
     self, AudioLevels, NormalizationSettings, NormalizationSuggestion,
@@ -41,6 +41,22 @@ pub async fn apply_audio_normalization(
     let input_path = Utf8PathBuf::from(&input);
     let output_path = Utf8PathBuf::from(&output);
     quality::apply_normalization(&input_path, &output_path, &settings).map_err(|e| e.to_string())
+}
+
+/// Apply audio normalization to a file with progress events
+#[tauri::command]
+pub async fn apply_audio_normalization_with_progress(
+    app: AppHandle,
+    input: String,
+    output: String,
+    settings: NormalizationSettings,
+    total_duration_ms: u64,
+    _state: State<'_, AppState>,
+) -> Result<(), String> {
+    let input_path = Utf8PathBuf::from(&input);
+    let output_path = Utf8PathBuf::from(&output);
+    quality::apply_normalization_with_progress(&input_path, &output_path, &settings, total_duration_ms, &app)
+        .map_err(|e| e.to_string())
 }
 
 /// Estimate output file size based on duration and bitrate

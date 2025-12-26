@@ -221,3 +221,23 @@ pub async fn pick_cue_file(app: AppHandle) -> Result<Option<String>, String> {
         None => Ok(None)
     }
 }
+
+#[tauri::command]
+pub async fn pick_normalized_output_file(app: AppHandle, default_name: Option<String>) -> Result<Option<String>, String> {
+    let mut dialog = app.dialog()
+        .file()
+        .add_filter("Audio Files", &["m4a", "mp3", "wav", "flac", "aac"]);
+
+    if let Some(name) = default_name {
+        dialog = dialog.set_file_name(&name);
+    }
+
+    let file_path = dialog.blocking_save_file();
+
+    match file_path {
+        Some(path) => {
+            Ok(Some(path.as_path().map(|p| p.to_string_lossy().to_string()).unwrap_or_default()))
+        },
+        None => Ok(None)
+    }
+}

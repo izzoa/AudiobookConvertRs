@@ -601,6 +601,30 @@ impl ConversionDefaults {
     }
 }
 
+/// Normalization settings for conversion pipeline
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct NormalizationConfig {
+    /// Target integrated loudness in LUFS
+    pub target_lufs: f32,
+    /// Target true peak in dBTP
+    pub target_true_peak: f32,
+    /// Target loudness range in LU
+    pub target_lra: f32,
+    /// Whether to use two-pass normalization for better accuracy
+    pub two_pass: bool,
+}
+
+impl Default for NormalizationConfig {
+    fn default() -> Self {
+        Self {
+            target_lufs: -16.0,
+            target_true_peak: -1.5,
+            target_lra: 11.0,
+            two_pass: true,
+        }
+    }
+}
+
 /// Settings for audio conversion
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ConversionSettings {
@@ -625,6 +649,12 @@ pub struct ConversionSettings {
     pub embed_artwork: bool,
     /// Whether to copy metadata from source
     pub copy_metadata: bool,
+    /// Whether to normalize audio before encoding
+    #[serde(default)]
+    pub normalize_audio: bool,
+    /// Normalization settings (used when normalize_audio is true)
+    #[serde(default)]
+    pub normalization_settings: Option<NormalizationConfig>,
 }
 
 impl Default for ConversionSettings {
@@ -640,6 +670,8 @@ impl Default for ConversionSettings {
             embed_chapters: true,
             embed_artwork: true,
             copy_metadata: true,
+            normalize_audio: false,
+            normalization_settings: None,
         }
     }
 }

@@ -87,6 +87,18 @@ pub struct UserSettings {
 
     /// Log level for debugging
     pub log_level: LogLevel,
+
+    /// Normalization target LUFS
+    pub normalization_target_lufs: f32,
+
+    /// Normalization target true peak in dBTP
+    pub normalization_target_true_peak: f32,
+
+    /// Normalization target LRA in LU
+    pub normalization_target_lra: f32,
+
+    /// Whether to use two-pass normalization
+    pub normalization_two_pass: bool,
 }
 
 /// UI theme options
@@ -148,6 +160,10 @@ impl Default for UserSettings {
             embed_artwork_by_default: true,
             overwrite_existing_by_default: false,
             log_level: LogLevel::Info,
+            normalization_target_lufs: -16.0,
+            normalization_target_true_peak: -1.5,
+            normalization_target_lra: 11.0,
+            normalization_two_pass: true,
         }
     }
 }

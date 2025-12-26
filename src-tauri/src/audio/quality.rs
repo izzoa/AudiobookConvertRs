@@ -9,7 +9,9 @@ use crate::error::{AppError, AppResult};
 use camino::{Utf8Path, Utf8PathBuf};
 use regex::Regex;
 use serde::{Deserialize, Serialize};
+use std::io::{BufRead, BufReader};
 use std::process::{Command, Stdio};
+use tauri::{AppHandle, Emitter};
 use tracing::{debug, info, warn};
 
 /// Audio level analysis results
@@ -77,6 +79,15 @@ pub struct NormalizationSettings {
     pub target_lra: f32,
     /// Whether to use two-pass normalization for better accuracy
     pub two_pass: bool,
+}
+
+/// Progress event emitted during normalization
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct NormalizationProgress {
+    /// Progress percentage (0-100)
+    pub percent: f32,
+    /// Current stage: "analyzing" or "normalizing"
+    pub stage: String,
 }
 
 impl Default for NormalizationSettings {
@@ -343,6 +354,105 @@ fn apply_two_pass_normalization(
     }
 
     info!("Two-pass normalization complete: {}", output);
+    Ok(())
+}
+
+/// Apply audio normalization with progress events
+pub fn apply_normalization_with_progress(
+    input: &Utf8Path,
+    output: &Utf8Path,
+    settings: &NormalizationSettings,
+    total_duration_ms: u64,
+    handle: &AppHandle,
+) -> AppResult<()> {
+    if !input.exists() {
+        return Err(AppError::FileNotFound(input.as_std_path().to_path_buf()));
+    }
+
+    info!("Applying normalization with progress: {} -> {}", input, output);
+
+    let _ = handle.emit("normalization_progress", NormalizationProgress {
+        percent: 0.0,
+        stage: "analyzing".to_string(),
+    });
+
+    let levels = analyze_audio_levels(input)?;
+
+    let _ = handle.emit("normalization_progress", NormalizationProgress {
+        percent: 10.0,
+        stage: "normalizing".to_string(),
+    });
+
+    let filter = format!(
+        "loudnorm=I={}:TP={}:LRA={}:measured_I={}:measured_LRA={}:measured_TP={}:measured_thresh={}:offset={}:linear=true",
+        settings.target_lufs,
+        settings.target_true_peak,
+        settings.target_lra,
+        levels.integrated_loudness_lufs,
+        levels.loudness_range_lu,
+        levels.true_peak_dbtp,
+        levels.threshold_lufs,
+        levels.target_offset,
+    );
+
+    let mut child = Command::new("ffmpeg")
+        .args([
+            "-i", input.as_str(),
+            "-af", &filter,
+            "-ar", "44100",
+            "-y",
+            output.as_str(),
+        ])
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .map_err(|e| AppError::FFmpegExecutionError {
+            reason: e.to_string(),
+        })?;
+
+    let stderr = child.stderr.take().unwrap();
+    let reader = BufReader::new(stderr);
+    let time_regex = Regex::new(r"time=(\d{2}):(\d{2}):(\d{2})\.(\d{2})").unwrap();
+
+    for line in reader.lines() {
+        if let Ok(line) = line {
+            if let Some(caps) = time_regex.captures(&line) {
+                let hours: u64 = caps[1].parse().unwrap_or(0);
+                let mins: u64 = caps[2].parse().unwrap_or(0);
+                let secs: u64 = caps[3].parse().unwrap_or(0);
+                let centis: u64 = caps[4].parse().unwrap_or(0);
+                let current_ms = hours * 3600000 + mins * 60000 + secs * 1000 + centis * 10;
+
+                let percent = if total_duration_ms > 0 {
+                    (current_ms as f32 / total_duration_ms as f32 * 90.0) + 10.0
+                } else {
+                    50.0
+                };
+
+                let _ = handle.emit("normalization_progress", NormalizationProgress {
+                    percent: percent.min(99.0),
+                    stage: "normalizing".to_string(),
+                });
+            }
+        }
+    }
+
+    let result = child.wait().map_err(|e| AppError::FFmpegExecutionError {
+        reason: e.to_string(),
+    })?;
+
+    if !result.success() {
+        return Err(AppError::FFmpegExecutionError {
+            reason: "Normalization failed".to_string(),
+        });
+    }
+
+    let _ = handle.emit("normalization_progress", NormalizationProgress {
+        percent: 100.0,
+        stage: "complete".to_string(),
+    });
+
+    info!("Normalization with progress complete: {}", output);
     Ok(())
 }
 

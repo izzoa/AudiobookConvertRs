@@ -76,3 +76,7 @@ export async function findCueForAudio(path: string): Promise<string | null> {
 export async function pickCueFile(): Promise<string | null> {
     return await invoke('pick_cue_file');
 }
+
+export async function pickNormalizedOutputFile(defaultName?: string): Promise<string | null> {
+    return await invoke('pick_normalized_output_file', { defaultName });
+}

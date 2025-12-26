@@ -97,6 +97,7 @@ fn main() {
             audiobookconvert_rs::commands::files::detect_cue_file,
             audiobookconvert_rs::commands::files::find_cue_for_audio,
             audiobookconvert_rs::commands::files::pick_cue_file,
+            audiobookconvert_rs::commands::files::pick_normalized_output_file,
             // Settings
             audiobookconvert_rs::commands::settings::get_settings,
             audiobookconvert_rs::commands::settings::update_settings,
@@ -122,6 +123,7 @@ fn main() {
             audiobookconvert_rs::commands::quality::analyze_audio_levels,
             audiobookconvert_rs::commands::quality::suggest_normalization,
             audiobookconvert_rs::commands::quality::apply_audio_normalization,
+            audiobookconvert_rs::commands::quality::apply_audio_normalization_with_progress,
             audiobookconvert_rs::commands::quality::estimate_output_size,
             audiobookconvert_rs::commands::quality::get_quality_preset_info,
             // Presets

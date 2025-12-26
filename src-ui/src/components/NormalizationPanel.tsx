@@ -1,10 +1,15 @@
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
+import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Label } from "./ui/label";
+import { Progress } from "./ui/progress";
 import { useApp } from "@/context/AppContext";
+import { toast } from "@/components/ui/use-toast";
 import * as QualityApi from "@/api/quality";
-import type { AudioLevels, NormalizationSuggestion, NormalizationSettings } from "@/types/models";
+import * as SettingsApi from "@/api/settings";
+import { pickNormalizedOutputFile } from "@/api/files";
+import type { AudioLevels, NormalizationSuggestion, NormalizationSettings, NormalizationProgress } from "@/types/models";
 
 export function NormalizationPanel() {
     const { activeAudiobook } = useApp();
@@ -13,12 +18,70 @@ export function NormalizationPanel() {
     const [error, setError] = useState<string | null>(null);
     const [levels, setLevels] = useState<AudioLevels | null>(null);
     const [suggestion, setSuggestion] = useState<NormalizationSuggestion | null>(null);
+    const [progress, setProgress] = useState<NormalizationProgress | null>(null);
     const [settings, setSettings] = useState<NormalizationSettings>({
         target_lufs: -16,
         target_true_peak: -1.5,
-        target_lra: 7,
+        target_lra: 11,
         two_pass: true,
     });
+
+    useEffect(() => {
+        SettingsApi.getSettings().then(userSettings => {
+            setSettings({
+                target_lufs: userSettings.normalization_target_lufs,
+                target_true_peak: userSettings.normalization_target_true_peak,
+                target_lra: userSettings.normalization_target_lra,
+                two_pass: userSettings.normalization_two_pass,
+            });
+        }).catch(console.error);
+    }, []);
+
+    useEffect(() => {
+        const unlisteners: UnlistenFn[] = [];
+
+        const setup = async () => {
+            unlisteners.push(
+                await listen<NormalizationProgress>("normalization_progress", (event) => {
+                    setProgress(event.payload);
+                })
+            );
+        };
+        setup();
+
+        return () => {
+            unlisteners.forEach((fn) => fn());
+        };
+    }, []);
+
+    const saveSettingsDebounced = useCallback(
+        (() => {
+            let timeout: ReturnType<typeof setTimeout>;
+            return (newSettings: NormalizationSettings) => {
+                clearTimeout(timeout);
+                timeout = setTimeout(async () => {
+                    try {
+                        const currentSettings = await SettingsApi.getSettings();
+                        await SettingsApi.updateSettings({
+                            ...currentSettings,
+                            normalization_target_lufs: newSettings.target_lufs,
+                            normalization_target_true_peak: newSettings.target_true_peak,
+                            normalization_target_lra: newSettings.target_lra,
+                            normalization_two_pass: newSettings.two_pass,
+                        });
+                    } catch (e) {
+                        console.error("Failed to save normalization settings:", e);
+                    }
+                }, 500);
+            };
+        })(),
+        []
+    );
+
+    const updateSettings = (newSettings: NormalizationSettings) => {
+        setSettings(newSettings);
+        saveSettingsDebounced(newSettings);
+    };
 
     const handleAnalyze = async () => {
         if (!activeAudiobook || activeAudiobook.files.length === 0) return;
@@ -55,19 +118,35 @@ export function NormalizationPanel() {
     const handleApplyNormalization = async () => {
         if (!activeAudiobook || activeAudiobook.files.length === 0) return;
 
-        setIsApplying(true);
         setError(null);
+        setProgress(null);
 
         try {
             const inputPath = activeAudiobook.files[0].path;
-            const outputPath = inputPath.replace(/(\.[^.]+)$/, "_normalized$1");
+            const defaultName = inputPath.split('/').pop()?.replace(/(\.[^.]+)$/, "_normalized$1") || "normalized_output";
 
-            await QualityApi.applyAudioNormalization(inputPath, outputPath, settings);
+            const outputPath = await pickNormalizedOutputFile(defaultName);
+            if (!outputPath) return;
+
+            setIsApplying(true);
+
+            const totalDurationMs = activeAudiobook.files[0].duration_ms;
+            await QualityApi.applyAudioNormalizationWithProgress(inputPath, outputPath, settings, totalDurationMs);
+            toast({
+                title: "Normalization Complete",
+                description: `Output saved to: ${outputPath}`,
+            });
         } catch (e) {
             console.error("Failed to apply normalization:", e);
+            toast({
+                title: "Normalization Failed",
+                description: `${e}`,
+                variant: "destructive",
+            });
             setError(`Normalization failed: ${e}`);
         } finally {
             setIsApplying(false);
+            setProgress(null);
         }
     };
 
@@ -133,10 +212,10 @@ export function NormalizationPanel() {
                                 type="number"
                                 step="0.1"
                                 value={settings.target_lufs}
-                                onChange={(e) => setSettings(prev => ({
-                                    ...prev,
+                                onChange={(e) => updateSettings({
+                                    ...settings,
                                     target_lufs: parseFloat(e.target.value) || -16
-                                }))}
+                                })}
                             />
                         </div>
                         <div className="grid gap-2">
@@ -146,10 +225,10 @@ export function NormalizationPanel() {
                                 type="number"
                                 step="0.1"
                                 value={settings.target_true_peak}
-                                onChange={(e) => setSettings(prev => ({
-                                    ...prev,
+                                onChange={(e) => updateSettings({
+                                    ...settings,
                                     target_true_peak: parseFloat(e.target.value) || -1.5
-                                }))}
+                                })}
                             />
                         </div>
                         <div className="grid gap-2">
@@ -159,10 +238,10 @@ export function NormalizationPanel() {
                                 type="number"
                                 step="0.1"
                                 value={settings.target_lra}
-                                onChange={(e) => setSettings(prev => ({
-                                    ...prev,
-                                    target_lra: parseFloat(e.target.value) || 7
-                                }))}
+                                onChange={(e) => updateSettings({
+                                    ...settings,
+                                    target_lra: parseFloat(e.target.value) || 11
+                                })}
                             />
                         </div>
                     </div>
@@ -170,6 +249,16 @@ export function NormalizationPanel() {
                     <Button onClick={handleApplyNormalization} disabled={isApplying}>
                         {isApplying ? "Applying..." : "Apply Normalization"}
                     </Button>
+
+                    {isApplying && progress && (
+                        <div className="space-y-2">
+                            <div className="flex justify-between text-sm text-muted-foreground">
+                                <span>{progress.stage}</span>
+                                <span>{progress.percent.toFixed(0)}%</span>
+                            </div>
+                            <Progress value={progress.percent} />
+                        </div>
+                    )}
                 </>
             )}
         </div>

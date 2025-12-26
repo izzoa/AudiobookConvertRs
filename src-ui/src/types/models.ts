@@ -93,6 +93,13 @@ export interface AudioBook {
     is_dirty: boolean;
 }
 
+export interface NormalizationConfig {
+    target_lufs: number;
+    target_true_peak: number;
+    target_lra: number;
+    two_pass: boolean;
+}
+
 export interface ConversionSettings {
     bitrate_kbps: number;
     sample_rate_hz?: number;
@@ -104,6 +111,8 @@ export interface ConversionSettings {
     embed_chapters: boolean;
     embed_artwork: boolean;
     copy_metadata: boolean;
+    normalize_audio: boolean;
+    normalization_settings?: NormalizationConfig;
 }
 
 export type JobStatus = 'queued' | 'running' | 'paused' | 'complete' | 'error' | 'cancelled';
@@ -183,6 +192,12 @@ export interface UserSettings {
     // Quality defaults
     default_quality_preset: QualityPreset;
     default_encoding_mode: EncodingMode;
+
+    // Normalization defaults
+    normalization_target_lufs: number;
+    normalization_target_true_peak: number;
+    normalization_target_lra: number;
+    normalization_two_pass: boolean;
 }
 
 /// Conversion defaults without output path (for global/project defaults)
@@ -234,6 +249,11 @@ export interface NormalizationSettings {
     target_true_peak: number;
     target_lra: number;
     two_pass: boolean;
+}
+
+export interface NormalizationProgress {
+    percent: number;
+    stage: string;
 }
 
 // Preset Types

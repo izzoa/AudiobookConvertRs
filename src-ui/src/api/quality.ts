@@ -23,6 +23,20 @@ export async function applyAudioNormalization(
     return await invoke('apply_audio_normalization', { input, output, settings });
 }
 
+export async function applyAudioNormalizationWithProgress(
+    input: string,
+    output: string,
+    settings: NormalizationSettings,
+    totalDurationMs: number
+): Promise<void> {
+    return await invoke('apply_audio_normalization_with_progress', {
+        input,
+        output,
+        settings,
+        totalDurationMs
+    });
+}
+
 export async function estimateOutputSize(durationMs: number, bitrateKbps: number): Promise<FileSizeEstimate> {
     return await invoke('estimate_output_size', { durationMs, bitrateKbps });
 }

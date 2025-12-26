@@ -2,6 +2,7 @@
 //!
 //! Implements the complete conversion workflow from input files to M4B output.
 
+use crate::audio::quality::{apply_normalization, NormalizationSettings};
 use crate::conversion::progress::{ConversionProgress, ConversionStage, ProgressTracker};
 use crate::conversion::temp::TempDirectory;
 use crate::error::{AppError, AppResult};
@@ -12,7 +13,7 @@ use crate::ffmpeg::command_builder::{
 use crate::ffmpeg::detection::FFmpegInfo;
 use crate::ffmpeg::executor::{execute_ffmpeg_command, parse_ffmpeg_progress};
 use crate::metadata::writing::{embed_artwork_in_m4b, generate_ffmpeg_chapters_metadata, write_metadata_to_m4b};
-use crate::models::{AudioBook, Chapter, ConversionJob, ConversionSettings};
+use crate::models::{AudioBook, AudioFile, Chapter, ConversionJob, ConversionSettings};
 use camino::{Utf8Path, Utf8PathBuf};
 use std::fs;
 use std::io::{BufRead, BufReader, Read};
@@ -125,12 +126,32 @@ impl ConversionPipeline {
             job.settings.output_path.clone()
         };
 
-        // Step 2: Execute FFmpeg encoding
-        info!("Step 2: Starting FFmpeg encoding");
+        // Step 2: Apply normalization (if enabled)
+        let normalized_files = if job.settings.normalize_audio {
+            info!("Step 2: Applying audio normalization");
+            tracker.set_stage(ConversionStage::Normalizing);
+            if let Some(progress) = tracker.get_progress() {
+                progress_callback(progress);
+            }
+
+            self.normalize_files(&job.audiobook.files, &job.settings, &temp_dir)?
+        } else {
+            info!("Step 2: Skipping normalization (not enabled)");
+            None
+        };
+
+        // Check for cancellation
+        if cancel_check() {
+            return Err(AppError::ConversionCancelled);
+        }
+
+        // Step 3: Execute FFmpeg encoding
+        info!("Step 3: Starting FFmpeg encoding");
         tracker.set_stage(ConversionStage::Encoding);
         let encoded_path = self.execute_encoding(
             job,
             &temp_dir,
+            normalized_files.as_ref(),
             &mut tracker,
             &mut progress_callback,
             &cancel_check,
@@ -141,7 +162,7 @@ impl ConversionPipeline {
             return Err(AppError::ConversionCancelled);
         }
 
-        // Step 3: Embed metadata
+        // Step 4: Embed metadata
         tracker.set_stage(ConversionStage::Metadata);
         if let Some(progress) = tracker.get_progress() {
             progress_callback(progress);
@@ -153,7 +174,7 @@ impl ConversionPipeline {
             return Err(AppError::ConversionCancelled);
         }
 
-        // Step 4: Embed chapters
+        // Step 5: Embed chapters
         if !job.audiobook.chapters.is_empty() {
             tracker.set_stage(ConversionStage::Chapters);
             if let Some(progress) = tracker.get_progress() {
@@ -171,7 +192,7 @@ impl ConversionPipeline {
             }
         }
 
-        // Step 5: Verify output
+        // Step 6: Verify output
         if self.config.verify_output {
             tracker.set_stage(ConversionStage::Verifying);
             if let Some(progress) = tracker.get_progress() {
@@ -180,7 +201,7 @@ impl ConversionPipeline {
             verify_output_file(&encoded_path)?;
         }
 
-        // Step 6: Move to final location
+        // Step 7: Move to final location
         tracker.set_stage(ConversionStage::Finalizing);
         if let Some(progress) = tracker.get_progress() {
             progress_callback(progress);
@@ -200,11 +221,50 @@ impl ConversionPipeline {
         Ok(final_path)
     }
 
+    /// Normalize input files to temporary location
+    fn normalize_files(
+        &self,
+        files: &[AudioFile],
+        settings: &ConversionSettings,
+        temp_dir: &TempDirectory,
+    ) -> AppResult<Option<Vec<Utf8PathBuf>>> {
+        if files.is_empty() {
+            return Ok(None);
+        }
+
+        let norm_settings = settings.normalization_settings.as_ref().map(|ns| {
+            NormalizationSettings {
+                target_lufs: ns.target_lufs,
+                target_true_peak: ns.target_true_peak,
+                target_lra: ns.target_lra,
+                two_pass: ns.two_pass,
+            }
+        }).unwrap_or_default();
+
+        info!("Normalizing {} files with settings: {:?}", files.len(), norm_settings);
+
+        let mut normalized_paths = Vec::with_capacity(files.len());
+
+        for (index, file) in files.iter().enumerate() {
+            let normalized_path = temp_dir.file_path(&format!("normalized_{}.wav", index));
+
+            info!("Normalizing file {}/{}: {} -> {}", index + 1, files.len(), file.path, normalized_path);
+
+            apply_normalization(&file.path, &normalized_path, &norm_settings)?;
+
+            normalized_paths.push(normalized_path);
+        }
+
+        info!("Normalization complete for {} files", files.len());
+        Ok(Some(normalized_paths))
+    }
+
     /// Execute the FFmpeg encoding step
     fn execute_encoding<F, C>(
         &self,
         job: &ConversionJob,
         temp_dir: &TempDirectory,
+        normalized_files: Option<&Vec<Utf8PathBuf>>,
         tracker: &mut ProgressTracker,
         progress_callback: &mut F,
         cancel_check: &C,
@@ -216,7 +276,7 @@ impl ConversionPipeline {
         let files = &job.audiobook.files;
         let settings = &job.settings;
         let encoder = self.ffmpeg_info.aac_encoder();
-        
+
         info!("execute_encoding: {} files, encoder: {}", files.len(), encoder);
 
         if files.is_empty() {
@@ -230,7 +290,11 @@ impl ConversionPipeline {
 
         if files.len() == 1 {
             // Single file conversion
-            let input_path = &files[0].path;
+            let input_path = if let Some(normalized) = normalized_files {
+                &normalized[0]
+            } else {
+                &files[0].path
+            };
             info!("execute_encoding: single file mode, input: {}", input_path);
             tracker.set_current_file(0, input_path.file_name().unwrap_or("input"), files[0].duration_ms);
 
@@ -241,7 +305,7 @@ impl ConversionPipeline {
                 settings,
                 encoder,
             );
-            
+
             info!("execute_encoding: built FFmpeg command, executing...");
             let args = command.build_args().map_err(|e| {
                 info!("execute_encoding: failed to build args: {}", e);
@@ -255,12 +319,16 @@ impl ConversionPipeline {
             // Multiple files - use concat demuxer
             info!("execute_encoding: concat mode for {} files", files.len());
             let concat_file_path = temp_dir.file_path("concat.txt");
-            
-            // Convert AudioFile paths to Utf8PathBuf
-            let file_paths: Vec<Utf8PathBuf> = files.iter().map(|f| f.path.clone()).collect();
+
+            // Use normalized files if provided, otherwise original files
+            let file_paths: Vec<Utf8PathBuf> = if let Some(normalized) = normalized_files {
+                normalized.clone()
+            } else {
+                files.iter().map(|f| f.path.clone()).collect()
+            };
             let concat_content = generate_concat_file_content(&file_paths);
             info!("execute_encoding: concat file content:\n{}", concat_content);
-            
+
             fs::write(&concat_file_path, &concat_content).map_err(|e| AppError::FileWriteError {
                 path: concat_file_path.clone().into(),
                 reason: format!("Failed to write concat file: {}", e),
@@ -278,7 +346,7 @@ impl ConversionPipeline {
                 settings,
                 encoder,
             );
-            
+
             info!("execute_encoding: built concat command, executing...");
             let args = command.build_args().map_err(|e| {
                 info!("execute_encoding: failed to build args: {}", e);

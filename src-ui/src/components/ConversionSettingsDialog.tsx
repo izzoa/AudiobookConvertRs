@@ -3,7 +3,7 @@ import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { Slider } from './ui/slider';
-import type { AudioBook, ConversionSettings, QualityPreset, EncodingMode, FileSizeEstimate } from '../types/models';
+import type { AudioBook, ConversionSettings, QualityPreset, EncodingMode, FileSizeEstimate, NormalizationConfig } from '../types/models';
 import { QualityPreset as QualityPresetValue, EncodingMode as EncodingModeValue } from '../types/models';
 import { pickOutputFile } from '../api/files';
 import { estimateOutputSize } from '../api/quality';
@@ -52,6 +52,13 @@ export const ConversionSettingsDialog: React.FC<ConversionSettingsDialogProps> =
     const [embedArtwork, setEmbedArtwork] = useState(defaults.embed_artwork);
     const [copyMetadata, setCopyMetadata] = useState(defaults.copy_metadata);
     const [overwrite, setOverwrite] = useState(defaults.overwrite_existing);
+    const [normalizeAudio, setNormalizeAudio] = useState(false);
+    const [normalizationSettings, setNormalizationSettings] = useState<NormalizationConfig>({
+        target_lufs: settings?.normalization_target_lufs ?? -16,
+        target_true_peak: settings?.normalization_target_true_peak ?? -1.5,
+        target_lra: settings?.normalization_target_lra ?? 11,
+        two_pass: settings?.normalization_two_pass ?? true,
+    });
 
     useEffect(() => {
         if (settings?.default_output_directory && audiobook.title) {
@@ -123,6 +130,8 @@ export const ConversionSettingsDialog: React.FC<ConversionSettingsDialogProps> =
             embed_chapters: embedChapters,
             embed_artwork: embedArtwork,
             copy_metadata: copyMetadata,
+            normalize_audio: normalizeAudio,
+            normalization_settings: normalizeAudio ? normalizationSettings : undefined,
         };
 
         onConfirm(conversionSettings);
@@ -301,8 +310,77 @@ export const ConversionSettingsDialog: React.FC<ConversionSettingsDialogProps> =
                                 />
                                 <span className="text-sm">Overwrite existing file</span>
                             </label>
+                            <label className="flex items-center gap-2">
+                                <input
+                                    type="checkbox"
+                                    checked={normalizeAudio}
+                                    onChange={(e) => setNormalizeAudio(e.target.checked)}
+                                />
+                                <span className="text-sm">Normalize audio</span>
+                            </label>
                         </div>
                     </div>
+
+                    {normalizeAudio && (
+                        <div className="space-y-3 p-3 border rounded-lg bg-muted/30">
+                            <Label className="text-sm font-medium">Normalization Settings</Label>
+                            <div className="grid grid-cols-3 gap-3">
+                                <div className="space-y-1">
+                                    <Label htmlFor="target-lufs" className="text-xs">Target LUFS</Label>
+                                    <Input
+                                        id="target-lufs"
+                                        type="number"
+                                        step="0.1"
+                                        value={normalizationSettings.target_lufs}
+                                        onChange={(e) => setNormalizationSettings(s => ({
+                                            ...s,
+                                            target_lufs: parseFloat(e.target.value) || -16
+                                        }))}
+                                        className="h-8 text-sm"
+                                    />
+                                </div>
+                                <div className="space-y-1">
+                                    <Label htmlFor="target-peak" className="text-xs">True Peak (dBTP)</Label>
+                                    <Input
+                                        id="target-peak"
+                                        type="number"
+                                        step="0.1"
+                                        value={normalizationSettings.target_true_peak}
+                                        onChange={(e) => setNormalizationSettings(s => ({
+                                            ...s,
+                                            target_true_peak: parseFloat(e.target.value) || -1.5
+                                        }))}
+                                        className="h-8 text-sm"
+                                    />
+                                </div>
+                                <div className="space-y-1">
+                                    <Label htmlFor="target-lra" className="text-xs">Target LRA (LU)</Label>
+                                    <Input
+                                        id="target-lra"
+                                        type="number"
+                                        step="0.1"
+                                        value={normalizationSettings.target_lra}
+                                        onChange={(e) => setNormalizationSettings(s => ({
+                                            ...s,
+                                            target_lra: parseFloat(e.target.value) || 11
+                                        }))}
+                                        className="h-8 text-sm"
+                                    />
+                                </div>
+                            </div>
+                            <label className="flex items-center gap-2">
+                                <input
+                                    type="checkbox"
+                                    checked={normalizationSettings.two_pass}
+                                    onChange={(e) => setNormalizationSettings(s => ({
+                                        ...s,
+                                        two_pass: e.target.checked
+                                    }))}
+                                />
+                                <span className="text-sm">Two-pass (more accurate)</span>
+                            </label>
+                        </div>
+                    )}
                 </div>
 
                 <div className="flex justify-end gap-2 mt-6">

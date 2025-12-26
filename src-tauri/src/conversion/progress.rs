@@ -43,6 +43,8 @@ pub struct ConversionProgress {
 pub enum ConversionStage {
     /// Preparing files
     Preparing,
+    /// Normalizing audio levels
+    Normalizing,
     /// Encoding audio with FFmpeg
     Encoding,
     /// Embedding metadata
@@ -61,6 +63,7 @@ impl std::fmt::Display for ConversionStage {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             ConversionStage::Preparing => write!(f, "Preparing"),
+            ConversionStage::Normalizing => write!(f, "Normalizing audio"),
             ConversionStage::Encoding => write!(f, "Encoding"),
             ConversionStage::Metadata => write!(f, "Embedding metadata"),
             ConversionStage::Chapters => write!(f, "Embedding chapters"),
