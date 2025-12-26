@@ -107,6 +107,13 @@ impl ConversionPreset {
             embed_chapters: self.settings.embed_chapters,
             embed_artwork: self.settings.embed_artwork,
             copy_metadata: self.settings.copy_metadata,
+            normalize_audio: self.settings.normalize,
+            normalization_settings: self.settings.target_lufs.map(|lufs| {
+                crate::models::NormalizationConfig {
+                    target_lufs: lufs,
+                    ..Default::default()
+                }
+            }),
         }
     }
 }

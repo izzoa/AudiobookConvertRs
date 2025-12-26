@@ -597,6 +597,8 @@ impl ConversionDefaults {
             embed_chapters: self.embed_chapters,
             embed_artwork: self.embed_artwork,
             copy_metadata: self.copy_metadata,
+            normalize_audio: false,
+            normalization_settings: None,
         }
     }
 }
