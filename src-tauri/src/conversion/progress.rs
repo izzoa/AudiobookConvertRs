@@ -103,6 +103,8 @@ pub struct ProgressTracker {
     speed_samples: Vec<f32>,
     /// Last emitted progress (for change detection)
     last_emitted_progress: f32,
+    /// Whether we've emitted at least one progress with speed (for ETA)
+    has_emitted_with_speed: bool,
 }
 
 impl ProgressTracker {
@@ -123,6 +125,7 @@ impl ProgressTracker {
             stage: ConversionStage::Preparing,
             speed_samples: Vec::with_capacity(SPEED_SMOOTHING_SAMPLES),
             last_emitted_progress: 0.0,
+            has_emitted_with_speed: false,
         }
     }
 
@@ -251,6 +254,12 @@ impl ProgressTracker {
     /// Check if enough time has passed to emit an update
     pub fn should_emit(&self) -> bool {
         let elapsed_since_update = self.last_update.elapsed();
+
+        // Always emit first progress with speed data (for ETA display)
+        if !self.has_emitted_with_speed && !self.speed_samples.is_empty() {
+            return true;
+        }
+
         // Emit if enough time passed OR progress changed by ≥1%
         if elapsed_since_update >= MIN_UPDATE_INTERVAL {
             return true;
@@ -273,6 +282,11 @@ impl ProgressTracker {
         let progress = self.progress_percent();
         self.last_emitted_progress = progress;
 
+        // Track that we've emitted with speed data
+        if !self.speed_samples.is_empty() {
+            self.has_emitted_with_speed = true;
+        }
+
         let time_remaining = self.time_remaining();
         let estimated_finish = Utc::now() + chrono::Duration::from_std(time_remaining).unwrap_or_default();
 
@@ -294,6 +308,10 @@ impl ProgressTracker {
         self.last_update = Instant::now();
         let progress = self.progress_percent();
         self.last_emitted_progress = progress;
+
+        if !self.speed_samples.is_empty() {
+            self.has_emitted_with_speed = true;
+        }
 
         let time_remaining = self.time_remaining();
         let estimated_finish = Utc::now() + chrono::Duration::from_std(time_remaining).unwrap_or_default();

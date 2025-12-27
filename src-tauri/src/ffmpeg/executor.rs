@@ -55,6 +55,114 @@ impl FFmpegProgress {
     }
 }
 
+/// Accumulates FFmpeg progress fields across multiple lines.
+///
+/// FFmpeg's `-progress pipe:1` outputs each field on its own line:
+/// ```text
+/// out_time_ms=5000000
+/// speed=2.5x
+/// progress=continue
+/// ```
+/// This accumulator collects fields and emits complete progress on `progress=` lines.
+#[derive(Debug, Default)]
+pub struct FFmpegProgressAccumulator {
+    time_ms: u64,
+    speed: Option<f32>,
+    bitrate_kbps: Option<f32>,
+    total_size: Option<u64>,
+}
+
+impl FFmpegProgressAccumulator {
+    /// Create a new accumulator
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Parse a line and update accumulated state.
+    /// Returns Some(progress) when a complete update is ready (on `progress=` lines).
+    pub fn parse_line(&mut self, line: &str) -> Option<FFmpegProgress> {
+        let line = line.trim();
+
+        // Parse out_time_us or out_time_ms (both are in MICROSECONDS despite names!)
+        if line.starts_with("out_time_us=") || line.starts_with("out_time_ms=") {
+            let parts: Vec<&str> = line.splitn(2, '=').collect();
+            if parts.len() == 2 {
+                if let Ok(us) = parts[1].trim().parse::<u64>() {
+                    self.time_ms = us / 1000;
+                }
+            }
+            return None;
+        }
+
+        // Parse out_time (HH:MM:SS.ms format)
+        if line.starts_with("out_time=") {
+            let parts: Vec<&str> = line.splitn(2, '=').collect();
+            if parts.len() == 2 {
+                if let Some(ms) = parse_time_to_ms(parts[1].trim()) {
+                    self.time_ms = ms;
+                }
+            }
+            return None;
+        }
+
+        // Parse speed
+        if line.starts_with("speed=") {
+            let parts: Vec<&str> = line.splitn(2, '=').collect();
+            if parts.len() == 2 {
+                let s = parts[1].trim().trim_end_matches('x');
+                if s != "N/A" {
+                    if let Ok(speed) = s.parse::<f32>() {
+                        self.speed = Some(speed);
+                    }
+                }
+            }
+            return None;
+        }
+
+        // Parse bitrate
+        if line.starts_with("bitrate=") {
+            let parts: Vec<&str> = line.splitn(2, '=').collect();
+            if parts.len() == 2 {
+                if let Some(kbps) = parse_bitrate(parts[1].trim()) {
+                    self.bitrate_kbps = Some(kbps);
+                }
+            }
+            return None;
+        }
+
+        // Parse total_size
+        if line.starts_with("total_size=") {
+            let parts: Vec<&str> = line.splitn(2, '=').collect();
+            if parts.len() == 2 {
+                if let Ok(size) = parts[1].trim().parse::<u64>() {
+                    self.total_size = Some(size);
+                }
+            }
+            return None;
+        }
+
+        // On progress= line, emit accumulated progress and reset
+        if line.starts_with("progress=") {
+            if self.time_ms > 0 {
+                let progress = FFmpegProgress {
+                    frame: None,
+                    fps: None,
+                    time_ms: self.time_ms,
+                    bitrate_kbps: self.bitrate_kbps,
+                    total_size: self.total_size,
+                    speed: self.speed,
+                };
+                // Don't reset time_ms - it should persist for the next block
+                // Speed and bitrate will be updated in subsequent lines
+                return Some(progress);
+            }
+            return None;
+        }
+
+        None
+    }
+}
+
 /// Execute an FFmpeg command and capture output
 ///
 /// Runs FFmpeg as a subprocess and captures stdout/stderr.
@@ -663,5 +771,53 @@ mod tests {
             duration: Duration::from_secs(1),
         };
         assert!(!output.success());
+    }
+
+    #[test]
+    fn test_progress_accumulator_pipe_format() {
+        let mut acc = FFmpegProgressAccumulator::new();
+
+        // Simulate FFmpeg -progress pipe:1 output (each field on its own line)
+        assert!(acc.parse_line("out_time_us=5000000").is_none());
+        assert!(acc.parse_line("bitrate=128.5kbits/s").is_none());
+        assert!(acc.parse_line("speed=2.5x").is_none());
+
+        // On progress= line, we get the accumulated result
+        let progress = acc.parse_line("progress=continue").expect("Should emit progress");
+        assert_eq!(progress.time_ms, 5000); // 5000000 microseconds = 5000 ms
+        assert_eq!(progress.speed, Some(2.5));
+        assert_eq!(progress.bitrate_kbps, Some(128.5));
+    }
+
+    #[test]
+    fn test_progress_accumulator_out_time_format() {
+        let mut acc = FFmpegProgressAccumulator::new();
+
+        // Test out_time= format (HH:MM:SS.ms)
+        assert!(acc.parse_line("out_time=00:01:30.500").is_none());
+        assert!(acc.parse_line("speed=3.0x").is_none());
+
+        let progress = acc.parse_line("progress=continue").expect("Should emit progress");
+        assert_eq!(progress.time_ms, 90500); // 1 min 30.5 sec = 90500 ms
+        assert_eq!(progress.speed, Some(3.0));
+    }
+
+    #[test]
+    fn test_progress_accumulator_multiple_blocks() {
+        let mut acc = FFmpegProgressAccumulator::new();
+
+        // First block
+        acc.parse_line("out_time_us=1000000");
+        acc.parse_line("speed=1.5x");
+        let p1 = acc.parse_line("progress=continue").unwrap();
+        assert_eq!(p1.time_ms, 1000);
+        assert_eq!(p1.speed, Some(1.5));
+
+        // Second block - time should update, speed should update
+        acc.parse_line("out_time_us=2000000");
+        acc.parse_line("speed=2.0x");
+        let p2 = acc.parse_line("progress=continue").unwrap();
+        assert_eq!(p2.time_ms, 2000);
+        assert_eq!(p2.speed, Some(2.0));
     }
 }

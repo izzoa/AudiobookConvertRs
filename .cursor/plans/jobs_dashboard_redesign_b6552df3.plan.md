@@ -81,8 +81,6 @@ flowchart LR
   JobsView --> JobDetails
 ```
 
-
-
 ## Backend support required (small but important)
 
 ### 1) Emit richer progress payload

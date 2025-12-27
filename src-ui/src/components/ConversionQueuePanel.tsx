@@ -145,11 +145,15 @@ export const ConversionQueuePanel: React.FC = () => {
             });
         });
         // Update time remaining separately
+        console.log('Progress time_remaining_sec:', progress.time_remaining_sec);
         if (progress.time_remaining_sec !== undefined) {
+            console.log('Setting time remaining for', progress.job_id, ':', progress.time_remaining_sec);
             setJobTimeRemaining(prev => ({
                 ...prev,
                 [progress.job_id]: progress.time_remaining_sec!
             }));
+        } else {
+            console.log('time_remaining_sec is undefined');
         }
     };
 

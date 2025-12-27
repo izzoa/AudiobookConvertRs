@@ -11,7 +11,7 @@ use crate::ffmpeg::command_builder::{
     generate_concat_file_content, FFmpegCommand,
 };
 use crate::ffmpeg::detection::FFmpegInfo;
-use crate::ffmpeg::executor::{execute_ffmpeg_command, parse_ffmpeg_progress};
+use crate::ffmpeg::executor::{execute_ffmpeg_command, FFmpegProgressAccumulator};
 use crate::metadata::writing::{embed_artwork_in_m4b, generate_ffmpeg_chapters_metadata, write_metadata_to_m4b};
 use crate::models::{AudioBook, AudioFile, Chapter, ConversionJob, ConversionSettings};
 use camino::{Utf8Path, Utf8PathBuf};
@@ -425,10 +425,10 @@ impl ConversionPipeline {
         let mut stdout_content = String::new();
         let mut line = String::new();
         let mut lines_read = 0;
+        let mut progress_accumulator = FFmpegProgressAccumulator::new();
 
         info!("execute_ffmpeg_with_progress: starting stdout read loop");
         let mut last_progress_log = std::time::Instant::now();
-        let mut no_output_warning_logged = false;
         loop {
             line.clear();
             if cancel_check() {
@@ -448,35 +448,28 @@ impl ConversionPipeline {
 
             lines_read += 1;
 
-            // Log ALL lines for debugging - this is critical to understand what's happening
-            info!("execute_ffmpeg_with_progress: line {}: {:?}", lines_read, line.trim());
-
-            // Warn if we haven't seen output in a while
-            if lines_read == 0 && last_progress_log.elapsed().as_secs() >= 3 && !no_output_warning_logged {
-                warn!("execute_ffmpeg_with_progress: No output from FFmpeg after 3 seconds");
-                no_output_warning_logged = true;
-            }
-
             // Accumulate stdout for diagnostics
             stdout_content.push_str(&line);
 
-            if let Some(ffmpeg_progress) = parse_ffmpeg_progress(line.trim()) {
+            // Use the accumulator to parse progress across multiple lines
+            if let Some(ffmpeg_progress) = progress_accumulator.parse_line(line.trim()) {
                 // Log progress periodically (every 5 seconds)
                 if last_progress_log.elapsed().as_secs() >= 5 {
-                    info!("execute_ffmpeg_with_progress: progress {} ms ({}%), speed: {:?}", 
-                        ffmpeg_progress.time_ms, 
+                    info!("execute_ffmpeg_with_progress: progress {} ms ({}%), speed: {:?}",
+                        ffmpeg_progress.time_ms,
                         (ffmpeg_progress.time_ms as f64 / tracker.total_duration_ms() as f64 * 100.0).min(100.0),
                         ffmpeg_progress.speed
                     );
                     last_progress_log = std::time::Instant::now();
                 }
-                
+
                 tracker.update_position(ffmpeg_progress.time_ms);
                 if let Some(speed) = ffmpeg_progress.speed {
                     tracker.update_speed(speed);
                 }
                 if let Some(progress) = tracker.get_progress() {
-                    info!("execute_ffmpeg_with_progress: emitting progress event: {}%", progress.total_progress);
+                    info!("execute_ffmpeg_with_progress: emitting progress: {}%, ETA: {}s, speed: {:?}",
+                        progress.total_progress, progress.time_remaining_sec, progress.speed);
                     progress_callback(progress);
                 }
             }
