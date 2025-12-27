@@ -13,7 +13,8 @@ import {
     CheckCircle,
     XCircle,
     Clock,
-    Loader2
+    Loader2,
+    ArrowLeft
 } from 'lucide-react';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import { JobStatus } from '../types/models';
@@ -52,7 +53,7 @@ interface ConversionErrorEvent {
 }
 
 export const ConversionQueuePanel: React.FC = () => {
-    const { activeAudiobook, settings, setPendingConversionSettings } = useApp();
+    const { activeAudiobook, settings, setPendingConversionSettings, setView } = useApp();
     const audiobook = activeAudiobook;
     const { toast } = useToast();
 
@@ -381,9 +382,15 @@ export const ConversionQueuePanel: React.FC = () => {
     };
 
     return (
-        <div className="space-y-4 p-4 border rounded-lg">
-            <div className="flex justify-between items-center">
-                <h3 className="text-lg font-semibold">Conversion Queue</h3>
+        <div className="space-y-4 p-4">
+            <div className="flex items-center gap-4 mb-4">
+                <Button variant="ghost" size="sm" onClick={() => setView('workflow')}>
+                    <ArrowLeft className="w-4 h-4 mr-2" />
+                    Back to App
+                </Button>
+                <h1 className="text-2xl font-semibold">Conversion Queue</h1>
+            </div>
+            <div className="flex justify-between items-center border rounded-lg p-4">
                 <div className="flex gap-2">
                     {audiobook && (
                         <>
