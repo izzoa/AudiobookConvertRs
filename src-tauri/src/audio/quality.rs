@@ -6,6 +6,7 @@
 //! - Applying normalization using FFmpeg loudnorm filter
 
 use crate::error::{AppError, AppResult};
+use crate::ffmpeg::detection::detect_ffmpeg;
 use camino::{Utf8Path, Utf8PathBuf};
 use regex::Regex;
 use serde::{Deserialize, Serialize};
@@ -114,7 +115,8 @@ pub fn analyze_audio_levels(file_path: &Utf8Path) -> AppResult<AudioLevels> {
 
     info!("Analyzing audio levels: {}", file_path);
 
-    let output = Command::new("ffmpeg")
+    let ffmpeg_bin = resolve_ffmpeg_executable();
+    let output = Command::new(ffmpeg_bin.as_str())
         .args([
             "-i", file_path.as_str(),
             "-af", "loudnorm=I=-16:TP=-1.5:LRA=11:print_format=json",
@@ -279,7 +281,8 @@ fn apply_single_pass_normalization(
         settings.target_lufs, settings.target_true_peak, settings.target_lra
     );
 
-    let result = Command::new("ffmpeg")
+    let ffmpeg_bin = resolve_ffmpeg_executable();
+    let result = Command::new(ffmpeg_bin.as_str())
         .args([
             "-i", input.as_str(),
             "-af", &filter,
@@ -330,7 +333,8 @@ fn apply_two_pass_normalization(
 
     debug!("Two-pass loudnorm filter: {}", filter);
 
-    let result = Command::new("ffmpeg")
+    let ffmpeg_bin = resolve_ffmpeg_executable();
+    let result = Command::new(ffmpeg_bin.as_str())
         .args([
             "-i", input.as_str(),
             "-af", &filter,
@@ -395,7 +399,8 @@ pub fn apply_normalization_with_progress(
         levels.target_offset,
     );
 
-    let mut child = Command::new("ffmpeg")
+    let ffmpeg_bin = resolve_ffmpeg_executable();
+    let mut child = Command::new(ffmpeg_bin.as_str())
         .args([
             "-i", input.as_str(),
             "-af", &filter,
@@ -494,6 +499,13 @@ pub fn analyze_batch_levels(file_paths: &[Utf8PathBuf]) -> AppResult<AudioLevels
         threshold_lufs: -34.0,
         target_offset: 0.0,
     })
+}
+
+/// Resolve FFmpeg executable path via detection or fallback to `ffmpeg`
+fn resolve_ffmpeg_executable() -> Utf8PathBuf {
+    detect_ffmpeg()
+        .map(|info| info.path)
+        .unwrap_or_else(|_| Utf8PathBuf::from("ffmpeg"))
 }
 
 #[cfg(test)]

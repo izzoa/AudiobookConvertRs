@@ -18,6 +18,7 @@ pub async fn enqueue_conversion(
     settings: ConversionSettings,
     state: State<'_, AppState>,
     manager: State<'_, SharedManager>,
+    app: AppHandle,
 ) -> Result<String, String> {
     // Get audiobook by ID - validate it exists
     let audiobook = state.get_audiobook(&audiobook_id)
@@ -28,13 +29,25 @@ pub async fn enqueue_conversion(
         return Err("Output path is required".to_string());
     }
 
+    let concurrent = (settings.concurrent_jobs as usize).max(1);
+
     // Create Job
     let job = ConversionJob::new(audiobook, settings);
     let job_id = job.id.clone();
 
+    // Ensure app handle is set for event emission
+    manager.set_app_handle(app);
+
     // Enqueue the job
     manager.enqueue_job(job)
         .map_err(|e| format!("Failed to enqueue job: {}", e))?;
+
+    // Auto-start the queue if stopped so conversion begins immediately
+    let (queue_state, _, _, _) = manager.get_queue_state();
+    if queue_state == crate::conversion::runner::ManagerState::Stopped {
+        manager.start_queue(Some(concurrent))
+            .map_err(|e| format!("Failed to start queue: {}", e))?;
+    }
 
     Ok(job_id)
 }
@@ -96,17 +109,7 @@ pub async fn start_conversion(
     manager: State<'_, SharedManager>,
     app: AppHandle,
 ) -> Result<String, String> {
-    // Enqueue the job
-    let job_id = enqueue_conversion(audiobook_id, settings, state, manager.clone()).await?;
-
-    // Check if queue is already running
-    let (state, _, _, _) = manager.get_queue_state();
-    if state != crate::conversion::runner::ManagerState::Running {
-        // Start the queue with default concurrency
-        start_conversion_queue(Some(1), manager, app).await?;
-    }
-
-    Ok(job_id)
+    enqueue_conversion(audiobook_id, settings, state, manager, app).await
 }
 
 #[tauri::command]
@@ -121,9 +124,12 @@ pub async fn cancel_conversion(
 #[tauri::command]
 pub async fn get_conversion_status(
     job_id: String,
+    manager: State<'_, SharedManager>,
     state: State<'_, AppState>
 ) -> Result<ConversionJob, String> {
-    state.get_job(&job_id).ok_or("Job not found".to_string())
+    manager.queue.get_job(&job_id)
+        .or_else(|| state.get_job(&job_id))
+        .ok_or_else(|| "Job not found".to_string())
 }
 
 /// DEPRECATED: Pause functionality is not implemented.
@@ -185,6 +191,7 @@ pub async fn get_conversion_queue_state(
 pub async fn retry_conversion(
     job_id: String,
     manager: State<'_, SharedManager>,
+    app: AppHandle,
 ) -> Result<String, String> {
     let job = manager.queue.get_job(&job_id)
         .ok_or_else(|| format!("Job not found: {}", job_id))?;
@@ -193,11 +200,19 @@ pub async fn retry_conversion(
         return Err("Can only retry completed, failed, or cancelled jobs".to_string());
     }
 
+    let concurrent = (job.settings.concurrent_jobs as usize).max(1);
     let new_job = crate::models::ConversionJob::new(job.audiobook.clone(), job.settings.clone());
     let new_job_id = new_job.id.clone();
 
+    manager.set_app_handle(app);
     manager.enqueue_job(new_job)
         .map_err(|e| format!("Failed to enqueue retry job: {}", e))?;
+
+    let (queue_state, _, _, _) = manager.get_queue_state();
+    if queue_state == crate::conversion::runner::ManagerState::Stopped {
+        manager.start_queue(Some(concurrent))
+            .map_err(|e| format!("Failed to start queue: {}", e))?;
+    }
 
     Ok(new_job_id)
 }

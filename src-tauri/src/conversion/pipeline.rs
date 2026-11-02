@@ -162,20 +162,9 @@ impl ConversionPipeline {
             return Err(AppError::ConversionCancelled);
         }
 
-        // Step 4: Embed metadata
-        tracker.set_stage(ConversionStage::Metadata);
-        if let Some(progress) = tracker.get_progress() {
-            progress_callback(progress);
-        }
-        self.embed_metadata(&encoded_path, &job.audiobook)?;
-
-        // Check for cancellation
-        if cancel_check() {
-            return Err(AppError::ConversionCancelled);
-        }
-
-        // Step 5: Embed chapters
-        if !job.audiobook.chapters.is_empty() {
+        // Step 4: Embed chapters FIRST (FFmpeg would overwrite mp4ameta metadata)
+        // FFmpeg's -map_metadata 1 copies from chapters file, ignoring existing metadata
+        let current_path = if !job.audiobook.chapters.is_empty() {
             tracker.set_stage(ConversionStage::Chapters);
             if let Some(progress) = tracker.get_progress() {
                 progress_callback(progress);
@@ -189,8 +178,25 @@ impl ConversionPipeline {
             // If chapters were embedded to a new file, use that
             if chaptered_path != encoded_path {
                 fs::remove_file(&encoded_path).ok();
+                chaptered_path
+            } else {
+                encoded_path.clone()
             }
+        } else {
+            encoded_path.clone()
+        };
+
+        // Check for cancellation
+        if cancel_check() {
+            return Err(AppError::ConversionCancelled);
         }
+
+        // Step 5: Embed metadata AFTER chapters (so mp4ameta metadata persists)
+        tracker.set_stage(ConversionStage::Metadata);
+        if let Some(progress) = tracker.get_progress() {
+            progress_callback(progress);
+        }
+        self.embed_metadata(&current_path, &job.audiobook)?;
 
         // Step 6: Verify output
         if self.config.verify_output {
@@ -198,7 +204,7 @@ impl ConversionPipeline {
             if let Some(progress) = tracker.get_progress() {
                 progress_callback(progress);
             }
-            verify_output_file(&encoded_path)?;
+            verify_output_file(&current_path)?;
         }
 
         // Step 7: Move to final location
@@ -207,8 +213,8 @@ impl ConversionPipeline {
             progress_callback(progress);
         }
 
-        let final_path = if encoded_path != output_path {
-            finalize_output(&encoded_path, &output_path)?
+        let final_path = if current_path != output_path {
+            finalize_output(&current_path, &output_path)?
         } else {
             output_path
         };

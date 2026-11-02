@@ -9,49 +9,61 @@
 use crate::error::{AppError, AppResult};
 use crate::models::{Chapter, Metadata};
 use camino::Utf8Path;
-use mp4ameta::{Img, ImgFmt, Tag};
-use std::time::Duration;
+use mp4ameta::ident::FreeformIdentStatic;
+use mp4ameta::{Data, FreeformIdent, Img, ImgFmt, Tag};
 use tracing::{debug, info, warn};
 
-/// Write metadata to an M4B file
+/// iTunes freeform atom mean shared by the non-standard field identifiers below.
+pub const FREEFORM_MEAN: &str = "com.apple.iTunes";
+
+/// Freeform identifiers for fields with no standard MP4 atom.
+/// The names are the conventions audiobook players expect (see design.md).
+pub const NARRATOR_IDENT: FreeformIdentStatic =
+    FreeformIdent::new_static(FREEFORM_MEAN, "NARRATOR");
+pub const PUBLISHER_IDENT: FreeformIdentStatic =
+    FreeformIdent::new_static(FREEFORM_MEAN, "PUBLISHER");
+pub const SERIES_IDENT: FreeformIdentStatic = FreeformIdent::new_static(FREEFORM_MEAN, "SERIES");
+pub const SERIES_PART_IDENT: FreeformIdentStatic =
+    FreeformIdent::new_static(FREEFORM_MEAN, "SERIES-PART");
+pub const LANGUAGE_IDENT: FreeformIdentStatic =
+    FreeformIdent::new_static(FREEFORM_MEAN, "LANGUAGE");
+
+/// Treat absent, empty, and whitespace-only values as "not configured".
+fn non_empty(value: &Option<String>) -> Option<&str> {
+    value.as_deref().filter(|s| !s.trim().is_empty())
+}
+
+/// Apply all configured text metadata fields to an mp4ameta tag.
 ///
-/// Uses mp4ameta to write standard MP4 metadata atoms.
-/// Existing metadata is preserved unless explicitly overwritten.
-pub fn write_metadata_to_m4b(path: &Utf8Path, metadata: &Metadata) -> AppResult<()> {
-    debug!("Writing metadata to: {}", path);
-
-    if !path.exists() {
-        return Err(AppError::FileNotFound(path.as_std_path().to_path_buf()));
-    }
-
-    let mut tag = Tag::read_from_path(path.as_std_path())
-        .map_err(|e| AppError::MetadataWriteError {
-            path: path.as_std_path().to_path_buf(),
-            reason: e.to_string(),
-        })?;
-
-    // Set metadata fields if present
-    if let Some(ref title) = metadata.title {
+/// This is the single field list shared by every write path, so a field
+/// added to `Metadata` has exactly one place to be wired up. Empty values
+/// are skipped: a cleared text input sends `Some("")` and must not write
+/// an empty atom.
+fn apply_metadata_to_tag(tag: &mut Tag, metadata: &Metadata) {
+    if let Some(title) = non_empty(&metadata.title) {
+        info!("Setting title: {}", title);
         tag.set_title(title);
     }
 
-    if let Some(ref artist) = metadata.artist {
+    if let Some(artist) = non_empty(&metadata.artist) {
+        info!("Setting artist: {}", artist);
         tag.set_artist(artist);
     }
 
-    if let Some(ref album) = metadata.album {
+    if let Some(album) = non_empty(&metadata.album) {
+        info!("Setting album: {}", album);
         tag.set_album(album);
     }
 
-    if let Some(ref album_artist) = metadata.album_artist {
+    if let Some(album_artist) = non_empty(&metadata.album_artist) {
         tag.set_album_artist(album_artist);
     }
 
-    if let Some(ref composer) = metadata.composer {
+    if let Some(composer) = non_empty(&metadata.composer) {
         tag.set_composer(composer);
     }
 
-    if let Some(ref genre) = metadata.genre {
+    if let Some(genre) = non_empty(&metadata.genre) {
         tag.set_genre(genre);
     }
 
@@ -59,12 +71,36 @@ pub fn write_metadata_to_m4b(path: &Utf8Path, metadata: &Metadata) -> AppResult<
         tag.set_year(year.to_string());
     }
 
-    if let Some(ref comment) = metadata.comments {
+    if let Some(comment) = non_empty(&metadata.comments) {
         tag.set_comment(comment);
     }
 
-    if let Some(ref copyright) = metadata.copyright {
+    if let Some(description) = non_empty(&metadata.description) {
+        tag.set_description(description);
+    }
+
+    if let Some(copyright) = non_empty(&metadata.copyright) {
         tag.set_copyright(copyright);
+    }
+
+    if let Some(narrator) = non_empty(&metadata.narrator) {
+        tag.set_data(NARRATOR_IDENT, Data::Utf8(narrator.to_owned()));
+    }
+
+    if let Some(publisher) = non_empty(&metadata.publisher) {
+        tag.set_data(PUBLISHER_IDENT, Data::Utf8(publisher.to_owned()));
+    }
+
+    if let Some(series) = non_empty(&metadata.series) {
+        tag.set_data(SERIES_IDENT, Data::Utf8(series.to_owned()));
+    }
+
+    if let Some(series_index) = metadata.series_index {
+        tag.set_data(SERIES_PART_IDENT, Data::Utf8(series_index.to_string()));
+    }
+
+    if let Some(language) = non_empty(&metadata.language) {
+        tag.set_data(LANGUAGE_IDENT, Data::Utf8(language.to_owned()));
     }
 
     if let Some(track) = metadata.track_number {
@@ -82,6 +118,27 @@ pub fn write_metadata_to_m4b(path: &Utf8Path, metadata: &Metadata) -> AppResult<
     if let Some(total) = metadata.total_discs {
         tag.set_total_discs(total as u16);
     }
+}
+
+/// Write metadata to an M4B file
+///
+/// Uses mp4ameta to write standard MP4 metadata atoms.
+/// Existing metadata is preserved unless explicitly overwritten.
+pub fn write_metadata_to_m4b(path: &Utf8Path, metadata: &Metadata) -> AppResult<()> {
+    info!("Writing metadata to: {} - title={:?}, artist={:?}, album={:?}", 
+        path, metadata.title, metadata.artist, metadata.album);
+
+    if !path.exists() {
+        return Err(AppError::FileNotFound(path.as_std_path().to_path_buf()));
+    }
+
+    let mut tag = Tag::read_from_path(path.as_std_path())
+        .map_err(|e| AppError::MetadataWriteError {
+            path: path.as_std_path().to_path_buf(),
+            reason: e.to_string(),
+        })?;
+
+    apply_metadata_to_tag(&mut tag, metadata);
 
     // Write changes
     tag.write_to_path(path.as_std_path())
@@ -222,45 +279,7 @@ pub fn write_all_to_m4b(
         })?;
 
     // Set metadata
-    if let Some(ref title) = metadata.title {
-        tag.set_title(title);
-    }
-    if let Some(ref artist) = metadata.artist {
-        tag.set_artist(artist);
-    }
-    if let Some(ref album) = metadata.album {
-        tag.set_album(album);
-    }
-    if let Some(ref album_artist) = metadata.album_artist {
-        tag.set_album_artist(album_artist);
-    }
-    if let Some(ref composer) = metadata.composer {
-        tag.set_composer(composer);
-    }
-    if let Some(ref genre) = metadata.genre {
-        tag.set_genre(genre);
-    }
-    if let Some(year) = metadata.year {
-        tag.set_year(year.to_string());
-    }
-    if let Some(ref comment) = metadata.comments {
-        tag.set_comment(comment);
-    }
-    if let Some(ref copyright) = metadata.copyright {
-        tag.set_copyright(copyright);
-    }
-    if let Some(track) = metadata.track_number {
-        tag.set_track_number(track as u16);
-    }
-    if let Some(total) = metadata.total_tracks {
-        tag.set_total_tracks(total as u16);
-    }
-    if let Some(disc) = metadata.disc_number {
-        tag.set_disc_number(disc as u16);
-    }
-    if let Some(total) = metadata.total_discs {
-        tag.set_total_discs(total as u16);
-    }
+    apply_metadata_to_tag(&mut tag, metadata);
 
     // Set artwork
     if let Some(art_data) = artwork {
@@ -339,6 +358,173 @@ pub fn clear_metadata(path: &Utf8Path) -> AppResult<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use camino::Utf8PathBuf;
+
+    fn fixture_path() -> Utf8PathBuf {
+        Utf8PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("tests")
+            .join("fixtures")
+            .join("minimal.m4b")
+    }
+
+    /// Copy the minimal fixture to a temp file so tests never mutate the fixture.
+    fn copy_fixture(temp_dir: &std::path::Path) -> Utf8PathBuf {
+        let dest = Utf8PathBuf::from_path_buf(temp_dir.join("minimal.m4b")).unwrap();
+        std::fs::copy(fixture_path().as_std_path(), dest.as_std_path()).unwrap();
+        dest
+    }
+
+    #[test]
+    fn test_fixture_opens_with_mp4ameta() {
+        let tag = Tag::read_from_path(fixture_path().as_std_path());
+        assert!(tag.is_ok(), "mp4ameta must open the fixture: {:?}", tag.err());
+    }
+
+    /// Every text field of `Metadata` with a configured value must survive
+    /// a write-then-read round trip through `write_metadata_to_m4b`.
+    #[test]
+    fn test_write_metadata_round_trip_all_fields() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let path = copy_fixture(temp_dir.path());
+
+        let metadata = Metadata {
+            title: Some("The Title".to_string()),
+            artist: Some("The Author".to_string()),
+            album: Some("The Album".to_string()),
+            album_artist: Some("The Album Artist".to_string()),
+            narrator: Some("The Narrator".to_string()),
+            composer: Some("The Composer".to_string()),
+            year: Some(2024),
+            genre: Some("Audiobook".to_string()),
+            track_number: Some(3),
+            total_tracks: Some(30),
+            disc_number: Some(2),
+            total_discs: Some(4),
+            comments: Some("A comment".to_string()),
+            description: Some("A description".to_string()),
+            publisher: Some("The Publisher".to_string()),
+            copyright: Some("The Copyright".to_string()),
+            series: Some("Pimsleur Italian".to_string()),
+            series_index: Some(1),
+            language: Some("it".to_string()),
+            artwork_path: None,
+            artwork_data: None,
+        };
+
+        write_metadata_to_m4b(&path, &metadata).unwrap();
+
+        let tag = Tag::read_from_path(path.as_std_path()).unwrap();
+        assert_eq!(tag.title(), Some("The Title"));
+        assert_eq!(tag.artist(), Some("The Author"));
+        assert_eq!(tag.album(), Some("The Album"));
+        assert_eq!(tag.album_artist(), Some("The Album Artist"));
+        assert_eq!(tag.composer(), Some("The Composer"));
+        assert_eq!(tag.year(), Some("2024"));
+        assert_eq!(tag.genre(), Some("Audiobook"));
+        assert_eq!(tag.track_number(), Some(3));
+        assert_eq!(tag.total_tracks(), Some(30));
+        assert_eq!(tag.disc_number(), Some(2));
+        assert_eq!(tag.total_discs(), Some(4));
+        assert_eq!(tag.comment(), Some("A comment"));
+        assert_eq!(tag.description(), Some("A description"));
+        assert_eq!(tag.copyright(), Some("The Copyright"));
+        assert_eq!(tag.strings_of(&NARRATOR_IDENT).next(), Some("The Narrator"));
+        assert_eq!(tag.strings_of(&PUBLISHER_IDENT).next(), Some("The Publisher"));
+        assert_eq!(tag.strings_of(&SERIES_IDENT).next(), Some("Pimsleur Italian"));
+        assert_eq!(tag.strings_of(&SERIES_PART_IDENT).next(), Some("1"));
+        assert_eq!(tag.strings_of(&LANGUAGE_IDENT).next(), Some("it"));
+    }
+
+    /// The combined write path must persist the same complete field set
+    /// as the metadata-only path.
+    #[test]
+    fn test_write_all_round_trip_all_fields() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let path = copy_fixture(temp_dir.path());
+
+        let metadata = Metadata {
+            title: Some("The Title".to_string()),
+            artist: Some("The Author".to_string()),
+            album: Some("The Album".to_string()),
+            album_artist: Some("The Album Artist".to_string()),
+            narrator: Some("The Narrator".to_string()),
+            composer: Some("The Composer".to_string()),
+            year: Some(2024),
+            genre: Some("Audiobook".to_string()),
+            track_number: Some(3),
+            total_tracks: Some(30),
+            disc_number: Some(2),
+            total_discs: Some(4),
+            comments: Some("A comment".to_string()),
+            description: Some("A description".to_string()),
+            publisher: Some("The Publisher".to_string()),
+            copyright: Some("The Copyright".to_string()),
+            series: Some("Pimsleur Italian".to_string()),
+            series_index: Some(1),
+            language: Some("it".to_string()),
+            artwork_path: None,
+            artwork_data: None,
+        };
+
+        write_all_to_m4b(&path, &metadata, None, &[]).unwrap();
+
+        let tag = Tag::read_from_path(path.as_std_path()).unwrap();
+        assert_eq!(tag.title(), Some("The Title"));
+        assert_eq!(tag.artist(), Some("The Author"));
+        assert_eq!(tag.album(), Some("The Album"));
+        assert_eq!(tag.album_artist(), Some("The Album Artist"));
+        assert_eq!(tag.composer(), Some("The Composer"));
+        assert_eq!(tag.year(), Some("2024"));
+        assert_eq!(tag.genre(), Some("Audiobook"));
+        assert_eq!(tag.track_number(), Some(3));
+        assert_eq!(tag.total_tracks(), Some(30));
+        assert_eq!(tag.disc_number(), Some(2));
+        assert_eq!(tag.total_discs(), Some(4));
+        assert_eq!(tag.comment(), Some("A comment"));
+        assert_eq!(tag.description(), Some("A description"));
+        assert_eq!(tag.copyright(), Some("The Copyright"));
+        assert_eq!(tag.strings_of(&NARRATOR_IDENT).next(), Some("The Narrator"));
+        assert_eq!(tag.strings_of(&PUBLISHER_IDENT).next(), Some("The Publisher"));
+        assert_eq!(tag.strings_of(&SERIES_IDENT).next(), Some("Pimsleur Italian"));
+        assert_eq!(tag.strings_of(&SERIES_PART_IDENT).next(), Some("1"));
+        assert_eq!(tag.strings_of(&LANGUAGE_IDENT).next(), Some("it"));
+    }
+
+    /// Fields with no configured value (None or empty/whitespace) must leave
+    /// no atom behind — no empty strings, no freeform placeholders.
+    #[test]
+    fn test_unconfigured_fields_stay_absent() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let path = copy_fixture(temp_dir.path());
+
+        let metadata = Metadata {
+            title: Some("Only Title".to_string()),
+            narrator: Some("   ".to_string()),
+            series: Some("".to_string()),
+            ..Default::default()
+        };
+
+        write_metadata_to_m4b(&path, &metadata).unwrap();
+
+        let tag = Tag::read_from_path(path.as_std_path()).unwrap();
+        assert_eq!(tag.title(), Some("Only Title"));
+        assert_eq!(tag.artist(), None);
+        assert_eq!(tag.album(), None);
+        assert_eq!(tag.album_artist(), None);
+        assert_eq!(tag.composer(), None);
+        assert_eq!(tag.year(), None);
+        assert_eq!(tag.genre(), None);
+        assert_eq!(tag.comment(), None);
+        assert_eq!(tag.description(), None);
+        assert_eq!(tag.copyright(), None);
+        assert_eq!(tag.track_number(), None);
+        assert_eq!(tag.disc_number(), None);
+        assert_eq!(tag.strings_of(&NARRATOR_IDENT).next(), None);
+        assert_eq!(tag.strings_of(&PUBLISHER_IDENT).next(), None);
+        assert_eq!(tag.strings_of(&SERIES_IDENT).next(), None);
+        assert_eq!(tag.strings_of(&SERIES_PART_IDENT).next(), None);
+        assert_eq!(tag.strings_of(&LANGUAGE_IDENT).next(), None);
+    }
 
     #[test]
     fn test_write_metadata_file_not_found() {

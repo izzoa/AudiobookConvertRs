@@ -33,7 +33,20 @@ export function ConversionStoreProvider({ children }: { children: ReactNode }) {
     const refreshJobs = useCallback(async () => {
         try {
             const jobList = await ConversionApi.listConversionJobs();
-            setJobs(jobList);
+            setJobs((prev) =>
+                jobList.map((serverJob) => {
+                    const existing = prev.find((j) => j.id === serverJob.id);
+                    if (serverJob.status === JobStatus.Running && !serverJob.progress && existing?.progress) {
+                        return {
+                            ...serverJob,
+                            progress: existing.progress,
+                            progress_percent: serverJob.progress_percent || existing.progress_percent,
+                            status_message: serverJob.status_message || existing.status_message,
+                        };
+                    }
+                    return serverJob;
+                })
+            );
             setError(null);
         } catch (err) {
             console.error('Failed to refresh jobs:', err);

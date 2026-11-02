@@ -103,6 +103,8 @@ pub struct ProgressTracker {
     speed_samples: Vec<f32>,
     /// Last emitted progress (for change detection)
     last_emitted_progress: f32,
+    /// Last emitted conversion stage (for immediate stage transition emission)
+    last_emitted_stage: Option<ConversionStage>,
     /// Whether we've emitted at least one progress with speed (for ETA)
     has_emitted_with_speed: bool,
 }
@@ -125,6 +127,7 @@ impl ProgressTracker {
             stage: ConversionStage::Preparing,
             speed_samples: Vec::with_capacity(SPEED_SMOOTHING_SAMPLES),
             last_emitted_progress: 0.0,
+            last_emitted_stage: None,
             has_emitted_with_speed: false,
         }
     }
@@ -253,6 +256,11 @@ impl ProgressTracker {
 
     /// Check if enough time has passed to emit an update
     pub fn should_emit(&self) -> bool {
+        // Always emit immediately when the conversion stage changes
+        if self.last_emitted_stage != Some(self.stage) {
+            return true;
+        }
+
         let elapsed_since_update = self.last_update.elapsed();
 
         // Always emit first progress with speed data (for ETA display)
@@ -281,6 +289,7 @@ impl ProgressTracker {
         self.last_update = Instant::now();
         let progress = self.progress_percent();
         self.last_emitted_progress = progress;
+        self.last_emitted_stage = Some(self.stage);
 
         // Track that we've emitted with speed data
         if !self.speed_samples.is_empty() {
@@ -308,6 +317,7 @@ impl ProgressTracker {
         self.last_update = Instant::now();
         let progress = self.progress_percent();
         self.last_emitted_progress = progress;
+        self.last_emitted_stage = Some(self.stage);
 
         if !self.speed_samples.is_empty() {
             self.has_emitted_with_speed = true;
@@ -405,5 +415,28 @@ mod tests {
         assert_eq!(ConversionStage::Encoding.to_string(), "Encoding");
         assert_eq!(ConversionStage::Metadata.to_string(), "Embedding metadata");
         assert_eq!(ConversionStage::Complete.to_string(), "Complete");
+    }
+
+    #[test]
+    fn test_progress_tracker_immediate_stage_transitions() {
+        let mut tracker = ProgressTracker::new("test-job".to_string(), 60000, 1);
+        tracker.start();
+
+        let stages = [
+            ConversionStage::Preparing,
+            ConversionStage::Normalizing,
+            ConversionStage::Encoding,
+            ConversionStage::Chapters,
+            ConversionStage::Metadata,
+            ConversionStage::Verifying,
+            ConversionStage::Finalizing,
+            ConversionStage::Complete,
+        ];
+
+        for stage in stages {
+            tracker.set_stage(stage);
+            let emitted = tracker.get_progress().expect("Stage transition must emit immediately");
+            assert_eq!(emitted.stage, stage);
+        }
     }
 }

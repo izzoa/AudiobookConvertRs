@@ -16,7 +16,7 @@ AudiobookConvertRs already implements core functionality. The following features
 | Output Formats | MP3 (LAME) output | Not implemented |
 | Playback | Audio preview before conversion | ✅ Complete |
 | Artwork | Smart directory artwork discovery | ✅ Complete |
-| UI | Quality management slider | Partial |
+| UI | Quality management slider | ✅ Complete |
 | Processing | Parallel book preparation | Partial |
 
 ---
@@ -120,7 +120,9 @@ ffmpeg -i input.mp3 -c:a libopus -b:a 64k output.opus
 
 ---
 
-### Phase 5: Quality Management UI
+### Phase 5: Quality Management UI ✅
+
+**Status**: Complete
 
 **Goal**: Provide intuitive quality/size tradeoff controls with presets and real-time file size estimation.
 
@@ -133,116 +135,116 @@ ffmpeg -i input.mp3 -c:a libopus -b:a 64k output.opus
 | Custom | user-defined | user-defined | user-defined |
 
 #### Phase 5.1: Backend Data Structures
-- [ ] Add `QualityPreset` enum to `src-tauri/src/models.rs` with variants: `High`, `Medium`, `Low`, `Custom`
-- [ ] Implement `QualityPreset::bitrate_kbps()` returning preset's default bitrate
-- [ ] Implement `QualityPreset::sample_rate_hz()` returning preset's default sample rate
-- [ ] Implement `QualityPreset::is_vbr()` returning whether preset uses VBR encoding
-- [ ] Add `EncodingMode` enum to `src-tauri/src/models.rs` with variants: `Vbr`, `Cbr`
-- [ ] Add `encoding_mode: EncodingMode` field to `ConversionSettings` struct
-- [ ] Add `encoding_mode: EncodingMode` field to `ConversionDefaults` struct
-- [ ] Add `estimate_file_size_bytes(duration_ms: u64, bitrate_kbps: u32) -> u64` helper function
-- [ ] Add unit tests for `QualityPreset` methods
-- [ ] Add unit tests for `EncodingMode` serialization
-- [ ] Add unit tests for file size estimation function
+- [x] Add `QualityPreset` enum to `src-tauri/src/models.rs` with variants: `High`, `Medium`, `Low`, `Custom`
+- [x] Implement `QualityPreset::bitrate_kbps()` returning preset's default bitrate
+- [x] Implement `QualityPreset::sample_rate_hz()` returning preset's default sample rate
+- [x] Implement `QualityPreset::is_vbr()` returning whether preset uses VBR encoding
+- [x] Add `EncodingMode` enum to `src-tauri/src/models.rs` with variants: `Vbr`, `Cbr`
+- [x] Add `encoding_mode: EncodingMode` field to `ConversionSettings` struct
+- [x] Add `encoding_mode: EncodingMode` field to `ConversionDefaults` struct
+- [x] Add `estimate_file_size_bytes(duration_ms: u64, bitrate_kbps: u32) -> u64` helper function
+- [x] Add unit tests for `QualityPreset` methods
+- [x] Add unit tests for `EncodingMode` serialization
+- [x] Add unit tests for file size estimation function
 
 #### Phase 5.2: Configuration Updates
-- [ ] Add `default_quality_preset: QualityPreset` to `UserSettings` in `src-tauri/src/config.rs`
-- [ ] Add `default_encoding_mode: EncodingMode` to `UserSettings` in `src-tauri/src/config.rs`
-- [ ] Update `UserSettings::default()` to use `QualityPreset::Medium` and `EncodingMode::Vbr`
-- [ ] Update `ConversionDefaults::from_user_settings()` to include new fields
-- [ ] Add validation for encoding mode in settings validation
+- [x] Add `default_quality_preset: QualityPreset` to `UserSettings` in `src-tauri/src/config.rs`
+- [x] Add `default_encoding_mode: EncodingMode` to `UserSettings` in `src-tauri/src/config.rs`
+- [x] Update `UserSettings::default()` to use `QualityPreset::Medium` and `EncodingMode::Vbr`
+- [x] Update `ConversionDefaults::from_user_settings()` to include new fields
+- [x] Add validation for encoding mode in settings validation
 
 #### Phase 5.3: FFmpeg Command Builder Updates
-- [ ] Review `src-tauri/src/ffmpeg/command_builder.rs` for current AAC encoding approach
-- [ ] Add `EncodingMode` parameter to audio encoding command building
-- [ ] Implement VBR encoding using FFmpeg's `-q:a` quality scale (0-9 for AAC, lower = better)
-- [ ] Verify CBR encoding uses `-b:a` bitrate flag correctly
-- [ ] Map QualityPreset to appropriate VBR quality values (High=2, Medium=4, Low=6)
+- [x] Review `src-tauri/src/ffmpeg/command_builder.rs` for current AAC encoding approach
+- [x] Add `EncodingMode` parameter to audio encoding command building
+- [x] Implement VBR encoding using FFmpeg's `-q:a` quality scale (0-9 for AAC, lower = better)
+- [x] Verify CBR encoding uses `-b:a` bitrate flag correctly
+- [x] Map QualityPreset to appropriate VBR quality values (High=2, Medium=4, Low=6)
 - [ ] Add integration test: generate FFmpeg command for VBR preset
 - [ ] Add integration test: generate FFmpeg command for CBR preset
 
 #### Phase 5.4: Backend Commands
-- [ ] Add `estimate_output_size` command to `src-tauri/src/commands/quality.rs`
+- [x] Add `estimate_output_size` command to `src-tauri/src/commands/quality.rs`
   - Input: `duration_ms: u64, bitrate_kbps: u32`
   - Output: `FileSizeEstimate { bytes: u64, formatted: String }`
-- [ ] Add `get_quality_preset_info` command returning all preset configurations
-- [ ] Register new commands in `src-tauri/src/commands/mod.rs`
-- [ ] Register new commands in `src-tauri/src/main.rs` invoke handler
+- [x] Add `get_quality_preset_info` command returning all preset configurations
+- [x] Register new commands in `src-tauri/src/commands/mod.rs`
+- [x] Register new commands in `src-tauri/src/main.rs` invoke handler
 
 #### Phase 5.5: Frontend Types
-- [ ] Add `QualityPreset` type to `src-ui/src/types/models.ts`: `'high' | 'medium' | 'low' | 'custom'`
-- [ ] Add `EncodingMode` type to `src-ui/src/types/models.ts`: `'vbr' | 'cbr'`
-- [ ] Add `encoding_mode?: EncodingMode` to `ConversionSettings` interface
-- [ ] Add `default_quality_preset?: QualityPreset` to `UserSettings` interface
-- [ ] Add `default_encoding_mode?: EncodingMode` to `UserSettings` interface
-- [ ] Add `FileSizeEstimate` interface: `{ bytes: number, formatted: string }`
+- [x] Add `QualityPreset` type to `src-ui/src/types/models.ts`: `'high' | 'medium' | 'low' | 'custom'`
+- [x] Add `EncodingMode` type to `src-ui/src/types/models.ts`: `'vbr' | 'cbr'`
+- [x] Add `encoding_mode?: EncodingMode` to `ConversionSettings` interface
+- [x] Add `default_quality_preset?: QualityPreset` to `UserSettings` interface
+- [x] Add `default_encoding_mode?: EncodingMode` to `UserSettings` interface
+- [x] Add `FileSizeEstimate` interface: `{ bytes: number, formatted: string }`
 
 #### Phase 5.6: Frontend API
-- [ ] Create `src-ui/src/api/quality.ts` file
-- [ ] Add `estimateOutputSize(durationMs: number, bitrateKbps: number): Promise<FileSizeEstimate>`
-- [ ] Add `getQualityPresetInfo(): Promise<PresetInfo[]>` returning preset configurations
-- [ ] Export functions from `src-ui/src/api/index.ts` if using barrel exports
+- [x] Create `src-ui/src/api/quality.ts` file
+- [x] Add `estimateOutputSize(durationMs: number, bitrateKbps: number): Promise<FileSizeEstimate>`
+- [x] Add `getQualityPresetInfo(): Promise<PresetInfo[]>` returning preset configurations
+- [x] Export functions from `src-ui/src/api/index.ts` if using barrel exports
 
 #### Phase 5.7: UI Component - Slider (if needed)
-- [ ] Check if `src-ui/src/components/ui/slider.tsx` exists
-- [ ] If not, install Radix Slider: `npm install @radix-ui/react-slider`
-- [ ] Create `src-ui/src/components/ui/slider.tsx` wrapper component
-- [ ] Style slider to match existing UI theme (colors, sizing)
+- [x] Check if `src-ui/src/components/ui/slider.tsx` exists
+- [x] Install Radix Slider: `npm install @radix-ui/react-slider`
+- [x] Create `src-ui/src/components/ui/slider.tsx` wrapper component
+- [x] Style slider to match existing UI theme (colors, sizing)
 
 #### Phase 5.8: ConversionSettingsDialog Enhancement
-- [ ] Add `qualityPreset` state initialized from defaults
-- [ ] Add `encodingMode` state initialized from defaults
-- [ ] Add Quality Preset dropdown at top of audio settings section
-- [ ] Implement `handlePresetChange` function:
+- [x] Add `qualityPreset` state initialized from defaults
+- [x] Add `encodingMode` state initialized from defaults
+- [x] Add Quality Preset dropdown at top of audio settings section
+- [x] Implement `handlePresetChange` function:
   - Set bitrate from preset's `bitrate_kbps()`
   - Set sample rate from preset's `sample_rate_hz()`
   - Set encoding mode from preset's `is_vbr()`
   - Enable/disable manual controls based on Custom selection
-- [ ] Add VBR/CBR radio button group below preset dropdown
-- [ ] Disable encoding mode radios when preset is not Custom
-- [ ] Replace bitrate dropdown with slider component (range: 32-320, step: 8)
-- [ ] Add bitrate value label next to slider showing current kbps
-- [ ] Disable bitrate slider when preset is not Custom
-- [ ] Disable sample rate dropdown when preset is not Custom
-- [ ] Add estimated file size display below quality controls
-- [ ] Implement `calculateEstimatedSize` function using `(bitrate * duration) / 8000`
-- [ ] Format estimated size as MB/GB with 2 decimal places
-- [ ] Show source file size and compression ratio (e.g., "~45 MB (65% of source)")
-- [ ] Update `handleConfirm` to include `encoding_mode` in settings object
-- [ ] Add visual indicator showing current preset settings summary
+- [x] Add VBR/CBR radio button group below preset dropdown
+- [x] Disable encoding mode radios when preset is not Custom
+- [x] Replace bitrate dropdown with slider component (range: 32-320, step: 8)
+- [x] Add bitrate value label next to slider showing current kbps
+- [x] Disable bitrate slider when preset is not Custom
+- [x] Disable sample rate dropdown when preset is not Custom
+- [x] Add estimated file size display below quality controls
+- [x] Implement `calculateEstimatedSize` function using `(bitrate * duration) / 8000`
+- [x] Format estimated size as MB/GB with 2 decimal places
+- [x] Show source file size and compression ratio (e.g., "~45 MB (65% of source)")
+- [x] Update `handleConfirm` to include `encoding_mode` in settings object
+- [x] Add visual indicator showing current preset settings summary
 
 #### Phase 5.9: Settings Page Updates
-- [ ] Add "Audio Quality Defaults" section to `src-ui/src/components/SettingsPage.tsx`
-- [ ] Add default quality preset dropdown
-- [ ] Add default encoding mode radio buttons
-- [ ] Wire preset/mode to settings state
-- [ ] Ensure changes persist via settings API
-- [ ] Add section description explaining these become defaults for new conversions
+- [x] Add "Audio Quality Defaults" section to `src-ui/src/components/SettingsPage.tsx`
+- [x] Add default quality preset dropdown
+- [x] Add default encoding mode radio buttons
+- [x] Wire preset/mode to settings state
+- [x] Ensure changes persist via settings API
+- [x] Add section description explaining these become defaults for new conversions
 
 #### Phase 5.10: Testing & Validation
-- [ ] Unit test: QualityPreset returns correct bitrates
-- [ ] Unit test: QualityPreset returns correct sample rates
-- [ ] Unit test: EncodingMode serializes correctly to JSON
-- [ ] Unit test: File size estimation matches expected formula
+- [x] Unit test: QualityPreset returns correct bitrates
+- [x] Unit test: QualityPreset returns correct sample rates
+- [x] Unit test: EncodingMode serializes correctly to JSON
+- [x] Unit test: File size estimation matches expected formula
 - [ ] Integration test: Preset selection generates correct FFmpeg args
 - [ ] Integration test: VBR mode produces smaller file than CBR at same quality
 - [ ] Integration test: Settings persist and reload correctly
-- [ ] Manual test: UI controls enable/disable correctly with presets
-- [ ] Manual test: File size updates in real-time as bitrate changes
+- [x] Manual test: UI controls enable/disable correctly with presets
+- [x] Manual test: File size updates in real-time as bitrate changes
 - [ ] Manual test: Converted file size approximately matches estimate
 
 #### Phase 5.11: Documentation & Polish
-- [ ] Add tooltips to VBR/CBR explaining the difference
-- [ ] Add preset descriptions (e.g., "High: Best quality, larger files")
-- [ ] Ensure disabled controls have proper visual styling
-- [ ] Verify keyboard navigation works for all controls
-- [ ] Update PARITY.md to mark Phase 5 as complete
+- [x] Add tooltips to VBR/CBR explaining the difference
+- [x] Add preset descriptions (e.g., "High: Best quality, larger files")
+- [x] Ensure disabled controls have proper visual styling
+- [x] Verify keyboard navigation works for all controls
+- [x] Update PARITY.md to mark Phase 5 as complete
 
-**Files to Create**:
+**Files Created**:
 - `src-ui/src/api/quality.ts`
-- `src-ui/src/components/ui/slider.tsx` (if not existing)
+- `src-ui/src/components/ui/slider.tsx`
 
-**Files to Modify**:
+**Files Modified**:
 - `src-tauri/src/models.rs`
 - `src-tauri/src/config.rs`
 - `src-tauri/src/ffmpeg/command_builder.rs`
@@ -276,15 +278,15 @@ ffmpeg -i input.mp3 -c:a libopus -b:a 64k output.opus
 ```
 
 **Success Criteria for Phase 5**:
-- [ ] Quality preset dropdown with High/Medium/Low/Custom options
-- [ ] Presets auto-configure bitrate, sample rate, and encoding mode
-- [ ] Custom mode enables individual control adjustment
-- [ ] Bitrate slider (or enhanced dropdown) with 32-320 kbps range
-- [ ] VBR/CBR toggle functional and affects FFmpeg output
-- [ ] Real-time estimated file size updates as settings change
-- [ ] Compression ratio shown relative to source files
-- [ ] Quality defaults saved in user preferences
-- [ ] All unit and integration tests passing
+- [x] Quality preset dropdown with High/Medium/Low/Custom options
+- [x] Presets auto-configure bitrate, sample rate, and encoding mode
+- [x] Custom mode enables individual control adjustment
+- [x] Bitrate slider (or enhanced dropdown) with 32-320 kbps range
+- [x] VBR/CBR toggle functional and affects FFmpeg output
+- [x] Real-time estimated file size updates as settings change
+- [x] Compression ratio shown relative to source files
+- [x] Quality defaults saved in user preferences
+- [ ] All unit and integration tests passing (some integration tests pending)
 
 ---
 
@@ -488,10 +490,10 @@ Feature parity is achieved when:
 
 - [ ] Can import WMA files
 - [x] Can import FLAC with CUE sheets (tracks become chapters)
-- [ ] Can output to M4B, MP3, and OGG/Opus
+- [ ] Can output to M4B, MP3, and OGG/Opus (M4B done, MP3/OGG pending)
 - [x] Can preview audio before conversion
 - [x] Auto-discovers cover art from directories
-- [ ] Quality slider with file size estimation
+- [x] Quality slider with file size estimation
 - [ ] All features work on Windows, macOS, and Linux
 
 ---

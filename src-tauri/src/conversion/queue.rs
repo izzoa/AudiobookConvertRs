@@ -4,6 +4,7 @@
 //! including persistence to disk for resuming interrupted conversions.
 
 use crate::error::{AppError, AppResult};
+use crate::conversion::progress::ConversionProgress;
 use crate::models::{AudioBook, ConversionJob, ConversionSettings, JobStatus};
 use camino::{Utf8Path, Utf8PathBuf};
 use parking_lot::RwLock;
@@ -131,7 +132,16 @@ impl ConversionQueue {
         {
             let mut active = self.active.write();
             if let Some(job) = active.get_mut(job_id) {
-                job.status = status;
+                match status {
+                    JobStatus::Complete => job.complete(),
+                    JobStatus::Cancelled => job.cancel(),
+                    JobStatus::Error => {
+                        job.status = JobStatus::Error;
+                        job.status_message = Some("error".to_string());
+                        job.completed_at = Some(chrono::Utc::now());
+                    }
+                    other => job.status = other,
+                }
 
                 // If job is terminal, move to completed
                 if status.is_terminal() {
@@ -179,8 +189,34 @@ impl ConversionQueue {
         }
     }
 
+    /// Update job with a full ConversionProgress snapshot
+    pub fn update_job_progress_detail(&self, job_id: &str, progress: ConversionProgress) {
+        let mut active = self.active.write();
+        if let Some(job) = active.get_mut(job_id) {
+            job.progress_percent = progress.total_progress;
+            job.current_file_index = progress.file_index;
+            job.status_message = Some(if progress.current_file.is_empty() {
+                progress.stage.to_string()
+            } else {
+                format!("{}: {}", progress.stage, progress.current_file)
+            });
+            job.progress = Some(progress);
+        }
+    }
+
     /// Mark a job as complete
     pub fn complete_job(&self, job_id: &str) -> AppResult<()> {
+        self.update_job_status(job_id, JobStatus::Complete)
+    }
+
+    /// Mark a job as complete and record the output file path
+    pub fn complete_job_with_output(&self, job_id: &str, output_path: String) -> AppResult<()> {
+        {
+            let mut active = self.active.write();
+            if let Some(job) = active.get_mut(job_id) {
+                job.output_path = Some(output_path);
+            }
+        }
         self.update_job_status(job_id, JobStatus::Complete)
     }
 
@@ -599,7 +635,43 @@ mod tests {
         assert_eq!(queue.len(), 2);
         assert!(queue.has_active_job());
         
-        // Can't get another while one is active
-        assert!(queue.get_next_job().is_none());
+        // Parallel queue allows claiming a second active job
+        assert!(queue.get_next_job().is_some());
+        assert_eq!(queue.active_job_count(), 2);
+    }
+
+    #[test]
+    fn test_queue_update_job_progress_detail() {
+        use crate::conversion::progress::ConversionStage;
+        let queue = ConversionQueue::new();
+        let audiobook = create_test_audiobook();
+        let settings = ConversionSettings::default();
+
+        let job_id = queue.queue_conversion(audiobook, settings).expect("Should add job");
+        let _ = queue.get_next_job().expect("Should claim job");
+
+        let snapshot = ConversionProgress {
+            job_id: job_id.clone(),
+            file_index: 1,
+            current_file: "chapter2.mp3".to_string(),
+            file_progress: 45.0,
+            total_progress: 62.5,
+            time_remaining_sec: 18,
+            estimated_finish: chrono::Utc::now(),
+            speed: Some(3.2),
+            stage: ConversionStage::Encoding,
+        };
+
+        queue.update_job_progress_detail(&job_id, snapshot.clone());
+
+        let job = queue.get_job(&job_id).expect("Should retrieve active job");
+        assert_eq!(job.progress_percent, 62.5);
+        assert_eq!(job.current_file_index, 1);
+        assert_eq!(job.status_message.as_deref(), Some("Encoding: chapter2.mp3"));
+        let stored = job.progress.expect("Progress snapshot should be retained");
+        assert_eq!(stored.stage, ConversionStage::Encoding);
+        assert_eq!(stored.current_file, "chapter2.mp3");
+        assert_eq!(stored.time_remaining_sec, 18);
+        assert_eq!(stored.speed, Some(3.2));
     }
 }

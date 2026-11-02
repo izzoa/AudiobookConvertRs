@@ -96,14 +96,16 @@ AudiobookConvertRs is inspired by the excellent [AudioBookConverter](https://git
 - **FLAC/CUE Sheet Support** - Import FLAC with CUE sheets, tracks become chapters
 - **Audio Preview** - Listen to audio files and chapters before converting (rodio-powered)
 - **Smart Artwork Discovery** - Auto-detect cover images from embedded metadata and file directories
-- **Chapter Management** - Create, edit, reorder, and auto-generate chapters
+- **Chapter Management** - Create, edit, reorder (drag-and-drop), and auto-generate chapters
 - **Metadata Editing** - Edit title, author, narrator, year, genre, and more
 - **Cover Artwork** - Drag-and-drop, file picker, or fetch from Open Library
 - **Open Library Integration** - Search and apply metadata from Open Library API
-- **Conversion Queue** - Queue multiple audiobooks for batch conversion
-- **Real-time Progress** - Live progress tracking during conversion
+- **Conversion Queue** - Queue multiple audiobooks for batch conversion with retry support
+- **Real-time Progress** - Live progress tracking with ETA estimation during conversion
+- **Audio Normalization** - Optional loudness normalization with configurable target levels
+- **Quality Presets** - Built-in presets (Low, Medium, High, Ultra) with real-time file size estimation
 - **Project Management** - Save and load projects for later editing
-- **Conversion Presets** - Save your preferred conversion settings
+- **Conversion Presets** - Save your preferred conversion settings including normalization
 - **Undo/Redo** - Full undo/redo support for metadata changes
 - **Cross-platform** - Runs on Windows, macOS, and Linux
 
@@ -289,6 +291,13 @@ See [PARITY.md](PARITY.md) for detailed implementation plans.
 - [x] **Audio Preview/Playback** - Listen to audio before converting
 - [x] **Smart Artwork Discovery** - Auto-detect cover images from file directories
 - [x] **FLAC/CUE Sheet Support** - Import FLAC with CUE, map tracks to chapters
+- [x] **Audio Normalization** - Loudness normalization with configurable targets
+- [x] **Quality Presets** - Built-in quality presets with file size estimation
+- [x] **Quality Management UI** - Bitrate slider, VBR/CBR toggle, real-time file size estimation
+- [x] **ETA Estimation** - Real-time conversion progress with time remaining
+- [x] **Drag-and-Drop Chapters** - Reorder chapters via drag-and-drop
+- [x] **Conversion Retry** - Retry failed conversions from the queue
+- [x] **Reveal in Finder/Explorer** - Open output location after conversion
 
 ### Medium Priority
 - [ ] **MP3 Output Format** - Export to MP3 with chapter support via ID3v2
@@ -298,8 +307,6 @@ See [PARITY.md](PARITY.md) for detailed implementation plans.
 - [ ] **WMA Input Support** - Import Windows Media Audio files
 
 ### Polish & Enhancements
-- [ ] **Quality Management UI** - Bitrate slider with file size estimation
-- [ ] Audio normalization options
 - [ ] Additional metadata providers (Google Books, Audible)
 - [ ] Localization support
 

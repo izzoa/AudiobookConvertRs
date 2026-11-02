@@ -43,3 +43,5 @@ dist/
 *.flac
 *.wav
 /tests/output/
+
+.early.coverage

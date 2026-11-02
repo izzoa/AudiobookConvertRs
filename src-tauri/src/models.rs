@@ -14,6 +14,7 @@ use camino::Utf8PathBuf;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
+pub use crate::conversion::progress::ConversionProgress;
 
 /// Quality presets for audio encoding
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
@@ -854,27 +855,6 @@ impl ConversionJob {
             end - started
         })
     }
-}
-
-/// Progress information sent to frontend during conversion
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ConversionProgress {
-    /// Job identifier
-    pub job_id: String,
-    /// Index of current file being processed
-    pub file_index: usize,
-    /// Name of current file
-    pub current_file: String,
-    /// Progress of current file (0.0 - 100.0)
-    pub file_progress: f32,
-    /// Overall progress (0.0 - 100.0)
-    pub total_progress: f32,
-    /// Estimated time remaining in seconds
-    pub time_remaining_sec: Option<u32>,
-    /// Current processing speed (e.g., "2.5x")
-    pub speed: Option<String>,
-    /// Current status message
-    pub status_message: String,
 }
 
 // ============================================

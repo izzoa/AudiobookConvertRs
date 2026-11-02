@@ -89,6 +89,14 @@ impl ConversionManager {
     /// Start the conversion queue with the specified number of workers
     pub fn start_queue(&self, max_concurrent: Option<usize>) -> AppResult<()> {
         let mut state = self.state.write();
+        if *state == ManagerState::Running {
+            drop(state);
+            let (lock, cvar) = &*self.work_available;
+            let _guard = lock.lock();
+            cvar.notify_all();
+            info!("Conversion queue already running; notified workers");
+            return Ok(());
+        }
         if *state != ManagerState::Stopped {
             return Err(AppError::StateError(
                 "Conversion queue is already running or stopping".to_string(),
@@ -254,12 +262,8 @@ impl ConversionManager {
         let app_handle_progress = Arc::clone(app_handle);
 
         let progress_callback = move |progress: ConversionProgress| {
-            // Update queue
-            queue_progress.update_job_progress(
-                &job_id_progress,
-                progress.total_progress,
-                progress.file_index,
-            );
+            // Update queue with full progress snapshot
+            queue_progress.update_job_progress_detail(&job_id_progress, progress.clone());
 
             // Emit progress event with full payload
             if let Some(ref handle) = *app_handle_progress.read() {
@@ -306,7 +310,7 @@ impl ConversionManager {
                 info!("Job {} completed successfully", job_id);
 
                 // Update job status
-                if let Err(e) = queue.complete_job(&job_id) {
+                if let Err(e) = queue.complete_job_with_output(&job_id, output_path.to_string()) {
                     error!("Failed to update job status: {}", e);
                 }
 
@@ -375,6 +379,11 @@ mod tests {
         let (state, _, _, workers) = manager.get_queue_state();
         assert_eq!(state, ManagerState::Running);
         assert_eq!(workers, 2);
+
+        // Starting again while running is idempotent
+        manager.start_queue(Some(2)).expect("Starting running queue should succeed idempotently");
+        let (state, _, _, _) = manager.get_queue_state();
+        assert_eq!(state, ManagerState::Running);
 
         // Stop queue
         manager.stop_queue().expect("Should stop queue");
