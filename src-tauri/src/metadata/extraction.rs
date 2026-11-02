@@ -198,6 +198,11 @@ pub(crate) fn extract_from_revision(
     metadata: &mut Metadata,
     meta_rev: &symphonia::core::meta::MetadataRevision,
 ) {
+    // ID3 movement frames (MVNM/MVIN) stand in for series in some audiobook
+    // tools; held back until the loop ends so an explicit SERIES tag wins.
+    let mut movement_name = None;
+    let mut movement_number = None;
+
     for tag in meta_rev.tags() {
         let value_str = value_to_string(&tag.value);
         
@@ -288,24 +293,38 @@ pub(crate) fn extract_from_revision(
                     metadata.publisher = Some(value_str);
                 }
             }
+            Some(StandardTagKey::Copyright) => {
+                if metadata.copyright.is_none() {
+                    metadata.copyright = Some(value_str);
+                }
+            }
+            Some(StandardTagKey::Language) => {
+                if metadata.language.is_none() {
+                    metadata.language = Some(value_str);
+                }
+            }
+            Some(StandardTagKey::MovementName) => {
+                movement_name.get_or_insert(value_str);
+            }
+            Some(StandardTagKey::MovementNumber) => {
+                movement_number.get_or_insert(value_str);
+            }
             Some(StandardTagKey::IdentCatalogNumber) | Some(StandardTagKey::IdentIsrc) => {
                 // These could be useful for publisher/copyright
             }
-            // MP4 and Vorbis ASIN tags map to IdentAsin. ID3 user text frames
-            // have no standard key; Symphonia names them "TXXX:<desc>".
+            // MP4 and Vorbis ASIN tags map to IdentAsin.
             Some(StandardTagKey::IdentAsin) => {
                 if metadata.asin.is_none() {
                     metadata.asin = crate::models::normalize_asin(&value_str);
                 }
             }
-            None if tag.key.eq_ignore_ascii_case("TXXX:ASIN") => {
-                if metadata.asin.is_none() {
-                    metadata.asin = crate::models::normalize_asin(&value_str);
-                }
-            }
+            None => read_custom_tag(metadata, &tag.key, &value_str),
             _ => {}
         }
     }
+
+    fill_if_empty(&mut metadata.series, movement_name.as_deref());
+    fill_if_empty(&mut metadata.series_index, movement_number.as_deref());
 
     // Extract artwork
     for visual in meta_rev.visuals() {
@@ -314,6 +333,38 @@ pub(crate) fn extract_from_revision(
             metadata.artwork_data = Some(STANDARD.encode(&visual.data));
             break; // Just take the first artwork
         }
+    }
+}
+
+/// Read a tag that has no standard key by its name.
+///
+/// Symphonia keeps the container's prefix on these keys: "TXXX:NARRATOR" (ID3),
+/// "com.apple.iTunes:NARRATOR" (MP4 freeform) and plain "NARRATOR" (Vorbis), so
+/// only the part after the last colon is compared. The aliases are the names
+/// Audiobookshelf reads, which is what other audiobook tools write for.
+fn read_custom_tag(metadata: &mut Metadata, key: &str, value: &str) {
+    let name = key.rsplit(':').next().unwrap_or(key).trim().to_ascii_uppercase();
+    let field = match name.as_str() {
+        "NARRATOR" => &mut metadata.narrator,
+        "SERIES" => &mut metadata.series,
+        "SERIES-PART" => &mut metadata.series_index,
+        "PUBLISHER" => &mut metadata.publisher,
+        "LANGUAGE" | "LANG" => &mut metadata.language,
+        "ASIN" | "AUDIBLE_ASIN" => {
+            if metadata.asin.is_none() {
+                metadata.asin = crate::models::normalize_asin(value);
+            }
+            return;
+        }
+        _ => return,
+    };
+    fill_if_empty(field, Some(value));
+}
+
+/// Set a field from a trimmed, non-empty value unless it already has one.
+fn fill_if_empty(field: &mut Option<String>, value: Option<&str>) {
+    if field.is_none() {
+        *field = value.map(str::trim).filter(|v| !v.is_empty()).map(str::to_string);
     }
 }
 
@@ -454,6 +505,7 @@ mod tests {
             language: Some("it".to_string()),
             asin: Some("B002V8H660".to_string()),
             description: Some("A description".to_string()),
+            copyright: Some("© 1969".to_string()),
             ..Default::default()
         };
 
@@ -466,10 +518,100 @@ mod tests {
         assert_eq!(extracted.series_index.as_deref(), Some("1.5"));
         assert_eq!(extracted.asin.as_deref(), Some("B002V8H660"));
 
-        // Import reads tags through Symphonia, not mp4ameta; the ASIN must survive that path too.
-        let imported = crate::audio::loader::load_audio_file(&dest).unwrap();
-        assert_eq!(imported.metadata.asin.as_deref(), Some("B002V8H660"));
         assert_eq!(extracted.language, Some("it".to_string()));
         assert_eq!(extracted.description, Some("A description".to_string()));
+
+        // Import reads tags through Symphonia, not mp4ameta, so reopening a
+        // converted book must find every field there too.
+        let imported = crate::audio::loader::load_audio_file(&dest).unwrap().metadata;
+        assert_eq!(imported.narrator.as_deref(), Some("The Narrator"));
+        assert_eq!(imported.publisher.as_deref(), Some("The Publisher"));
+        assert_eq!(imported.series.as_deref(), Some("Pimsleur Italian"));
+        assert_eq!(imported.series_index.as_deref(), Some("1.5"));
+        assert_eq!(imported.language.as_deref(), Some("it"));
+        assert_eq!(imported.asin.as_deref(), Some("B002V8H660"));
+        assert_eq!(imported.copyright.as_deref(), Some("© 1969"));
+        assert_eq!(imported.description.as_deref(), Some("A description"));
+    }
+
+    fn read_tags(tags: &[(Option<StandardTagKey>, &str, &str)]) -> Metadata {
+        use symphonia::core::meta::{MetadataBuilder, Tag};
+        let mut builder = MetadataBuilder::new();
+        for (std_key, key, value) in tags {
+            builder.add_tag(Tag::new(*std_key, key, Value::from(*value)));
+        }
+        let mut metadata = Metadata::default();
+        extract_from_revision(&mut metadata, &builder.metadata());
+        metadata
+    }
+
+    #[test]
+    fn custom_tags_are_read_whatever_the_container() {
+        // ID3 user text frames, MP4 freeform atoms and Vorbis comments.
+        let id3 = read_tags(&[
+            (None, "TXXX:NARRATOR", "Scott Brick"),
+            (None, "TXXX:SERIES", "Dune"),
+            (None, "TXXX:SERIES-PART", " 2 "),
+            (None, "TXXX:ASIN", "b002v8h660"),
+        ]);
+        let mp4 = read_tags(&[
+            (None, "com.apple.iTunes:NARRATOR", "Scott Brick"),
+            (None, "com.apple.iTunes:SERIES", "Dune"),
+            (None, "com.apple.iTunes:SERIES-PART", "2"),
+            (Some(StandardTagKey::IdentAsin), "com.apple.iTunes:ASIN", "B002V8H660"),
+        ]);
+        let vorbis = read_tags(&[
+            (None, "narrator", "Scott Brick"),
+            (None, "series", "Dune"),
+            (None, "series-part", "2"),
+            (Some(StandardTagKey::IdentAsin), "ASIN", "B002V8H660"),
+        ]);
+        for m in [id3, mp4, vorbis] {
+            assert_eq!(m.narrator.as_deref(), Some("Scott Brick"));
+            assert_eq!(m.series.as_deref(), Some("Dune"));
+            assert_eq!(m.series_index.as_deref(), Some("2"));
+            assert_eq!(m.asin.as_deref(), Some("B002V8H660"));
+        }
+    }
+
+    #[test]
+    fn other_tools_tag_names_are_read() {
+        let m = read_tags(&[
+            (None, "com.apple.iTunes:AUDIBLE_ASIN", "B002V8H660"),
+            (None, "TXXX:LANG", "English"),
+            (None, "com.apple.iTunes:PUBLISHER", "Macmillan Audio"),
+            (Some(StandardTagKey::Copyright), "", "© 1969"),
+            (Some(StandardTagKey::MovementName), "MVNM", "Dune"),
+            (Some(StandardTagKey::MovementNumber), "MVIN", "2"),
+        ]);
+        assert_eq!(m.asin.as_deref(), Some("B002V8H660"));
+        assert_eq!(m.language.as_deref(), Some("English"));
+        assert_eq!(m.publisher.as_deref(), Some("Macmillan Audio"));
+        assert_eq!(m.copyright.as_deref(), Some("© 1969"));
+        assert_eq!(m.series.as_deref(), Some("Dune"));
+        assert_eq!(m.series_index.as_deref(), Some("2"));
+    }
+
+    #[test]
+    fn series_tags_win_over_movement_frames_in_any_order() {
+        let m = read_tags(&[
+            (Some(StandardTagKey::MovementName), "MVNM", "Part One"),
+            (Some(StandardTagKey::MovementNumber), "MVIN", "1"),
+            (None, "TXXX:SERIES", "Dune"),
+            (None, "TXXX:SERIES-PART", "2"),
+        ]);
+        assert_eq!(m.series.as_deref(), Some("Dune"));
+        assert_eq!(m.series_index.as_deref(), Some("2"));
+    }
+
+    #[test]
+    fn blank_and_unknown_custom_tags_are_ignored() {
+        let m = read_tags(&[
+            (None, "TXXX:NARRATOR", "   "),
+            (None, "TXXX:SHOW", "A Podcast"),
+            (None, "TXXX:NARRATOR", "Scott Brick"),
+        ]);
+        assert_eq!(m.narrator.as_deref(), Some("Scott Brick"));
+        assert_eq!(m.series, None);
     }
 }

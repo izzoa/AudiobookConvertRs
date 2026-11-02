@@ -25,6 +25,13 @@ fn write_tagged_mp3(path: &Utf8Path, title: &str, track: u32) {
         .args(["-metadata", &format!("track={track}")])
         // FFmpeg has no ID3 frame for ASIN, so it lands in a TXXX user text frame.
         .args(["-metadata", "ASIN=b002v8h660"])
+        .args(["-metadata", "narrator=Lena Holloway"])
+        .args(["-metadata", "series=Clockwork Cycle"])
+        .args(["-metadata", "series-part=1.5"])
+        // These three do have ID3 frames: TPUB, TLAN, TCOP.
+        .args(["-metadata", "publisher=Brassworks Audio"])
+        .args(["-metadata", "language=eng"])
+        .args(["-metadata", "copyright=© 2024 Ada Wrenfield"])
         .args(["-b:a", "64k", path.as_str()])
         .status()
         .expect("run ffmpeg");
@@ -50,6 +57,12 @@ fn mp3_import_reads_id3v2_tags() {
     assert_eq!(meta.year, Some(2024));
     assert_eq!(meta.track_number, Some(1));
     assert_eq!(meta.asin.as_deref(), Some("B002V8H660"));
+    assert_eq!(meta.narrator.as_deref(), Some("Lena Holloway"));
+    assert_eq!(meta.series.as_deref(), Some("Clockwork Cycle"));
+    assert_eq!(meta.series_index.as_deref(), Some("1.5"));
+    assert_eq!(meta.publisher.as_deref(), Some("Brassworks Audio"));
+    assert_eq!(meta.language.as_deref(), Some("eng"));
+    assert_eq!(meta.copyright.as_deref(), Some("© 2024 Ada Wrenfield"));
 }
 
 #[test]

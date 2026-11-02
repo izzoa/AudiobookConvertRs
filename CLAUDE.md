@@ -1044,6 +1044,11 @@ Use the shared `metadata::extraction::extract_from_revision` for both — the
 loader once kept its own copy of the tag mapper, it drifted, and MP3 imports came
 back untagged. `tests/mp3_import_e2e.rs` guards this (run with `-- --ignored`).
 
+Custom tags (NARRATOR, SERIES, SERIES-PART, PUBLISHER) have no `StandardTagKey`
+and keep their container's prefix: `TXXX:NARRATOR` (ID3), `com.apple.iTunes:NARRATOR`
+(MP4 freeform), `NARRATOR` (Vorbis). `read_custom_tag` compares only the part after
+the last colon, so one name list covers every format.
+
 ### Path Handling (camino vs std)
 
 **Converting Between Path Types**:
