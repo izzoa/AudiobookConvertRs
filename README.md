@@ -218,7 +218,7 @@ A downloaded FFmpeg goes in the `ffmpeg` folder of the app's local data folder: 
 
 You need:
 - [Rust](https://rustup.rs/) 1.85 or later
-- [Node.js](https://nodejs.org/) 20.19 or later
+- [Node.js](https://nodejs.org/) 22 or later
 - FFmpeg, installed or downloaded from the app's Settings
 - On Linux, the WebKitGTK build dependencies:
   ```bash
