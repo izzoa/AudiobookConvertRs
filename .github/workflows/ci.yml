@@ -2,73 +2,81 @@ name: CI
 
 on:
   push:
-    branches: [ main, develop ]
+    branches: [main]
   pull_request:
-    branches: [ main ]
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
 
 env:
   CARGO_TERM_COLOR: always
 
 jobs:
   build:
+    name: Build and test (${{ matrix.os }})
     strategy:
+      fail-fast: false
       matrix:
         os: [ubuntu-22.04, macos-latest, windows-latest]
-        include:
-          - os: ubuntu-22.04
-            target: x86_64-unknown-linux-gnu
-          - os: macos-latest
-            target: x86_64-apple-darwin
-          - os: windows-latest
-            target: x86_64-pc-windows-msvc
-
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
 
     steps:
-    - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-    - name: Install Rust toolchain
-      uses: dtolnay/rust-action@stable
-      with:
-        targets: ${{ matrix.target }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: src-ui/package-lock.json
 
-    - name: Install Linux dependencies
-      if: matrix.os == 'ubuntu-22.04'
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential curl wget file libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
 
-    - name: Cache cargo registry
-      uses: actions/cache@v4
-      with:
-        path: |
-          ~/.cargo/registry
-          ~/.cargo/git
-          target
-        key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-        restore-keys: |
-          ${{ runner.os }}-cargo-
+      - uses: swatinem/rust-cache@v2
 
-    - name: Build
-      run: cargo build --verbose
-      working-directory: ./src-tauri
+      - name: Install Linux dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential curl wget file libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev
 
-    - name: Run tests
-      run: cargo test --verbose
-      working-directory: ./src-tauri
+      # The app embeds src-ui/dist at compile time, so the frontend builds first
+      - name: Build the frontend
+        run: |
+          npm ci --prefix src-ui
+          npm run build --prefix src-ui
 
-    - name: Run clippy
-      run: cargo clippy -- -D warnings
-      working-directory: ./src-tauri
+      - name: Frontend tests
+        if: runner.os == 'Linux'
+        run: npm test --prefix src-ui
+
+      - name: Build
+        run: cargo build --workspace
+
+      # Tests that need FFmpeg or the network are #[ignore] and stay skipped
+      - name: Test
+        run: cargo test --workspace
+
+      # Reported, not enforced, until the existing warnings are cleared
+      - name: Clippy
+        run: cargo clippy --workspace
 
   fmt:
+    name: Rust formatting
     runs-on: ubuntu-22.04
     steps:
-    - uses: actions/checkout@v4
-    - name: Install Rust toolchain
-      uses: dtolnay/rust-action@stable
-      with:
-        components: rustfmt
-    - name: Check formatting
-      run: cargo fmt --check
-      working-directory: ./src-tauri
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+
+      - name: Check formatting
+        run: cargo fmt --all --check

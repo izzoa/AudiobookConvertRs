@@ -1,7 +1,6 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "AudiobookConvertRs",
-  "version": "0.1.0",
   "identifier": "com.audiobookconvert.rs",
   "build": {
     "frontendDist": "../src-ui/dist",
