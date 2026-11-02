@@ -46,7 +46,7 @@ Please be respectful and constructive in all interactions. We welcome contributo
 
 ### Prerequisites
 
-- Rust 1.85+ (`rustup update stable`)
+- Rust 1.88+ (`rustup update stable`)
 - Node.js 22+ and npm
 - FFmpeg installed and in PATH
 

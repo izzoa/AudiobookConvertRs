@@ -5,7 +5,7 @@ This guide helps you set up a development environment for AudiobookConvertRs.
 ## Prerequisites
 
 ### Required
-- **Rust** 1.85+ (install via [rustup](https://rustup.rs/))
+- **Rust** 1.88+ (install via [rustup](https://rustup.rs/))
 - **Node.js** 22+ (for frontend)
 - **FFmpeg** 4.0+ (for audio conversion)
 

@@ -58,15 +58,15 @@ jobs:
         run: npm test --prefix src-ui
 
       - name: Build
-        run: cargo build --workspace
+        run: cargo build --workspace --locked
 
       # Tests that need FFmpeg or the network are #[ignore] and stay skipped
       - name: Test
-        run: cargo test --workspace
+        run: cargo test --workspace --locked
 
       # Reported, not enforced, until the existing warnings are cleared
       - name: Clippy
-        run: cargo clippy --workspace
+        run: cargo clippy --workspace --locked
 
   fmt:
     name: Rust formatting

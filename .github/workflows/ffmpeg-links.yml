@@ -41,5 +41,5 @@ jobs:
           npm run build --prefix src-ui
 
       - name: Download and check every fixed build
-        run: cargo test --test ffmpeg_sources_live -- --ignored --nocapture
+        run: cargo test --locked --test ffmpeg_sources_live -- --ignored --nocapture
         working-directory: ./src-tauri
