@@ -1,521 +1,332 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { useApp } from '@/context/AppContext';
-import { Button } from '@/components/ui/button';
-import { ArrowLeftIcon, Cog6ToothIcon } from '@heroicons/react/24/outline';
+import { SUPPORTED_FORMATS_TEXT } from '@/lib/formats';
+import { MOD_KEY } from '@/lib/format';
+import { cn } from '@/lib/utils';
 
-type HelpTab = 'quickstart' | 'workflow' | 'projects' | 'metadata' | 'chapters' | 'quality' | 'conversion' | 'troubleshooting';
-
-const TABS: { id: HelpTab; label: string }[] = [
-    { id: 'quickstart', label: 'Quick Start' },
-    { id: 'workflow', label: 'Workflow' },
-    { id: 'projects', label: 'Projects' },
-    { id: 'metadata', label: 'Metadata' },
+const SECTIONS = [
+    { id: 'start', label: 'Getting started' },
+    { id: 'files', label: 'Files and order' },
     { id: 'chapters', label: 'Chapters' },
-    { id: 'quality', label: 'Quality' },
-    { id: 'conversion', label: 'Conversion' },
+    { id: 'tags', label: 'Tags and cover' },
+    { id: 'convert', label: 'Converting' },
+    { id: 'queue', label: 'The queue' },
+    { id: 'projects', label: 'Projects' },
+    { id: 'shortcuts', label: 'Shortcuts' },
     { id: 'troubleshooting', label: 'Troubleshooting' },
-];
+] as const;
 
+/**
+ * One document with a contents rail, rather than tabs: help is read and
+ * searched with ⌘F, and tabs hid most of it from both.
+ */
 export function HelpPage() {
     const { setView } = useApp();
-    const [activeTab, setActiveTab] = useState<HelpTab>('quickstart');
+    const [current, setCurrent] = useState<string>(SECTIONS[0].id);
+    const bodyRef = useRef<HTMLDivElement>(null);
 
-    const handleBackToApp = () => {
-        setView('workflow');
+    // Highlight whichever section heading most recently crossed the top third.
+    useEffect(() => {
+        const root = bodyRef.current?.closest('.overflow-y-auto') ?? null;
+        const observer = new IntersectionObserver(
+            (entries) => {
+                const visible = entries.filter((e) => e.isIntersecting);
+                if (visible.length) setCurrent(visible[0].target.id);
+            },
+            { root, rootMargin: '0px 0px -66% 0px' }
+        );
+        bodyRef.current?.querySelectorAll('section[id]').forEach((el) => observer.observe(el));
+        return () => observer.disconnect();
+    }, []);
+
+    const jump = (id: string) => {
+        document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        setCurrent(id);
     };
 
-    const handleGoToSettings = () => {
-        setView('settings');
-    };
+    const toSettings = (
+        <button
+            onClick={() => setView('settings')}
+            className="font-medium text-foreground underline underline-offset-4 decoration-border hover:decoration-foreground"
+        >
+            Settings
+        </button>
+    );
 
     return (
-        <div className="p-6 space-y-6 max-w-3xl mx-auto">
-            <div className="flex items-center gap-4">
-                <Button variant="ghost" size="sm" onClick={handleBackToApp}>
-                    <ArrowLeftIcon className="w-4 h-4 mr-2" />
-                    Back to App
-                </Button>
-                <h1 className="text-2xl font-semibold">Help</h1>
-            </div>
+        <div className="max-w-4xl mx-auto px-6 pt-8 pb-24 grid grid-cols-[168px_1fr] gap-10">
+            <nav className="sticky top-8 self-start no-select" aria-label="Help contents">
+                <p className="mb-2 px-2 text-sm font-semibold">Help</p>
+                <ul className="space-y-px">
+                    {SECTIONS.map((section) => (
+                        <li key={section.id}>
+                            <button
+                                onClick={() => jump(section.id)}
+                                aria-current={current === section.id ? 'location' : undefined}
+                                className={cn(
+                                    'w-full text-left px-2 py-1 rounded-md text-sm transition-colors',
+                                    current === section.id
+                                        ? 'bg-accent text-foreground font-medium'
+                                        : 'text-muted-foreground hover:text-foreground hover:bg-accent/50'
+                                )}
+                            >
+                                {section.label}
+                            </button>
+                        </li>
+                    ))}
+                </ul>
+            </nav>
 
-            <div className="flex flex-wrap gap-2">
-                {TABS.map((tab) => (
-                    <Button
-                        key={tab.id}
-                        variant={activeTab === tab.id ? 'default' : 'outline'}
-                        size="sm"
-                        onClick={() => setActiveTab(tab.id)}
-                    >
-                        {tab.label}
-                    </Button>
-                ))}
-            </div>
+            <div ref={bodyRef} className="min-w-0 max-w-[65ch] space-y-12 text-sm leading-relaxed text-foreground/90">
+                <Section id="start" title="Getting started">
+                    <p>
+                        Drop audio files, or a whole folder, anywhere in the window. You can also use{' '}
+                        <B>Choose files</B> or <B>Choose folder</B> on the start screen. Everything you add becomes one
+                        book, which converts to a single M4B with chapters, tags and cover art.
+                    </p>
+                    <p>
+                        Folders are read with all their subfolders. A book split into disc folders such as{' '}
+                        <Code>CD1</Code> and <Code>CD2</Code> keeps disc order.
+                    </p>
+                    <List>
+                        <li>Supported formats: {SUPPORTED_FORMATS_TEXT}. WMA, Audible AAX and Opus are not supported.</li>
+                        <li>FFmpeg must be installed. {toSettings} shows whether it was found.</li>
+                    </List>
+                    <p>
+                        The screen keeps everything about the open book in view: its files and chapters in the middle,
+                        its cover and tags on the right, and the <B>Convert to M4B</B> bar along the bottom.
+                    </p>
+                </Section>
 
-            <section className="border rounded-lg p-4 space-y-4">
-                {activeTab === 'quickstart' && <QuickStartTab />}
-                {activeTab === 'workflow' && <WorkflowTab />}
-                {activeTab === 'projects' && <ProjectsTab onGoToSettings={handleGoToSettings} />}
-                {activeTab === 'metadata' && <MetadataTab />}
-                {activeTab === 'chapters' && <ChaptersTab />}
-                {activeTab === 'quality' && <QualityTab />}
-                {activeTab === 'conversion' && <ConversionTab />}
-                {activeTab === 'troubleshooting' && <TroubleshootingTab onGoToSettings={handleGoToSettings} />}
-            </section>
+                <Section id="files" title="Files and order">
+                    <p>The order of the Files list is the order listeners hear.</p>
+                    <List>
+                        <li>Drag a row by its handle to move it.</li>
+                        <li>
+                            <B>Sort</B> orders by filename (folder first, numbers counted properly), by track number, or by
+                            duration.
+                        </li>
+                        <li>
+                            Click a row to select it, {MOD_KEY}-click to select several, then <B>Remove</B>.
+                        </li>
+                        <li>Hover a row and press play to hear the file.</li>
+                    </List>
+                    <p>
+                        A warning appears above the list when the filenames suggest a different order than the current
+                        one. Moving or removing files rebuilds the book and recreates its chapters from the files; if you
+                        renamed chapters, you are asked first.
+                    </p>
+                </Section>
+
+                <Section id="chapters" title="Chapters">
+                    <p>
+                        Each file starts as one chapter, named by the file's title tag, or by its filename when the tag is missing or is just the book's title. Players use these to jump around the book.
+                    </p>
+                    <List>
+                        <li>
+                            <B>Generate</B> replaces them with chapter marks already inside the files, a CUE sheet, or a
+                            chapter file (FFmetadata, Audacity labels or CSV).
+                        </li>
+                        <li>
+                            <B>Export</B> saves the list as Audacity labels, FFmetadata or CSV.
+                        </li>
+                        <li>
+                            <B>Clean up titles</B> strips track numbers and similar noise, or applies your own pattern.
+                        </li>
+                        <li>Double-click a title, or tab to it and press Enter, to rename it. Drag rows to reorder.</li>
+                    </List>
+                    <p>The editor warns about gaps, overlaps and chapters that run past the end of the book.</p>
+                </Section>
+
+                <Section id="tags" title="Tags and cover">
+                    <p>
+                        Tags are read from the source files on import and edited on the right. A field saves when you
+                        leave it; Escape puts back what was there. <B>More fields</B> shows album, publisher, language,
+                        copyright, description and comments.
+                    </p>
+                    <List>
+                        <li>Click the cover to choose an image.</li>
+                        <li>
+                            <B>Auto</B> uses art embedded in the files or an image beside them. This also runs once when a
+                            book is imported.
+                        </li>
+                        <li>
+                            <B>Find online</B> searches Open Library for the book's details and cover.
+                        </li>
+                    </List>
+                    <p>Every edit can be undone from the arrows in the top bar, or with {MOD_KEY}Z.</p>
+                </Section>
+
+                <Section id="convert" title="Converting">
+                    <p>
+                        The strip above <B>Convert to M4B</B> shows whether the book is ready: its files, cover, chapters
+                        and output file. A missing cover is allowed; the others must be in place.
+                    </p>
+                    <List>
+                        <li>
+                            <B>Output</B> defaults to the output folder from {toSettings}, named after the book. Click it to
+                            choose another place. If a file is already there, you are asked before it is replaced.
+                        </li>
+                        <li>
+                            <B>Quality</B> sets bitrate, VBR or CBR, what to embed, and loudness normalization. 64k is
+                            plenty for spoken word. Save a combination as a preset to reuse it.
+                        </li>
+                        <li>Estimated size and conversion time update as you change these.</li>
+                    </List>
+                    <p>
+                        <B>Convert to M4B</B> adds the book to the queue and starts it, then shows the queue.
+                    </p>
+                </Section>
+
+                <Section id="queue" title="The queue">
+                    <p>
+                        Books convert in the background, so you can open and prepare the next one while earlier ones run.
+                        How many convert at once is set in {toSettings}. Jobs are kept if you quit and reopen the app.
+                    </p>
+                    <List>
+                        <li>
+                            <B>Start queue</B> and <B>Pause queue</B> control the whole queue; <B>Clear finished</B> tidies
+                            the list.
+                        </li>
+                        <li>
+                            Select a job to see its stage, progress and output path, and to <B>Cancel</B>, <B>Retry</B> or{' '}
+                            <B>Show in folder</B>.
+                        </li>
+                    </List>
+                </Section>
+
+                <Section id="projects" title="Projects">
+                    <p>
+                        A project file (<Code>.abcproj</Code>) saves a book to finish later: its files and their order,
+                        tags, chapters, cover and any project-specific conversion settings. Project commands are in the
+                        menu under the book's title in the top bar.
+                    </p>
+                    <List>
+                        <li>
+                            <B>Save project as</B>, <B>Open project</B> and recently opened projects.
+                        </li>
+                        <li>
+                            <B>Export chapter summary</B> writes the chapter list out for reference.
+                        </li>
+                        <li>
+                            Per-project conversion settings are under <B>This project</B> in {toSettings} while a project is
+                            open.
+                        </li>
+                    </List>
+                </Section>
+
+                <Section id="shortcuts" title="Shortcuts">
+                    <dl className="grid grid-cols-[max-content_1fr] gap-x-6 gap-y-2">
+                        <Shortcut keys={`${MOD_KEY}O`}>Open project</Shortcut>
+                        <Shortcut keys={`${MOD_KEY}S`}>Save project</Shortcut>
+                        <Shortcut keys={`${MOD_KEY}Z`}>Undo</Shortcut>
+                        <Shortcut keys={MOD_KEY === '⌘' ? '⇧⌘Z' : 'Ctrl+Y'}>Redo</Shortcut>
+                    </dl>
+                </Section>
+
+                <Section id="troubleshooting" title="Troubleshooting">
+                    <Topic title="FFmpeg not found">
+                        <p>Nothing can convert until FFmpeg is installed.</p>
+                        <List>
+                            <li>
+                                macOS: <Code>brew install ffmpeg</Code>
+                            </li>
+                            <li>
+                                Linux: <Code>apt install ffmpeg</Code> or your distribution's equivalent
+                            </li>
+                            <li>
+                                Windows: download it from{' '}
+                                <a
+                                    href="https://ffmpeg.org/download.html"
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="underline underline-offset-4"
+                                >
+                                    ffmpeg.org
+                                </a>{' '}
+                                and add it to your PATH
+                            </li>
+                        </List>
+                        <p>
+                            Then press <B>Check again</B> under FFmpeg in {toSettings}.
+                        </p>
+                    </Topic>
+                    <Topic title="Files will not import">
+                        <List>
+                            <li>Check the format is one of {SUPPORTED_FORMATS_TEXT}.</li>
+                            <li>Play the file in another app to rule out a damaged file.</li>
+                            <li>Make sure you can read the files and the folder they are in.</li>
+                        </List>
+                    </Topic>
+                    <Topic title="A conversion failed">
+                        <List>
+                            <li>
+                                Open the job in the queue and read the error; <B>Copy error</B> copies it for a bug report.
+                            </li>
+                            <li>Check the output folder exists, is writable and has free space.</li>
+                            <li>
+                                Run <Code>ffmpeg -version</Code> in a terminal to confirm FFmpeg works.
+                            </li>
+                            <li>
+                                Press <B>Retry</B>, or convert to a different output path.
+                            </li>
+                        </List>
+                    </Topic>
+                    <Topic title="Progress seems stuck">
+                        <p>
+                            Long books can take a while to report their first progress, and normalization adds a full
+                            analysis pass before encoding starts. If nothing changes for several minutes, cancel and
+                            retry the job.
+                        </p>
+                    </Topic>
+                    <Topic title="Something else">
+                        <p>Check the project's GitHub repository for known issues, or report a new one there.</p>
+                    </Topic>
+                </Section>
+            </div>
         </div>
     );
 }
 
-function QuickStartTab() {
+function Section({ id, title, children }: { id: string; title: string; children: ReactNode }) {
     return (
-        <>
-            <h2 className="text-lg font-medium">Quick Start</h2>
-            <div className="space-y-4 text-sm">
-                <div>
-                    <h3 className="font-medium text-muted-foreground mb-2">Prerequisites</h3>
-                    <ul className="list-disc list-inside space-y-1 text-muted-foreground">
-                        <li>FFmpeg must be installed and accessible in your system PATH</li>
-                        <li>Audio files in supported formats: MP3, FLAC, M4A, M4B, WAV, OGG, WMA, AAC</li>
-                    </ul>
-                </div>
-
-                <div>
-                    <h3 className="font-medium text-muted-foreground mb-2">60-Second Conversion</h3>
-                    <ol className="list-decimal list-inside space-y-2 text-muted-foreground">
-                        <li>Click <strong>Import Files</strong> in the sidebar and select your audio files</li>
-                        <li>Review the auto-detected metadata and chapters (edit if needed)</li>
-                        <li>Scroll to <strong>Step 3: Convert</strong> and click <strong>Configure</strong></li>
-                        <li>Set your output path and options, then click <strong>Confirm</strong></li>
-                        <li>Click <strong>Add to Queue</strong>, then <strong>Start Queue</strong></li>
-                        <li>Wait for conversion to complete - your M4B audiobook is ready!</li>
-                    </ol>
-                </div>
-            </div>
-        </>
+        <section id={id} className="scroll-mt-8 space-y-3">
+            <h2 className="text-lg font-semibold tracking-tight text-foreground">{title}</h2>
+            {children}
+        </section>
     );
 }
 
-function WorkflowTab() {
+function Topic({ title, children }: { title: string; children: ReactNode }) {
     return (
-        <>
-            <h2 className="text-lg font-medium">Workflow Overview</h2>
-            <div className="space-y-4 text-sm">
-                <p className="text-muted-foreground">
-                    The main screen is organized into sequential steps for converting audio files to M4B audiobooks.
-                </p>
-
-                <div>
-                    <h3 className="font-medium text-muted-foreground mb-2">Project Section</h3>
-                    <p className="text-muted-foreground">
-                        Save and load your work. Projects preserve your audiobook, metadata, chapters, and conversion settings.
-                    </p>
-                </div>
-
-                <div>
-                    <h3 className="font-medium text-muted-foreground mb-2">Step 1: Import Files</h3>
-                    <p className="text-muted-foreground">
-                        Click the browse button to select audio files. Drag-and-drop is not currently supported for importing.
-                        Selected files are analyzed and their metadata is extracted automatically.
-                    </p>
-                </div>
-
-                <div>
-                    <h3 className="font-medium text-muted-foreground mb-2">Step 2: Edit Metadata</h3>
-                    <p className="text-muted-foreground">
-                        Edit title, author, narrator, and other metadata fields. You can fetch metadata from Open Library
-                        or manually edit each field. Cover artwork can be added via the artwork panel.
-                    </p>
-                </div>
-
-                <div>
-                    <h3 className="font-medium text-muted-foreground mb-2">Step 2b: Edit Chapters</h3>
-                    <p className="text-muted-foreground">
-                        Chapters are auto-created from your input files. You can import chapters from external files,
-                        extract from existing M4B files, rename using regex patterns, or manually edit times and titles.
-                    </p>
-                </div>
-
-                <div>
-                    <h3 className="font-medium text-muted-foreground mb-2">Audio Quality</h3>
-                    <p className="text-muted-foreground">
-                        Analyze audio loudness levels and optionally apply normalization for consistent volume.
-                    </p>
-                </div>
-
-                <div>
-                    <h3 className="font-medium text-muted-foreground mb-2">Step 3: Convert</h3>
-                    <p className="text-muted-foreground">
-                        Preview conversion estimates, configure output settings, add to queue, and start the conversion process.
-                    </p>
-                </div>
-            </div>
-        </>
+        <div className="space-y-2 pt-1">
+            <h3 className="font-semibold text-foreground">{title}</h3>
+            {children}
+        </div>
     );
 }
 
-function ProjectsTab({ onGoToSettings }: { onGoToSettings: () => void }) {
-    return (
-        <>
-            <h2 className="text-lg font-medium">Projects</h2>
-            <div className="space-y-4 text-sm">
-                <p className="text-muted-foreground">
-                    Projects let you save your work and return to it later. A project file (.abcproj) contains
-                    everything about your audiobook conversion.
-                </p>
-
-                <div>
-                    <h3 className="font-medium text-muted-foreground mb-2">What's Saved in a Project</h3>
-                    <ul className="list-disc list-inside space-y-1 text-muted-foreground">
-                        <li>Audiobook structure (files, duration, total size)</li>
-                        <li>All metadata (title, author, narrator, etc.)</li>
-                        <li>Chapter definitions and titles</li>
-                        <li>Cover artwork reference</li>
-                        <li>Project-specific conversion defaults (optional)</li>
-                        <li>Notes field for your own reference</li>
-                    </ul>
-                </div>
-
-                <div>
-                    <h3 className="font-medium text-muted-foreground mb-2">Project Actions</h3>
-                    <ul className="list-disc list-inside space-y-1 text-muted-foreground">
-                        <li><strong>Save Project</strong> - Save current work to a .abcproj file</li>
-                        <li><strong>Open Project</strong> - Load a previously saved project (sidebar)</li>
-                        <li><strong>Recent Projects</strong> - Quick access to recently opened projects (sidebar)</li>
-                        <li><strong>Export Summary</strong> - Export chapter list to text/CSV for reference</li>
-                    </ul>
-                </div>
-
-                <div>
-                    <h3 className="font-medium text-muted-foreground mb-2">Project vs Global Settings</h3>
-                    <p className="text-muted-foreground">
-                        Projects can override global conversion defaults (bitrate, sample rate, etc.).
-                        Configure project-specific defaults in{' '}
-                        <Button variant="link" size="sm" className="h-auto p-0" onClick={onGoToSettings}>
-                            <Cog6ToothIcon className="w-3 h-3 mr-1" />
-                            Settings
-                        </Button>
-                        {' '}under "Project Overrides" when a project is loaded.
-                    </p>
-                </div>
-            </div>
-        </>
-    );
+function List({ children }: { children: ReactNode }) {
+    return <ul className="list-disc pl-5 space-y-1.5 marker:text-muted-foreground">{children}</ul>;
 }
 
-function MetadataTab() {
-    return (
-        <>
-            <h2 className="text-lg font-medium">Metadata</h2>
-            <div className="space-y-4 text-sm">
-                <p className="text-muted-foreground">
-                    Metadata is information embedded in your audiobook file - title, author, narrator, and more.
-                </p>
-
-                <div>
-                    <h3 className="font-medium text-muted-foreground mb-2">Manual Editing</h3>
-                    <p className="text-muted-foreground">
-                        Edit any field directly in the metadata form. Fields include: Title, Author, Narrator,
-                        Album, Year, Genre, Series, Series Index, Publisher, Copyright, Language, and Description.
-                    </p>
-                </div>
-
-                <div>
-                    <h3 className="font-medium text-muted-foreground mb-2">Open Library Integration</h3>
-                    <p className="text-muted-foreground">
-                        Click <strong>Fetch from Open Library</strong> to search for book metadata online.
-                        Use the search results to pre-fill metadata and optionally apply a cover image.
-                    </p>
-                    <ul className="list-disc list-inside space-y-1 text-muted-foreground mt-2">
-                        <li><strong>Prefill/Search</strong> - Enter a title or author to search</li>
-                        <li><strong>Apply Metadata</strong> - Apply selected result's metadata to your audiobook</li>
-                        <li><strong>Apply Metadata + Cover</strong> - Also download and apply the cover art</li>
-                    </ul>
-                </div>
-
-                <div>
-                    <h3 className="font-medium text-muted-foreground mb-2">Cover Artwork</h3>
-                    <p className="text-muted-foreground">
-                        The artwork panel shows your current cover image. You can:
-                    </p>
-                    <ul className="list-disc list-inside space-y-1 text-muted-foreground mt-2">
-                        <li>Click <strong>Choose Image...</strong> to select an image file</li>
-                        <li>Drag and drop an image onto the artwork panel</li>
-                        <li>Click <strong>Remove</strong> to clear the current artwork</li>
-                    </ul>
-                </div>
-
-                <div>
-                    <h3 className="font-medium text-muted-foreground mb-2">Saving Metadata</h3>
-                    <p className="text-muted-foreground">
-                        Click <strong>Save Metadata</strong> to persist changes. Metadata is embedded in the final
-                        M4B file during conversion.
-                    </p>
-                </div>
-            </div>
-        </>
-    );
+function B({ children }: { children: ReactNode }) {
+    return <strong className="font-semibold text-foreground">{children}</strong>;
 }
 
-function ChaptersTab() {
-    return (
-        <>
-            <h2 className="text-lg font-medium">Chapters</h2>
-            <div className="space-y-4 text-sm">
-                <p className="text-muted-foreground">
-                    Chapters allow listeners to navigate through your audiobook. They're displayed in audiobook players
-                    and embedded using the QuickTime chapter format.
-                </p>
-
-                <div>
-                    <h3 className="font-medium text-muted-foreground mb-2">Auto-Generated Chapters</h3>
-                    <p className="text-muted-foreground">
-                        When you import files, chapters are automatically created - one per input file.
-                        Chapter titles are derived from filenames.
-                    </p>
-                </div>
-
-                <div>
-                    <h3 className="font-medium text-muted-foreground mb-2">Import/Export</h3>
-                    <ul className="list-disc list-inside space-y-1 text-muted-foreground">
-                        <li><strong>Import from File</strong> - Load chapters from FFmetadata, Audacity labels, or CSV</li>
-                        <li><strong>Export Chapters</strong> - Save chapters in Audacity, FFmeta, or CSV format</li>
-                        <li><strong>Extract from Files</strong> - Extract embedded chapters from M4B/MP3 files</li>
-                    </ul>
-                </div>
-
-                <div>
-                    <h3 className="font-medium text-muted-foreground mb-2">Rename with Regex</h3>
-                    <p className="text-muted-foreground">
-                        Use regex patterns to clean up chapter titles in bulk:
-                    </p>
-                    <ul className="list-disc list-inside space-y-1 text-muted-foreground mt-2">
-                        <li><strong>Remove Track Numbers</strong> - Strips leading numbers like "01 - " or "Track 01"</li>
-                        <li><strong>Remove File Extensions</strong> - Removes .mp3, .flac, etc.</li>
-                        <li><strong>Remove Underscores</strong> - Replaces underscores with spaces</li>
-                        <li><strong>Custom Regex</strong> - Apply your own pattern with "Apply Custom Regex"</li>
-                    </ul>
-                </div>
-
-                <div>
-                    <h3 className="font-medium text-muted-foreground mb-2">Manual Editing</h3>
-                    <p className="text-muted-foreground">
-                        Click on a chapter to edit its title and timing. Use the add/delete buttons to manage chapters.
-                        The editor validates for gaps and overlaps between chapters.
-                    </p>
-                </div>
-
-                <div>
-                    <h3 className="font-medium text-muted-foreground mb-2">Warnings</h3>
-                    <p className="text-muted-foreground">
-                        The chapter editor will warn you about:
-                    </p>
-                    <ul className="list-disc list-inside space-y-1 text-muted-foreground mt-2">
-                        <li><strong>Gaps</strong> - Time between chapters that isn't covered</li>
-                        <li><strong>Overlaps</strong> - Chapters with overlapping time ranges</li>
-                        <li><strong>Out of bounds</strong> - Chapters extending past the total duration</li>
-                    </ul>
-                </div>
-            </div>
-        </>
-    );
+function Code({ children }: { children: ReactNode }) {
+    return <code className="rounded bg-muted px-1 py-0.5 font-mono text-[0.85em]">{children}</code>;
 }
 
-function QualityTab() {
+function Shortcut({ keys, children }: { keys: string; children: ReactNode }) {
     return (
         <>
-            <h2 className="text-lg font-medium">Audio Quality</h2>
-            <div className="space-y-4 text-sm">
-                <p className="text-muted-foreground">
-                    The Audio Quality section helps ensure consistent volume levels across your audiobook.
-                </p>
-
-                <div>
-                    <h3 className="font-medium text-muted-foreground mb-2">Analyze Audio</h3>
-                    <p className="text-muted-foreground">
-                        Click <strong>Analyze Audio</strong> to measure loudness levels using EBU R128 standard.
-                        The analysis provides:
-                    </p>
-                    <ul className="list-disc list-inside space-y-1 text-muted-foreground mt-2">
-                        <li><strong>Integrated Loudness (LUFS)</strong> - Overall perceived loudness</li>
-                        <li><strong>Loudness Range (LU)</strong> - Dynamic range variation</li>
-                        <li><strong>True Peak (dBTP)</strong> - Maximum sample peak level</li>
-                    </ul>
-                </div>
-
-                <div>
-                    <h3 className="font-medium text-muted-foreground mb-2">Normalization</h3>
-                    <p className="text-muted-foreground">
-                        If levels are outside recommended ranges, the app may suggest normalization.
-                        Normalization adjusts audio to consistent loudness targets:
-                    </p>
-                    <ul className="list-disc list-inside space-y-1 text-muted-foreground mt-2">
-                        <li><strong>Target LUFS</strong> - Recommended: -16 to -19 LUFS for audiobooks</li>
-                        <li><strong>True Peak Limit</strong> - Prevents clipping, typically -1.0 dBTP</li>
-                    </ul>
-                </div>
-
-                <div>
-                    <h3 className="font-medium text-muted-foreground mb-2">Current Status</h3>
-                    <p className="text-muted-foreground">
-                        Note: Audio normalization during conversion is not yet implemented. Analysis is available
-                        for informational purposes. Normalization will be applied during the FFmpeg encoding
-                        stage in a future update.
-                    </p>
-                </div>
-            </div>
-        </>
-    );
-}
-
-function ConversionTab() {
-    return (
-        <>
-            <h2 className="text-lg font-medium">Conversion</h2>
-            <div className="space-y-4 text-sm">
-                <p className="text-muted-foreground">
-                    The conversion step combines your audio files into a single M4B audiobook with embedded
-                    chapters, metadata, and artwork.
-                </p>
-
-                <div>
-                    <h3 className="font-medium text-muted-foreground mb-2">Preview Conversion</h3>
-                    <p className="text-muted-foreground">
-                        Click <strong>Preview Conversion</strong> to see estimates before converting:
-                    </p>
-                    <ul className="list-disc list-inside space-y-1 text-muted-foreground mt-2">
-                        <li>Input file count, duration, and size</li>
-                        <li>Estimated output size and conversion time</li>
-                        <li>Chapter and artwork status</li>
-                        <li>Warnings (e.g., output file already exists)</li>
-                    </ul>
-                </div>
-
-                <div>
-                    <h3 className="font-medium text-muted-foreground mb-2">Configure Settings</h3>
-                    <p className="text-muted-foreground">
-                        Click <strong>Configure</strong> to set conversion options:
-                    </p>
-                    <ul className="list-disc list-inside space-y-1 text-muted-foreground mt-2">
-                        <li><strong>Output File</strong> - Where to save the M4B file</li>
-                        <li><strong>Bitrate</strong> - Audio quality (32-256 kbps, higher = larger file)</li>
-                        <li><strong>Sample Rate</strong> - Match source or specify (22050/44100/48000 Hz)</li>
-                        <li><strong>Embed Chapters</strong> - Include chapter markers in output</li>
-                        <li><strong>Embed Artwork</strong> - Include cover image</li>
-                        <li><strong>Copy Metadata</strong> - Transfer title, author, etc.</li>
-                        <li><strong>Overwrite Existing</strong> - Replace file if it already exists</li>
-                    </ul>
-                </div>
-
-                <div>
-                    <h3 className="font-medium text-muted-foreground mb-2">Queue Management</h3>
-                    <p className="text-muted-foreground">
-                        After configuring, click <strong>Add to Queue</strong> to queue the conversion.
-                        You can queue multiple audiobooks before starting.
-                    </p>
-                    <ul className="list-disc list-inside space-y-1 text-muted-foreground mt-2">
-                        <li><strong>Start Queue</strong> - Begin processing queued conversions</li>
-                        <li><strong>Stop Queue</strong> - Stop processing (current job completes)</li>
-                        <li><strong>Cancel</strong> - Cancel a specific job (stops FFmpeg immediately)</li>
-                        <li><strong>Clear Queue</strong> - Remove all pending jobs</li>
-                        <li><strong>Clear Completed</strong> - Remove finished/failed jobs from list</li>
-                    </ul>
-                </div>
-
-                <div>
-                    <h3 className="font-medium text-muted-foreground mb-2">Progress Tracking</h3>
-                    <p className="text-muted-foreground">
-                        Each job shows a progress bar with percentage and estimated time remaining.
-                        The status message indicates the current conversion stage.
-                    </p>
-                </div>
-            </div>
-        </>
-    );
-}
-
-function TroubleshootingTab({ onGoToSettings }: { onGoToSettings: () => void }) {
-    return (
-        <>
-            <h2 className="text-lg font-medium">Troubleshooting</h2>
-            <div className="space-y-4 text-sm">
-                <div>
-                    <h3 className="font-medium text-muted-foreground mb-2">FFmpeg Not Found</h3>
-                    <p className="text-muted-foreground">
-                        If FFmpeg is not detected, conversion will not work. To fix:
-                    </p>
-                    <ul className="list-disc list-inside space-y-1 text-muted-foreground mt-2">
-                        <li>Install FFmpeg from <a href="https://ffmpeg.org/download.html" className="underline" target="_blank" rel="noopener noreferrer">ffmpeg.org</a></li>
-                        <li>On macOS: <code className="bg-muted px-1 rounded">brew install ffmpeg</code></li>
-                        <li>On Windows: Download and add to PATH, or use a package manager like Chocolatey</li>
-                        <li>On Linux: <code className="bg-muted px-1 rounded">apt install ffmpeg</code> or equivalent</li>
-                    </ul>
-                    <p className="text-muted-foreground mt-2">
-                        Check FFmpeg status in{' '}
-                        <Button variant="link" size="sm" className="h-auto p-0" onClick={onGoToSettings}>
-                            <Cog6ToothIcon className="w-3 h-3 mr-1" />
-                            Settings → System
-                        </Button>
-                    </p>
-                </div>
-
-                <div>
-                    <h3 className="font-medium text-muted-foreground mb-2">Output File Already Exists</h3>
-                    <p className="text-muted-foreground">
-                        If the output path already has a file, you'll see a warning. Options:
-                    </p>
-                    <ul className="list-disc list-inside space-y-1 text-muted-foreground mt-2">
-                        <li>Choose a different output path</li>
-                        <li>Enable "Overwrite existing file" in conversion settings</li>
-                        <li>Delete the existing file manually</li>
-                    </ul>
-                </div>
-
-                <div>
-                    <h3 className="font-medium text-muted-foreground mb-2">Import Failures</h3>
-                    <p className="text-muted-foreground">
-                        If files fail to import:
-                    </p>
-                    <ul className="list-disc list-inside space-y-1 text-muted-foreground mt-2">
-                        <li>Verify files are in supported formats (MP3, FLAC, M4A, WAV, OGG, AAC)</li>
-                        <li>Check files aren't corrupted (try playing in another app)</li>
-                        <li>Ensure you have read permissions for the files</li>
-                        <li>Try importing fewer files at once</li>
-                    </ul>
-                </div>
-
-                <div>
-                    <h3 className="font-medium text-muted-foreground mb-2">Conversion Errors</h3>
-                    <p className="text-muted-foreground">
-                        If conversion fails:
-                    </p>
-                    <ul className="list-disc list-inside space-y-1 text-muted-foreground mt-2">
-                        <li>Check the error message for specific details</li>
-                        <li>Ensure output directory exists and is writable</li>
-                        <li>Verify you have enough disk space</li>
-                        <li>Try a different output path</li>
-                        <li>Check FFmpeg is working: run <code className="bg-muted px-1 rounded">ffmpeg -version</code> in terminal</li>
-                    </ul>
-                </div>
-
-                <div>
-                    <h3 className="font-medium text-muted-foreground mb-2">Progress Not Updating</h3>
-                    <p className="text-muted-foreground">
-                        Progress updates every second. If stuck:
-                    </p>
-                    <ul className="list-disc list-inside space-y-1 text-muted-foreground mt-2">
-                        <li>Check if FFmpeg is still running (conversion may be slow for large files)</li>
-                        <li>For very long audiobooks, initial progress may take time to appear</li>
-                        <li>Cancel and retry if truly stuck</li>
-                    </ul>
-                </div>
-
-                <div>
-                    <h3 className="font-medium text-muted-foreground mb-2">Getting Help</h3>
-                    <p className="text-muted-foreground">
-                        If you encounter issues not covered here, check the project's GitHub repository
-                        for known issues or to report a new bug.
-                    </p>
-                </div>
-            </div>
+            <dt>
+                <kbd className="inline-block min-w-[2.25rem] rounded border bg-surface px-1.5 py-0.5 text-center font-mono text-xs shadow-plane">
+                    {keys}
+                </kbd>
+            </dt>
+            <dd className="text-muted-foreground">{children}</dd>
         </>
     );
 }

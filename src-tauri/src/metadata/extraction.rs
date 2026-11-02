@@ -151,13 +151,48 @@ pub fn extract_mp4_metadata(path: &Utf8Path) -> AppResult<Metadata> {
         if metadata.copyright.is_none() {
             metadata.copyright = tag.copyright().map(|s| s.to_string());
         }
+        if metadata.description.is_none() {
+            metadata.description = tag.description().map(|s| s.to_string());
+        }
+        // Freeform atoms written by apply_metadata_to_tag (same identifiers)
+        if metadata.narrator.is_none() {
+            metadata.narrator = first_freeform(&tag, &crate::metadata::writing::NARRATOR_IDENT);
+        }
+        if metadata.publisher.is_none() {
+            metadata.publisher = first_freeform(&tag, &crate::metadata::writing::PUBLISHER_IDENT);
+        }
+        if metadata.series.is_none() {
+            metadata.series = first_freeform(&tag, &crate::metadata::writing::SERIES_IDENT);
+        }
+        if metadata.series_index.is_none() {
+            metadata.series_index =
+                first_freeform(&tag, &crate::metadata::writing::SERIES_PART_IDENT)
+                    .and_then(|s| s.parse::<u32>().ok());
+        }
+        if metadata.language.is_none() {
+            metadata.language = first_freeform(&tag, &crate::metadata::writing::LANGUAGE_IDENT);
+        }
     }
 
     Ok(metadata)
 }
 
+/// Read the first freeform string value for an identifier.
+fn first_freeform(
+    tag: &mp4ameta::Tag,
+    ident: &mp4ameta::ident::FreeformIdentStatic,
+) -> Option<String> {
+    tag.strings_of(ident).next().map(|s| s.to_string())
+}
+
 /// Extract metadata fields from a Symphonia metadata revision
-fn extract_from_revision(metadata: &mut Metadata, meta_rev: &symphonia::core::meta::MetadataRevision) {
+///
+/// Shared with the audio loader so both paths read tags the same way — they
+/// drifted apart once, and MP3 imports silently lost every tag as a result.
+pub(crate) fn extract_from_revision(
+    metadata: &mut Metadata,
+    meta_rev: &symphonia::core::meta::MetadataRevision,
+) {
     for tag in meta_rev.tags() {
         let value_str = value_to_string(&tag.value);
         
@@ -376,5 +411,42 @@ mod tests {
         let path = Utf8Path::new("/nonexistent/file.mp3");
         let result = extract_metadata(path);
         assert!(result.is_err());
+    }
+
+    /// Fields written as freeform atoms (and description) must be readable
+    /// through the app's own extraction path — otherwise reloading a
+    /// converted file shows the same missing-field symptom.
+    #[test]
+    fn test_extract_reads_freeform_fields_after_write() {
+        use crate::metadata::writing::write_metadata_to_m4b;
+
+        let temp_dir = tempfile::tempdir().unwrap();
+        let dest = camino::Utf8PathBuf::from_path_buf(temp_dir.path().join("minimal.m4b")).unwrap();
+        std::fs::copy(
+            camino::Utf8PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+                .join("tests/fixtures/minimal.m4b"),
+            &dest,
+        )
+        .unwrap();
+
+        let metadata = Metadata {
+            narrator: Some("The Narrator".to_string()),
+            publisher: Some("The Publisher".to_string()),
+            series: Some("Pimsleur Italian".to_string()),
+            series_index: Some(1),
+            language: Some("it".to_string()),
+            description: Some("A description".to_string()),
+            ..Default::default()
+        };
+
+        write_metadata_to_m4b(&dest, &metadata).unwrap();
+
+        let extracted = extract_mp4_metadata(&dest).unwrap();
+        assert_eq!(extracted.narrator, Some("The Narrator".to_string()));
+        assert_eq!(extracted.publisher, Some("The Publisher".to_string()));
+        assert_eq!(extracted.series, Some("Pimsleur Italian".to_string()));
+        assert_eq!(extracted.series_index, Some(1));
+        assert_eq!(extracted.language, Some("it".to_string()));
+        assert_eq!(extracted.description, Some("A description".to_string()));
     }
 }

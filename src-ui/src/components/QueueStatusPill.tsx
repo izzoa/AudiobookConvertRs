@@ -16,6 +16,7 @@ export function QueueStatusPill() {
                 const state = await ConversionApi.getConversionQueueState();
                 setQueueState(state);
             } catch {
+                /* the pill simply stays hidden until the backend answers */
             }
         };
 
@@ -25,37 +26,26 @@ export function QueueStatusPill() {
     }, []);
 
     useEffect(() => {
-        const unlisteners: UnlistenFn[] = [];
+        const refresh = () => ConversionApi.getConversionQueueState().then(setQueueState).catch(() => {});
+        const pending: Promise<UnlistenFn>[] = [
+            listen<ConversionProgress>('conversion_progress', (event) => {
+                setTopJobProgress(event.payload.total_progress);
+                setQueueState((prev) => (prev ? { ...prev, active_jobs: Math.max(1, prev.active_jobs) } : null));
+            }),
+            listen('conversion_complete', () => {
+                setTopJobProgress(null);
+                refresh();
+            }),
+            listen('conversion_error', () => {
+                setTopJobProgress(null);
+                refresh();
+            }),
+        ];
 
-        const setup = async () => {
-            unlisteners.push(
-                await listen<ConversionProgress>('conversion_progress', (event) => {
-                    setTopJobProgress(event.payload.total_progress);
-                    setQueueState((prev) =>
-                        prev ? { ...prev, active_jobs: Math.max(1, prev.active_jobs) } : null
-                    );
-                })
-            );
-
-            unlisteners.push(
-                await listen('conversion_complete', () => {
-                    setTopJobProgress(null);
-                    ConversionApi.getConversionQueueState().then(setQueueState).catch(() => {});
-                })
-            );
-
-            unlisteners.push(
-                await listen('conversion_error', () => {
-                    setTopJobProgress(null);
-                    ConversionApi.getConversionQueueState().then(setQueueState).catch(() => {});
-                })
-            );
-        };
-
-        setup();
-
+        // Listeners resolve asynchronously, so detach them whenever they land —
+        // including after an unmount that happened first.
         return () => {
-            unlisteners.forEach((fn) => fn());
+            for (const p of pending) p.then((unlisten) => unlisten() as unknown).catch(() => {});
         };
     }, []);
 
@@ -69,8 +59,8 @@ export function QueueStatusPill() {
 
     return (
         <button
-            onClick={() => setView('jobs')}
-            className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-primary/10 text-primary text-xs font-medium hover:bg-primary/20 transition-colors"
+            onClick={() => setView('queue')}
+            className="flex items-center gap-1.5 h-7 px-2.5 rounded-full bg-primary/10 text-primary text-xs font-medium nums hover:bg-primary/20 transition-colors"
         >
             {queueState?.active_jobs ? (
                 <>

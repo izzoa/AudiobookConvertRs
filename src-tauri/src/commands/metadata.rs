@@ -441,7 +441,8 @@ pub async fn discover_artwork(
         .map(|f| Utf8PathBuf::from(&f.path))
         .collect();
 
-    discover_artwork_options(&file_paths).map_err(to_string_err)
+    let scan_folders = crate::config::get_settings().scan_for_cover_images;
+    discover_artwork_options(&file_paths, scan_folders).map_err(to_string_err)
 }
 
 #[tauri::command]

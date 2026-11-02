@@ -3,8 +3,9 @@
 //! Provides functions to load multiple audio files and create audiobooks
 //! with proper validation, metadata merging, and chapter creation.
 
+use crate::audio::format::{is_supported_format, SUPPORTED_FORMATS_LABEL};
 use crate::audio::loader::load_audio_file;
-use crate::audio::timing::create_chapters_from_files;
+use crate::metadata::chapters::create_chapters_from_files;
 use crate::error::{AppError, AppResult};
 use crate::models::{AudioBook, AudioFile, Metadata};
 use camino::{Utf8Path, Utf8PathBuf};
@@ -121,6 +122,40 @@ where
     BatchLoadResult { files, errors }
 }
 
+/// Expand any directories in `paths` into the supported audio files they hold.
+///
+/// Callers hand us whatever the user picked or dropped — files, a book folder,
+/// or a folder of per-disc subfolders — so directories are walked recursively.
+/// Files are returned in natural order within each directory, and anything that
+/// is not a supported audio file is dropped (cover images, cue sheets, .DS_Store).
+pub fn expand_input_paths(paths: &[Utf8PathBuf]) -> Vec<Utf8PathBuf> {
+    let mut expanded = Vec::new();
+
+    for path in paths {
+        if !path.is_dir() {
+            expanded.push(path.clone());
+            continue;
+        }
+
+        let mut found: Vec<Utf8PathBuf> = walkdir::WalkDir::new(path.as_std_path())
+            .follow_links(false)
+            .into_iter()
+            .filter_map(|entry| entry.ok())
+            .filter(|entry| entry.file_type().is_file())
+            .filter_map(|entry| Utf8PathBuf::from_path_buf(entry.into_path()).ok())
+            // Resource forks and the like share real extensions, so skip dotfiles.
+            .filter(|p| !p.file_name().map(|n| n.starts_with('.')).unwrap_or(false))
+            .filter(|p| is_supported_format(p))
+            .collect();
+
+        found.sort_by(|a, b| natural_sort(a, b));
+        debug!("Expanded directory {} to {} audio files", path, found.len());
+        expanded.extend(found);
+    }
+
+    expanded
+}
+
 /// Create an audiobook from a list of file paths
 ///
 /// This function:
@@ -134,10 +169,19 @@ pub fn load_audiobook_from_files(paths: &[Utf8PathBuf]) -> AppResult<AudioBook> 
         return Err(AppError::NoFilesProvided);
     }
 
+    let requested = paths;
+    let paths = expand_input_paths(paths);
+    if paths.is_empty() {
+        return Err(AppError::NoAudioFound {
+            location: describe_inputs(requested),
+            supported: SUPPORTED_FORMATS_LABEL.to_string(),
+        });
+    }
+
     info!("Creating audiobook from {} files", paths.len());
 
     // Load all files
-    let batch_result = load_files_batch(paths);
+    let batch_result = load_files_batch(&paths);
 
     if batch_result.files.is_empty() {
         // All files failed
@@ -155,7 +199,7 @@ pub fn load_audiobook_from_files(paths: &[Utf8PathBuf]) -> AppResult<AudioBook> 
     let files = batch_result.files;
 
     // Merge metadata from all files (use first file's metadata as base)
-    let merged_metadata = merge_metadata_from_files(&files);
+    let mut merged_metadata = merge_metadata_from_files(&files);
 
     // Create chapters from file boundaries
     let chapters = create_chapters_from_files(&files);
@@ -164,17 +208,19 @@ pub fn load_audiobook_from_files(paths: &[Utf8PathBuf]) -> AppResult<AudioBook> 
     let total_duration_ms: u64 = files.iter().map(|f| f.duration_ms).sum();
     let total_size_bytes: u64 = files.iter().map(|f| f.file_size_bytes).sum();
 
-    // Determine title from metadata or first file
-    let title = merged_metadata
-        .title
-        .clone()
-        .or_else(|| merged_metadata.album.clone())
-        .unwrap_or_else(|| {
-            files
-                .first()
-                .map(|f| f.stem().to_string())
-                .unwrap_or_else(|| "Untitled Audiobook".to_string())
-        });
+    let file_paths: Vec<Utf8PathBuf> = files.iter().map(|f| f.path.clone()).collect();
+    let title = choose_book_title(&files, &merged_metadata, book_folder(&file_paths).as_deref());
+
+    // The merged tags start from the first file, so for a multi-file book they
+    // describe its first chapter. The M4B's title and track tags must describe
+    // the book instead.
+    merged_metadata.title = Some(title.clone());
+    if files.len() > 1 {
+        merged_metadata.track_number = None;
+        merged_metadata.total_tracks = None;
+        merged_metadata.disc_number = None;
+        merged_metadata.total_discs = None;
+    }
 
     // Create audiobook
     let mut audiobook = AudioBook::new(title);
@@ -244,10 +290,98 @@ fn merge_metadata_from_files(files: &[AudioFile]) -> Metadata {
     merged
 }
 
+/// Picks the book's title.
+///
+/// A single file is the whole book, so its own title tag names it. Across
+/// several files the title tag names each chapter instead ("Opening", "Part 2"),
+/// and the album tag carries the book, so the album wins. When the tags give
+/// nothing usable, the folder the book lives in is a better name than the first
+/// file's stem ("01 - Opening").
+fn choose_book_title(files: &[AudioFile], merged: &Metadata, folder: Option<&Utf8Path>) -> String {
+    let non_empty = |v: &Option<String>| v.as_deref().map(str::trim).filter(|t| !t.is_empty()).map(String::from);
+
+    if files.len() == 1 {
+        if let Some(title) = non_empty(&files[0].metadata.title).or_else(|| non_empty(&merged.album)) {
+            return title;
+        }
+    } else {
+        if let Some(album) = non_empty(&merged.album) {
+            return album;
+        }
+        // Some rips stamp the book title on every track rather than in album.
+        let first = non_empty(&files[0].metadata.title);
+        if first.is_some() && files.iter().all(|f| non_empty(&f.metadata.title) == first) {
+            return first.unwrap();
+        }
+    }
+
+    folder
+        .and_then(|dir| dir.file_name())
+        .map(String::from)
+        .or_else(|| files.first().map(|f| f.stem().to_string()))
+        .unwrap_or_else(|| "Untitled Audiobook".to_string())
+}
+
+/// True for folders that split one book rather than name it: `CD1`, `Disc 2`,
+/// `disk_03`, `Part 4`, `Vol. 1`.
+pub fn is_disc_folder_name(name: &str) -> bool {
+    let lower = name.trim().to_lowercase();
+    let rest = ["volume", "disc", "disk", "part", "vol", "cd"]
+        .iter()
+        .find_map(|prefix| lower.strip_prefix(prefix));
+    match rest {
+        Some(rest) => {
+            let digits = rest.trim_start_matches(|c: char| c == ' ' || c == '_' || c == '-' || c == '.');
+            !digits.is_empty() && digits.chars().all(|c| c.is_ascii_digit())
+        }
+        None => false,
+    }
+}
+
+/// The folder that holds the whole book, when there is one.
+///
+/// That is the files' shared folder, stepping out of a disc folder (`CD1/`)
+/// when the files sit in one. Files picked from unrelated places have no book
+/// folder; reaching further up would name the book after something like the
+/// user's home directory.
+pub fn book_folder(paths: &[Utf8PathBuf]) -> Option<Utf8PathBuf> {
+    let parents: Vec<&Utf8Path> = paths.iter().filter_map(|p| p.parent()).collect();
+    let first = *parents.first()?;
+
+    let mut root = first.to_path_buf();
+    while !parents.iter().all(|p| p.starts_with(&root)) {
+        root = root.parent()?.to_path_buf();
+    }
+    if root.file_name().map(is_disc_folder_name).unwrap_or(false) {
+        root = root.parent()?.to_path_buf();
+    }
+
+    // Every file must be in the book folder or one level below it.
+    let close = parents.iter().all(|p| *p == root || p.parent() == Some(root.as_path()));
+    close.then_some(root)
+}
+
+/// Names what was dropped, for an error that says where nothing was found.
+fn describe_inputs(paths: &[Utf8PathBuf]) -> String {
+    match paths {
+        [one] => format!("\"{}\"", one.file_name().unwrap_or(one.as_str())),
+        many => format!("the {} dropped items", many.len()),
+    }
+}
+
 /// Natural sort comparison for file paths
 ///
 /// Handles numeric sequences properly (e.g., "Chapter 2" before "Chapter 10")
 fn natural_sort(a: &Utf8Path, b: &Utf8Path) -> Ordering {
+    // Compare the containing directory first: a book split across CD1/CD2
+    // holds "01 - …" in both, and comparing names alone interleaves the discs.
+    let a_parent = a.parent().map(|p| p.as_str()).unwrap_or("");
+    let b_parent = b.parent().map(|p| p.as_str()).unwrap_or("");
+    match natural_cmp(a_parent, b_parent) {
+        Ordering::Equal => {}
+        other => return other,
+    }
+
     let a_name = a.file_name().unwrap_or(a.as_str());
     let b_name = b.file_name().unwrap_or(b.as_str());
 
@@ -361,6 +495,103 @@ pub fn estimate_output_size(files: &[AudioFile], target_bitrate_kbps: u32) -> u6
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn book_file(path: &str, title: Option<&str>, album: Option<&str>) -> AudioFile {
+        use crate::models::AudioFormat;
+        AudioFile {
+            path: path.into(),
+            format: AudioFormat::Mp3,
+            duration_ms: 60_000,
+            bitrate_kbps: Some(64),
+            sample_rate_hz: Some(44_100),
+            channels: Some(2),
+            file_size_bytes: 1,
+            metadata: Metadata {
+                title: title.map(String::from),
+                album: album.map(String::from),
+                ..Metadata::default()
+            },
+            has_artwork: false,
+        }
+    }
+
+    #[test]
+    fn disc_folder_names() {
+        for name in ["CD1", "cd 2", "Disc 03", "disk_4", "Part 5", "Vol. 1", "Volume-2"] {
+            assert!(is_disc_folder_name(name), "{name} should be a disc folder");
+        }
+        for name in ["Dune", "CD", "Discworld", "Part One", "Cdx1"] {
+            assert!(!is_disc_folder_name(name), "{name} should not be a disc folder");
+        }
+    }
+
+    #[test]
+    fn book_folder_steps_out_of_disc_folders() {
+        let discs = [
+            Utf8PathBuf::from("/lib/Dune/CD1/01.mp3"),
+            Utf8PathBuf::from("/lib/Dune/CD2/01.mp3"),
+        ];
+        assert_eq!(book_folder(&discs).as_deref(), Some(Utf8Path::new("/lib/Dune")));
+
+        let one_disc = [Utf8PathBuf::from("/lib/Dune/Disc 1/01.mp3")];
+        assert_eq!(book_folder(&one_disc).as_deref(), Some(Utf8Path::new("/lib/Dune")));
+
+        let flat = [Utf8PathBuf::from("/lib/Dune/01.mp3"), Utf8PathBuf::from("/lib/Dune/02.mp3")];
+        assert_eq!(book_folder(&flat).as_deref(), Some(Utf8Path::new("/lib/Dune")));
+    }
+
+    #[test]
+    fn book_folder_is_none_for_unrelated_files() {
+        let scattered = [
+            Utf8PathBuf::from("/Users/me/Downloads/a/b/01.mp3"),
+            Utf8PathBuf::from("/Users/me/Desktop/02.mp3"),
+        ];
+        assert_eq!(book_folder(&scattered), None);
+    }
+
+    #[test]
+    fn multi_file_book_is_named_by_album_not_first_chapter() {
+        let files = [
+            book_file("/lib/x/01 - Opening.mp3", Some("Opening"), Some("The Clockwork Chronicle")),
+            book_file("/lib/x/02 - Arrival.mp3", Some("Arrival"), Some("The Clockwork Chronicle")),
+        ];
+        let merged = merge_metadata_from_files(&files);
+        assert_eq!(choose_book_title(&files, &merged, None), "The Clockwork Chronicle");
+    }
+
+    #[test]
+    fn multi_file_book_falls_back_to_shared_title_then_folder() {
+        let stamped = [
+            book_file("/lib/x/01.mp3", Some("Dune"), None),
+            book_file("/lib/x/02.mp3", Some("Dune"), None),
+        ];
+        assert_eq!(choose_book_title(&stamped, &merge_metadata_from_files(&stamped), None), "Dune");
+
+        let untagged = [
+            book_file("/lib/Dune/CD1/01 - Opening.mp3", Some("Opening"), None),
+            book_file("/lib/Dune/CD1/02 - Arrival.mp3", Some("Arrival"), None),
+        ];
+        let folder = Utf8Path::new("/lib/Dune");
+        assert_eq!(choose_book_title(&untagged, &merge_metadata_from_files(&untagged), Some(folder)), "Dune");
+    }
+
+    #[test]
+    fn single_file_book_is_named_by_its_title_tag() {
+        let files = [book_file("/lib/dune.m4b", Some("Dune"), Some("Dune Chronicles"))];
+        assert_eq!(choose_book_title(&files, &merge_metadata_from_files(&files), None), "Dune");
+    }
+
+    #[test]
+    fn empty_folder_names_the_folder_in_its_error() {
+        let temp = tempfile::tempdir().unwrap();
+        let dir = Utf8PathBuf::from_path_buf(temp.path().join("Empty Book")).unwrap();
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(dir.join("notes.txt"), "not audio").unwrap();
+
+        let message = load_audiobook_from_files(&[dir]).unwrap_err().to_string();
+        assert!(message.contains("\"Empty Book\""), "{message}");
+        assert!(message.contains("MP3"), "{message}");
+    }
 
     #[test]
     fn test_natural_cmp() {

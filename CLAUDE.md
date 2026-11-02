@@ -1022,6 +1022,28 @@ let mut guard = lock.lock();  // Note: mut required
 let _result = cvar.wait_for(&mut guard, Duration::from_secs(5));
 ```
 
+### Symphonia Metadata Lives in Two Places
+
+Tags can surface on the format reader **or** on the probe result, depending on
+the container. MP4/FLAC use the reader; an MP3's ID3v2 block sits ahead of the
+stream and lands on `probed.metadata`. Reading only one source silently loses
+every tag, and the code then falls back to the filename stem — so it looks like
+it works.
+
+```rust
+let mut probed = get_probe().format(&hint, mss, &fmt_opts, &meta_opts)?;
+let mut reader = probed.format; // partial move; probed.metadata stays usable
+
+if let Some(rev) = reader.metadata().current() { extract_from_revision(&mut m, rev); }
+if let Some(pm) = probed.metadata.get() {
+    if let Some(rev) = pm.current() { extract_from_revision(&mut m, rev); }
+}
+```
+
+Use the shared `metadata::extraction::extract_from_revision` for both — the
+loader once kept its own copy of the tag mapper, it drifted, and MP3 imports came
+back untagged. `tests/mp3_import_e2e.rs` guards this (run with `-- --ignored`).
+
 ### Path Handling (camino vs std)
 
 **Converting Between Path Types**:
@@ -1127,3 +1149,82 @@ pub use runner::*;  // Re-export public items
 
 **Good luck! This is a well-planned, achievable project. Follow the tasks systematically and you'll have a high-quality Rust audiobook converter. 🚀**
 
+
+---
+
+## UI Architecture (Workbench, Nov 2026)
+
+The step-by-step scrolling workflow was replaced with a fixed three-pane
+workbench. The shape of the UI is now the shape of the task: one book open at a
+time, its material in the center, its product on the right, and the action that
+produces it pinned to the bottom.
+
+### Layout
+
+```
+TopBar          book chip (identity + project menu) · undo/redo · queue pill
+Rail            Book / Queue / Settings / Help — navigation only, never commands
+Center          Files | Chapters tabs, each pane owns its own toolbar + scroll
+Inspector       cover art + metadata, always visible while editing the book
+ConvertBar      readiness strip, output path, quality popover, Convert to M4B
+AudioPlayer     in flow at the bottom; renders null when nothing is playing
+```
+
+Nothing scrolls except the inner panes. The Convert action can never scroll out
+of reach of the files it applies to — that was the core failure of the old
+single-document layout.
+
+### File map
+
+| Path | Role |
+| --- | --- |
+| `components/shell/` | `AppShell`, `TopBar`, `Rail` — the fixed chrome |
+| `components/workbench/` | `Workbench`, `FilesPanel`, `BookInspector`, `ConvertBar`, `EmptyState` |
+| `components/queue/QueuePage.tsx` | Jobs as a destination, with queue-level commands |
+| `components/ui/popover.tsx` | Anchored panel + menu items (no Radix dependency) |
+| `components/ui/select.tsx` | Native `<select>` in the field style — use it, not a bare select |
+| `components/ui/confirm.tsx` | `useConfirm()`: in-app confirm dialog on `<dialog>`; provider is in `main.tsx` |
+| `hooks/useProjectActions.ts` | Import / open / save / export / close, shared by the menu and shortcuts |
+| `hooks/useFileDrop.ts` | Native Tauri drag-drop; degrades to no-op outside a webview |
+| `lib/format.ts` | `formatBytes` / `formatDuration` / `formatClock` / `formatEta` |
+| `lib/formats.ts` | Supported input formats as shown to users; mirrors `SUPPORTED_EXTENSIONS` in `audio/format.rs` |
+| `dev/mockBackend.ts` | Dev-only `?mock` fixtures (see below) |
+
+### Conventions
+
+- **The rail holds destinations, not actions.** Commands live on the object they
+  act on: the book menu in `TopBar`, pane commands in each pane's toolbar.
+- **Design tokens only.** Use `bg-surface`, `bg-surface-2`, `bg-rail`, `text-success`,
+  `text-warning` and the usual shadcn tokens from `index.css`. Both themes are
+  defined there; never hard-code a hex value.
+- **The palette comes from the app icon** (`src-tauri/icons/icon.png`): indigo
+  primary, green success, amber warning. Change the icon and the tokens together.
+- **Indigo means "go" or "here".** `primary` marks a view's one main action (Convert,
+  Save changes, Retry), the current location (rail, active tab) and focus. Selected
+  segments and filter chips use neutral `accent`/`background` instead, so the main
+  action is never ambiguous.
+- **No `window.confirm` / `window.prompt`.** They are unstyled, cannot name their
+  buttons, and are not guaranteed inside a Tauri webview. Use `useConfirm()`, or
+  an inline input for naming things.
+- **One icon family: heroicons** (24/outline for UI, 20/solid for small transport
+  glyphs). `lucide-react` was removed; do not add a second set.
+- **`nums` on any numeric column** (durations, sizes, counts) so digits do not jitter.
+- **`no-select` on chrome** — toolbars, rails and headers are not documents.
+- **Metadata commits on blur**, not per keystroke: one undo entry and one backend
+  round trip per field edit.
+- **Reordering or removing files rebuilds the audiobook** via
+  `create_audiobook_from_files`, because the backend has no move/remove command.
+  `FilesPanel.rebuild()` re-applies typed metadata afterwards and prompts first
+  when chapters were hand-edited, since they are regenerated.
+
+### Previewing the UI without a Tauri build
+
+```bash
+npm run dev --prefix src-ui   # then open http://localhost:5173/?mock
+```
+
+`?mock` installs `window.__TAURI_INTERNALS__` from `src/dev/mockBackend.ts` with a
+fixture audiobook, so panes can be laid out and screenshotted without waiting on
+`cargo build`. It is gated on `import.meta.env.DEV` and is stripped from release
+bundles. Add a handler there whenever a new command is called during startup or
+the book flow, or it logs `[mock] unhandled command`.

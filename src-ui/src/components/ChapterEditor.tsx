@@ -1,6 +1,5 @@
 import { useState, useEffect } from "react";
 import { Button } from "./ui/button";
-import { Label } from "./ui/label";
 import { Input } from "./ui/input";
 import { useApp } from "@/context/AppContext";
 import * as ChaptersApi from "@/api/chapters";
@@ -8,7 +7,10 @@ import * as FilesApi from "@/api/files";
 import * as PlaybackApi from "@/api/playback";
 import type { Chapter } from "@/types/models";
 import type { CueDetectionResult } from "@/api/files";
-import { GripVertical, Play, Square } from "lucide-react";
+import { PlayIcon, StopIcon } from "@heroicons/react/20/solid";
+import { Popover, MenuItem, MenuLabel, MenuSeparator } from "./ui/popover";
+import { cn } from "@/lib/utils";
+import { Bars2Icon, SparklesIcon, ArrowUpTrayIcon, WrenchScrewdriverIcon, ExclamationTriangleIcon } from "@heroicons/react/24/outline";
 import {
     DndContext,
     closestCenter,
@@ -35,9 +37,11 @@ interface SortableChapterProps {
     formatDuration: (ms: number) => string;
     onPlay: (chapter: Chapter) => void;
     isPlaying: boolean;
+    onRename: (chapter: Chapter, title: string) => void;
 }
 
-function SortableChapter({ chapter, displayIndex, formatDuration, onPlay, isPlaying }: SortableChapterProps) {
+function SortableChapter({ chapter, displayIndex, formatDuration, onPlay, isPlaying, onRename }: SortableChapterProps) {
+    const [draft, setDraft] = useState<string | null>(null);
     const {
         attributes,
         listeners,
@@ -50,45 +54,75 @@ function SortableChapter({ chapter, displayIndex, formatDuration, onPlay, isPlay
     const style = {
         transform: CSS.Transform.toString(transform),
         transition,
-        opacity: isDragging ? 0.5 : 1,
-        zIndex: isDragging ? 1 : 0,
+    };
+
+    const commit = () => {
+        const next = (draft ?? "").trim();
+        if (next && next !== chapter.title) onRename(chapter, next);
+        setDraft(null);
     };
 
     return (
         <div
             ref={setNodeRef}
             style={style}
-            className={`flex items-center justify-between p-2 border rounded text-sm bg-card ${
-                isDragging ? 'shadow-lg border-primary' : 'hover:bg-muted/50'
-            }`}
+            className={cn(
+                "group flex items-center gap-2 h-[42px] px-2 border-b border-border/60 text-sm",
+                isDragging ? "relative z-10 bg-surface shadow-lift rounded-md border-transparent" : "hover:bg-accent/50"
+            )}
         >
-            <div className="flex items-center gap-2 flex-1 min-w-0">
+            <button
+                {...attributes}
+                {...listeners}
+                aria-label="Drag to reorder"
+                className="w-5 h-7 shrink-0 flex items-center justify-center text-muted-foreground/40 group-hover:text-muted-foreground cursor-grab active:cursor-grabbing touch-none"
+            >
+                <Bars2Icon className="h-4 w-4" />
+            </button>
+
+            <span className="w-7 shrink-0 text-right text-xs text-muted-foreground nums">{displayIndex + 1}</span>
+
+            {draft === null ? (
                 <button
-                    onClick={(e) => { e.stopPropagation(); onPlay(chapter); }}
-                    className="p-1 hover:bg-muted rounded"
-                    aria-label={isPlaying ? "Stop" : "Play chapter"}
-                    title={isPlaying ? "Stop" : "Play chapter"}
+                    onDoubleClick={() => setDraft(chapter.title)}
+                    onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === "F2") setDraft(chapter.title);
+                    }}
+                    className="flex-1 min-w-0 truncate text-left rounded-sm"
+                    title="Double-click or press Enter to rename"
                 >
-                    {isPlaying ? (
-                        <Square className="h-3 w-3 text-primary" />
-                    ) : (
-                        <Play className="h-3 w-3 text-muted-foreground" />
-                    )}
+                    {chapter.title}
                 </button>
-                <button
-                    {...attributes}
-                    {...listeners}
-                    className="cursor-grab active:cursor-grabbing touch-none p-1 hover:bg-muted rounded"
-                    aria-label="Drag to reorder"
-                >
-                    <GripVertical className="h-4 w-4 text-muted-foreground" />
-                </button>
-                <span className="font-medium">{displayIndex + 1}. </span>
-                <span className="truncate">{chapter.title}</span>
-            </div>
-            <div className="text-muted-foreground text-xs ml-4 flex-shrink-0">
-                {formatDuration(chapter.start_time_ms)} - {formatDuration(chapter.end_time_ms)}
-            </div>
+            ) : (
+                <input
+                    autoFocus
+                    value={draft}
+                    onChange={(e) => setDraft(e.target.value)}
+                    onBlur={commit}
+                    onKeyDown={(e) => {
+                        if (e.key === "Enter") commit();
+                        if (e.key === "Escape") setDraft(null);
+                    }}
+                    aria-label="Chapter title"
+                    className="flex-1 min-w-0 rounded-md border border-input bg-background px-2 py-1 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                />
+            )}
+
+            <span className="shrink-0 text-xs text-muted-foreground nums">
+                {formatDuration(chapter.start_time_ms)} – {formatDuration(chapter.end_time_ms)}
+            </span>
+
+            <button
+                onClick={(e) => { e.stopPropagation(); onPlay(chapter); }}
+                aria-label={isPlaying ? "Stop" : "Play chapter"}
+                title={isPlaying ? "Stop" : "Play chapter"}
+                className={cn(
+                    "w-7 h-7 shrink-0 rounded-md flex items-center justify-center transition-opacity",
+                    isPlaying ? "text-primary" : "text-muted-foreground opacity-0 group-hover:opacity-100 focus:opacity-100 hover:bg-accent"
+                )}
+            >
+                {isPlaying ? <StopIcon className="h-3.5 w-3.5" /> : <PlayIcon className="h-3.5 w-3.5" />}
+            </button>
         </div>
     );
 }
@@ -438,243 +472,208 @@ export function ChapterEditor() {
 
     const chapterIds = activeAudiobook.chapters.map((ch) => ch.index.toString());
 
+    const handleRename = async (chapter: Chapter, title: string) => {
+        const next = activeAudiobook.chapters.map((ch) =>
+            ch.index === chapter.index ? { ...ch, title } : ch
+        );
+        const previous = activeAudiobook;
+        setActiveAudiobook({ ...activeAudiobook, chapters: next });
+        try {
+            setActiveAudiobook(await ChaptersApi.setChapters(activeAudiobook.id, next));
+            setError(null);
+        } catch (err) {
+            console.error("Failed to rename chapter:", err);
+            setError(`Rename failed: ${err}`);
+            setActiveAudiobook(previous);
+        }
+    };
+
     return (
-        <div className="space-y-6">
-            {/* Chapter Summary */}
-            <div className="p-4 border rounded-lg bg-card">
-                <div className="flex justify-between items-start mb-4">
-                    <div>
-                        <Label className="text-base font-semibold">Current Chapters</Label>
-                        <p className="text-sm text-muted-foreground mt-1">
-                            {activeAudiobook.chapters.length} chapter(s)
-                        </p>
-                    </div>
-                </div>
-
-                {warnings.length > 0 && (
-                    <div className="mb-4 p-3 border border-yellow-500/30 rounded bg-yellow-500/5">
-                        <p className="text-sm font-medium text-yellow-600 dark:text-yellow-400 mb-2">Warnings:</p>
-                        <ul className="text-sm text-yellow-600 dark:text-yellow-400 space-y-1">
-                            {warnings.map((warning, idx) => (
-                                <li key={idx}>• {warning}</li>
-                            ))}
-                        </ul>
-                    </div>
-                )}
-
-                {activeAudiobook.chapters.length > 0 ? (
-                    <DndContext
-                        sensors={sensors}
-                        collisionDetection={closestCenter}
-                        onDragEnd={handleDragEnd}
-                    >
-                        <SortableContext
-                            items={chapterIds}
-                            strategy={verticalListSortingStrategy}
-                        >
-                            <div className="space-y-1 max-h-60 overflow-y-auto">
-                                {activeAudiobook.chapters.map((chapter, idx) => (
-                                    <SortableChapter
-                                        key={chapter.index}
-                                        chapter={chapter}
-                                        displayIndex={idx}
-                                        formatDuration={formatDuration}
-                                        onPlay={handlePlayChapter}
-                                        isPlaying={playingChapterIndex === chapter.index}
-                                    />
-                                ))}
-                            </div>
-                        </SortableContext>
-                    </DndContext>
-                ) : (
-                    <p className="text-sm text-muted-foreground">No chapters defined yet.</p>
-                )}
-            </div>
-
-            {/* Import/Export Actions */}
-            <div className="p-4 border rounded-lg bg-card space-y-4">
-                <Label className="text-base font-semibold">Chapter Tools</Label>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {/* Import */}
-                    <div className="space-y-2">
-                        <Label className="text-sm font-medium">Import Chapters</Label>
-                        <Button
-                            onClick={handleImportClick}
-                            disabled={isImporting}
-                            className="w-full"
-                            variant="outline"
-                        >
-                            {isImporting ? "Importing..." : "Import from File"}
+        <div className="h-full flex flex-col">
+            <div className="shrink-0 h-11 px-3 border-b flex items-center gap-1.5 no-select">
+                <Popover
+                    align="start"
+                    trigger={() => (
+                        <Button variant="ghost" size="sm" disabled={isGenerating || isImportingCue}>
+                            <SparklesIcon className="w-4 h-4 mr-1.5" />
+                            Generate
                         </Button>
-                        <p className="text-xs text-muted-foreground">
-                            Supports Audacity labels (.txt), FFmetadata (.ffmeta), and CSV (.csv)
-                        </p>
-                    </div>
+                    )}
+                >
+                    {(close) => (
+                        <>
+                            <MenuLabel>Create chapters from</MenuLabel>
+                            <MenuItem onClick={() => { close(); handleGenerateFromSource(); }}>
+                                {isGenerating ? "Extracting…" : "Marks inside the files"}
+                            </MenuItem>
+                            <MenuItem onClick={() => { close(); handlePickCueFile(); }}>
+                                A CUE sheet…
+                            </MenuItem>
+                            <MenuSeparator />
+                            <MenuItem onClick={() => { close(); handleImportClick(); }}>
+                                {isImporting ? "Importing…" : "A chapter file…"}
+                            </MenuItem>
+                        </>
+                    )}
+                </Popover>
 
-                    {/* Export */}
-                    <div className="space-y-2">
-                        <Label className="text-sm font-medium">Export Chapters</Label>
-                        <div className="grid grid-cols-3 gap-2">
+                <Popover
+                    align="start"
+                    trigger={() => (
+                        <Button
+                            variant="ghost"
+                            size="sm"
+                            disabled={isExporting || activeAudiobook.chapters.length === 0}
+                        >
+                            <ArrowUpTrayIcon className="w-4 h-4 mr-1.5" />
+                            Export
+                        </Button>
+                    )}
+                >
+                    {(close) => (
+                        <>
+                            <MenuLabel>Export chapter list as</MenuLabel>
+                            <MenuItem onClick={() => { close(); handleExport("audacity"); }}>Audacity labels (.txt)</MenuItem>
+                            <MenuItem onClick={() => { close(); handleExport("ffmetadata"); }}>FFmetadata (.ffmeta)</MenuItem>
+                            <MenuItem onClick={() => { close(); handleExport("csv"); }}>CSV (.csv)</MenuItem>
+                        </>
+                    )}
+                </Popover>
+
+                <Popover
+                    align="start"
+                    className="w-[320px] p-3"
+                    trigger={() => (
+                        <Button variant="ghost" size="sm" disabled={activeAudiobook.chapters.length === 0}>
+                            <WrenchScrewdriverIcon className="w-4 h-4 mr-1.5" />
+                            Clean up titles
+                        </Button>
+                    )}
+                >
+                    <div className="space-y-3">
+                        {regexPresets.length > 0 && (
+                            <div>
+                                <div className="mb-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                                    Presets
+                                </div>
+                                <div className="grid grid-cols-2 gap-1">
+                                    {regexPresets.map((preset, idx) => (
+                                        <Button
+                                            key={idx}
+                                            onClick={() => handleApplyPreset(preset)}
+                                            disabled={isRenaming}
+                                            size="sm"
+                                            variant="secondary"
+                                            title={preset.description}
+                                            className="text-xs"
+                                        >
+                                            {preset.name}
+                                        </Button>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
+                        <div className="pt-1 border-t space-y-2">
+                            <div className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                                Find and replace
+                            </div>
+                            <Input
+                                placeholder="Pattern, e.g. ^\d+ - "
+                                value={customPattern}
+                                onChange={(e) => setCustomPattern(e.target.value)}
+                                className="font-mono text-xs"
+                            />
+                            <Input
+                                placeholder="Replacement (blank to delete)"
+                                value={customReplacement}
+                                onChange={(e) => setCustomReplacement(e.target.value)}
+                                className="font-mono text-xs"
+                            />
                             <Button
-                                onClick={() => handleExport("audacity")}
-                                disabled={isExporting || activeAudiobook.chapters.length === 0}
+                                onClick={handleApplyCustomRegex}
+                                disabled={isRenaming || !customPattern}
                                 size="sm"
                                 variant="outline"
+                                className="w-full"
                             >
-                                Audacity
-                            </Button>
-                            <Button
-                                onClick={() => handleExport("ffmetadata")}
-                                disabled={isExporting || activeAudiobook.chapters.length === 0}
-                                size="sm"
-                                variant="outline"
-                            >
-                                FFmeta
-                            </Button>
-                            <Button
-                                onClick={() => handleExport("csv")}
-                                disabled={isExporting || activeAudiobook.chapters.length === 0}
-                                size="sm"
-                                variant="outline"
-                            >
-                                CSV
+                                {isRenaming ? "Applying…" : "Apply to all titles"}
                             </Button>
                         </div>
                     </div>
-                </div>
+                </Popover>
 
-                {error && (
-                    <div className="text-sm text-destructive p-2 border border-destructive/30 rounded">
-                        {error}
-                    </div>
-                )}
+                <div className="flex-1" />
+                <span className="text-xs text-muted-foreground nums pr-1">
+                    {activeAudiobook.chapters.length}{" "}
+                    {activeAudiobook.chapters.length === 1 ? "chapter" : "chapters"}
+                </span>
             </div>
 
-            {/* Smart Generation */}
-            <div className="p-4 border rounded-lg bg-card space-y-4">
-                <Label className="text-base font-semibold">Smart Generation</Label>
-
-                {/* CUE Sheet Detection */}
-                {detectedCue && (
-                    <div className="p-3 border border-blue-500/30 rounded bg-blue-500/5 space-y-2">
-                        <div className="flex items-start justify-between">
-                            <div>
-                                <p className="text-sm font-medium text-blue-600 dark:text-blue-400">
-                                    CUE Sheet Detected
-                                </p>
-                                <p className="text-xs text-muted-foreground mt-1">
-                                    {detectedCue.track_count} track(s) found
-                                    {detectedCue.album_title && ` - "${detectedCue.album_title}"`}
-                                </p>
-                            </div>
-                            <Button
-                                onClick={() => handleImportFromCue(detectedCue.cue_path)}
-                                disabled={isImportingCue}
-                                size="sm"
-                                variant="default"
-                            >
-                                {isImportingCue ? "Importing..." : "Import as Chapters"}
-                            </Button>
-                        </div>
-                        <p className="text-xs text-muted-foreground truncate" title={detectedCue.cue_path}>
+            {detectedCue && (
+                <div className="shrink-0 flex items-center gap-3 px-3 py-2 bg-primary/[0.07] border-b">
+                    <div className="min-w-0 flex-1">
+                        <p className="text-xs font-medium">
+                            CUE sheet found — {detectedCue.track_count} tracks
+                            {detectedCue.album_title && ` · "${detectedCue.album_title}"`}
+                        </p>
+                        <p className="text-[11px] text-muted-foreground truncate" title={detectedCue.cue_path}>
                             {detectedCue.cue_path.split(/[/\\]/).pop()}
                         </p>
                     </div>
-                )}
-
-                {/* Import CUE Manually */}
-                <div className="space-y-2">
-                    <Label className="text-sm font-medium">Import from CUE Sheet</Label>
                     <Button
-                        onClick={handlePickCueFile}
+                        onClick={() => handleImportFromCue(detectedCue.cue_path)}
                         disabled={isImportingCue}
-                        className="w-full"
-                        variant="outline"
+                        size="sm"
                     >
-                        {isImportingCue ? "Importing..." : "Select CUE File..."}
+                        {isImportingCue ? "Importing…" : "Use as chapters"}
                     </Button>
-                    <p className="text-xs text-muted-foreground">
-                        Import chapter markers from a CUE sheet file (.cue)
-                    </p>
                 </div>
+            )}
 
-                {/* Extract from Source */}
-                <div className="space-y-2">
-                    <Label className="text-sm font-medium">Extract from Source Metadata</Label>
-                    <Button
-                        onClick={handleGenerateFromSource}
-                        disabled={isGenerating}
-                        className="w-full"
-                        variant="outline"
-                    >
-                        {isGenerating ? "Extracting..." : "Extract Chapters from Files"}
-                    </Button>
-                    <p className="text-xs text-muted-foreground">
-                        Detects chapters from M4B, MP3 (ID3 CHAP), or FLAC (cue sheets)
-                    </p>
+            {warnings.length > 0 && (
+                <div className="shrink-0 flex items-start gap-2 px-3 py-2 bg-warning/10 border-b text-xs">
+                    <ExclamationTriangleIcon className="w-4 h-4 text-warning shrink-0 mt-px" />
+                    <ul className="space-y-0.5">
+                        {warnings.map((warning, idx) => (
+                            <li key={idx}>{warning}</li>
+                        ))}
+                    </ul>
                 </div>
+            )}
 
-                {/* Title Cleanup */}
-                <div className="space-y-2">
-                    <Label className="text-sm font-medium">Title Cleanup (Regex)</Label>
+            {error && (
+                <div className="shrink-0 px-3 py-2 bg-destructive/10 border-b text-xs text-destructive">
+                    {error}
+                </div>
+            )}
 
-                    {/* Presets */}
-                    <div className="space-y-2">
-                        <Label className="text-xs text-muted-foreground">Quick Presets:</Label>
-                        <div className="grid grid-cols-2 gap-2">
-                            {regexPresets.map((preset, idx) => (
-                                <Button
-                                    key={idx}
-                                    onClick={() => handleApplyPreset(preset)}
-                                    disabled={isRenaming || activeAudiobook.chapters.length === 0}
-                                    size="sm"
-                                    variant="secondary"
-                                    title={preset.description}
-                                    className="text-xs"
-                                >
-                                    {preset.name}
-                                </Button>
+            <div className="flex-1 overflow-y-auto">
+                {activeAudiobook.chapters.length > 0 ? (
+                    <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+                        <SortableContext items={chapterIds} strategy={verticalListSortingStrategy}>
+                            {activeAudiobook.chapters.map((chapter, idx) => (
+                                <SortableChapter
+                                    key={chapter.index}
+                                    chapter={chapter}
+                                    displayIndex={idx}
+                                    formatDuration={formatDuration}
+                                    onPlay={handlePlayChapter}
+                                    isPlaying={playingChapterIndex === chapter.index}
+                                    onRename={handleRename}
+                                />
                             ))}
-                        </div>
+                        </SortableContext>
+                    </DndContext>
+                ) : (
+                    <div className="h-full flex flex-col items-center justify-center gap-3 text-center px-8">
+                        <p className="text-sm font-medium">No chapters yet</p>
+                        <p className="text-xs text-muted-foreground max-w-[320px]">
+                            Without chapters the M4B is one long track. Generate them from the files, a CUE
+                            sheet, or a chapter list.
+                        </p>
                     </div>
-
-                    {/* Custom Regex */}
-                    <div className="space-y-2 pt-2 border-t">
-                        <Label className="text-xs text-muted-foreground">Custom Regex:</Label>
-                        <div className="grid grid-cols-2 gap-2">
-                            <div>
-                                <Label htmlFor="pattern" className="text-xs">Pattern</Label>
-                                <Input
-                                    id="pattern"
-                                    placeholder="e.g. ^\d+ - "
-                                    value={customPattern}
-                                    onChange={(e) => setCustomPattern(e.target.value)}
-                                    className="font-mono text-xs"
-                                />
-                            </div>
-                            <div>
-                                <Label htmlFor="replacement" className="text-xs">Replacement</Label>
-                                <Input
-                                    id="replacement"
-                                    placeholder="e.g. (empty)"
-                                    value={customReplacement}
-                                    onChange={(e) => setCustomReplacement(e.target.value)}
-                                    className="font-mono text-xs"
-                                />
-                            </div>
-                        </div>
-                        <Button
-                            onClick={handleApplyCustomRegex}
-                            disabled={isRenaming || !customPattern || activeAudiobook.chapters.length === 0}
-                            size="sm"
-                            variant="outline"
-                            className="w-full"
-                        >
-                            Apply Custom Regex
-                        </Button>
-                    </div>
-                </div>
+                )}
             </div>
         </div>
     );

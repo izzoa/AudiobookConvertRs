@@ -4,7 +4,7 @@ import * as SettingsApi from '../api/settings';
 import * as UndoApi from '../api/undo';
 import * as AudiobookApi from '../api/audiobook';
 
-export type AppView = 'workflow' | 'jobs' | 'settings' | 'help';
+export type AppView = 'book' | 'queue' | 'settings' | 'help';
 
 interface AppState {
     // Navigation
@@ -46,7 +46,7 @@ interface AppState {
 const AppContext = createContext<AppState | undefined>(undefined);
 
 export function AppProvider({ children }: { children: ReactNode }) {
-    const [view, setView] = useState<AppView>('workflow');
+    const [view, setView] = useState<AppView>('book');
     const [activeAudiobook, setActiveAudiobook] = useState<AudioBook | null>(null);
     const [activeProject, setActiveProject] = useState<Project | null>(null);
     const [settings, setSettings] = useState<UserSettings | null>(null);

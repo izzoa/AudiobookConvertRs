@@ -3,7 +3,7 @@ import { Button } from './ui/button';
 import { Progress } from './ui/progress';
 import * as PlaybackApi from '@/api/playback';
 import type { PlaybackStatus } from '@/api/playback';
-import { Play, Pause, Square, Volume2, VolumeX } from 'lucide-react';
+import { PlayIcon, PauseIcon, StopIcon, SpeakerWaveIcon, SpeakerXMarkIcon } from '@heroicons/react/20/solid';
 
 interface AudioPlayerProps {
     className?: string;
@@ -96,8 +96,8 @@ export function AudioPlayer({ className }: AudioPlayerProps) {
         : 0;
 
     return (
-        <div className={`fixed bottom-0 left-0 right-0 bg-background border-t p-3 shadow-lg ${className || ''}`}>
-            <div className="max-w-4xl mx-auto flex items-center gap-4">
+        <div className={`shrink-0 bg-surface-2 border-t px-3 py-2 ${className || ''}`}>
+            <div className="flex items-center gap-4">
                 <div className="flex items-center gap-2">
                     <Button
                         variant="ghost"
@@ -106,9 +106,9 @@ export function AudioPlayer({ className }: AudioPlayerProps) {
                         title={status.state === 'playing' ? 'Pause' : 'Play'}
                     >
                         {status.state === 'playing' ? (
-                            <Pause className="h-5 w-5" />
+                            <PauseIcon className="h-5 w-5" />
                         ) : (
-                            <Play className="h-5 w-5" />
+                            <PlayIcon className="h-5 w-5" />
                         )}
                     </Button>
                     <Button
@@ -117,7 +117,7 @@ export function AudioPlayer({ className }: AudioPlayerProps) {
                         onClick={handleStop}
                         title="Stop"
                     >
-                        <Square className="h-4 w-4" />
+                        <StopIcon className="h-4 w-4" />
                     </Button>
                 </div>
 
@@ -144,9 +144,9 @@ export function AudioPlayer({ className }: AudioPlayerProps) {
                         title={isMuted ? 'Unmute' : 'Mute'}
                     >
                         {isMuted ? (
-                            <VolumeX className="h-4 w-4" />
+                            <SpeakerXMarkIcon className="h-4 w-4" />
                         ) : (
-                            <Volume2 className="h-4 w-4" />
+                            <SpeakerWaveIcon className="h-4 w-4" />
                         )}
                     </Button>
                     <input
@@ -227,9 +227,9 @@ export function PlayButton({ path, startMs, className, size = 'sm' }: PlayButton
             title={isPlaying ? 'Stop' : 'Play'}
         >
             {isPlaying ? (
-                <Square className={iconSize} />
+                <StopIcon className={iconSize} />
             ) : (
-                <Play className={iconSize} />
+                <PlayIcon className={iconSize} />
             )}
         </Button>
     );

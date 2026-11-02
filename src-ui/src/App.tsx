@@ -1,92 +1,81 @@
-import { Layout } from "@/components/Layout";
-import { FileInput } from "@/components/FileInput";
-import { MetadataEditor } from "@/components/MetadataEditor";
-import { ChapterEditor } from "@/components/ChapterEditor";
-import { ConversionQueuePanel } from "@/components/ConversionQueuePanel";
-import { NormalizationPanel } from "@/components/NormalizationPanel";
-import { DryRunPreview } from "@/components/DryRunPreview";
-import { ProjectManager } from "@/components/ProjectManager";
+import { useCallback, useState } from "react";
+import { AppShell } from "@/components/shell/AppShell";
+import { Workbench, type WorkbenchTab } from "@/components/workbench/Workbench";
+import { ConvertBar } from "@/components/workbench/ConvertBar";
+import { EmptyState } from "@/components/workbench/EmptyState";
+import { QueuePage } from "@/components/queue/QueuePage";
 import { SettingsPage } from "@/components/SettingsPage";
 import { HelpPage } from "@/components/HelpPage";
-import { ConversionJobsPage } from "@/components/ConversionJobsPage";
-import { AudioPlayer } from "@/components/AudioPlayer";
+import { useToast } from "@/components/ui/use-toast";
+import { useFileDrop } from "@/hooks/useFileDrop";
 import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
+import { useProjectActions } from "@/hooks/useProjectActions";
 import { useApp } from "@/context/AppContext";
-
-function WorkflowContent() {
-  return (
-    <div className="p-6 space-y-6 max-w-4xl mx-auto">
-      {/* Project Management */}
-      <section className="space-y-3">
-        <h2 className="text-xl font-semibold tracking-tight">Project</h2>
-        <ProjectManager />
-      </section>
-
-      {/* Step 1: Import */}
-      <section className="space-y-3">
-        <h2 className="text-xl font-semibold tracking-tight">Step 1: Import Files</h2>
-        <FileInput />
-      </section>
-
-      {/* Step 2: Metadata */}
-      <section className="space-y-3">
-        <h2 className="text-xl font-semibold tracking-tight">Step 2: Edit Metadata</h2>
-        <MetadataEditor />
-      </section>
-
-      {/* Step 2b: Chapters */}
-      <section className="space-y-3">
-        <h2 className="text-xl font-semibold tracking-tight">Step 2b: Edit Chapters</h2>
-        <ChapterEditor />
-      </section>
-
-      {/* Audio Quality */}
-      <section className="space-y-3">
-        <h2 className="text-xl font-semibold tracking-tight">Audio Quality</h2>
-        <NormalizationPanel />
-      </section>
-
-      {/* Step 3: Convert */}
-      <section className="space-y-3">
-        <h2 className="text-xl font-semibold tracking-tight">Step 3: Convert</h2>
-        <DryRunPreview />
-        <ConversionQueuePanel />
-      </section>
-    </div>
-  );
-}
+import * as AudiobookApi from "@/api/audiobook";
 
 function App() {
-  const { view } = useApp();
+    const { view, setView, activeAudiobook, setActiveAudiobook } = useApp();
+    const { toast } = useToast();
+    const [tab, setTab] = useState<WorkbenchTab>("files");
+    const { openProject, saveProject } = useProjectActions();
 
-  useKeyboardShortcuts({
-    onOpen: () => {
-      console.log("Open project shortcut triggered");
-    },
-    onSave: () => {
-      console.log("Save project shortcut triggered");
-    },
-  });
+    const importPaths = useCallback(
+        async (paths: string[]) => {
+            if (paths.length === 0) return;
+            try {
+                setActiveAudiobook(await AudiobookApi.createAudiobookFromFiles(paths));
+                setView("book");
+                setTab("files");
+            } catch (error) {
+                toast({
+                    title: "Import failed",
+                    description: String(error),
+                    variant: "destructive",
+                });
+            }
+        },
+        [setActiveAudiobook, setView, toast]
+    );
 
-  const renderView = () => {
-    switch (view) {
-      case 'jobs':
-        return <ConversionJobsPage />;
-      case 'settings':
-        return <SettingsPage />;
-      case 'help':
-        return <HelpPage />;
-      default:
-        return <WorkflowContent />;
-    }
-  };
+    // Dropping files is the primary way in, so it works from any view.
+    const isDraggingOver = useFileDrop(importPaths);
 
-  return (
-    <Layout>
-      {renderView()}
-      <AudioPlayer />
-    </Layout>
-  );
+    // ⌘O / ⌘S run the same commands as the title menu, not just a view switch.
+    useKeyboardShortcuts({
+        onOpen: () => {
+            setView("book");
+            openProject();
+        },
+        onSave: () => {
+            setView("book");
+            saveProject();
+        },
+    });
+
+    return (
+        <AppShell isDraggingOver={isDraggingOver}>
+            {view === "queue" && <QueuePage />}
+            {view === "settings" && (
+                <div className="flex-1 overflow-y-auto">
+                    <SettingsPage />
+                </div>
+            )}
+            {view === "help" && (
+                <div className="flex-1 overflow-y-auto">
+                    <HelpPage />
+                </div>
+            )}
+            {view === "book" &&
+                (activeAudiobook ? (
+                    <>
+                        <Workbench tab={tab} onTabChange={setTab} onImport={importPaths} />
+                        <ConvertBar onShowChapters={() => setTab("chapters")} />
+                    </>
+                ) : (
+                    <EmptyState isDraggingOver={isDraggingOver} onImport={importPaths} />
+                ))}
+        </AppShell>
+    );
 }
 
 export default App;

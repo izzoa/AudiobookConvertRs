@@ -53,24 +53,9 @@ pub fn auto_split_chapters(total_duration_ms: u64, chapter_count: usize) -> Vec<
         .collect()
 }
 
-/// Create chapters from audio files (each file = one chapter)
-pub fn create_chapters_from_files(files: &[AudioFile]) -> Vec<Chapter> {
-    let mut chapters = Vec::with_capacity(files.len());
-    let mut current_time = 0u64;
-
-    for (i, file) in files.iter().enumerate() {
-        chapters.push(Chapter {
-            index: i,
-            title: file.stem().to_string(),
-            start_time_ms: current_time,
-            end_time_ms: current_time + file.duration_ms,
-            auto_detected: true,
-        });
-        current_time += file.duration_ms;
-    }
-
-    chapters
-}
+/// One chapter per file. Lives in `metadata::chapters` so there is a single
+/// naming rule; it is re-exported here because the audio module used to own it.
+pub use crate::metadata::chapters::create_chapters_from_files;
 
 /// Validate chapters against total duration
 pub fn validate_chapters(chapters: &[Chapter], total_duration_ms: u64) -> AppResult<()> {

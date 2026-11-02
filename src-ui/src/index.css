@@ -1,60 +1,104 @@
 @config "../tailwind.config.js";
 @import "tailwindcss";
 
+/*
+ * Workbench theme — taken from the app icon.
+ * Indigo is the icon's field colour, green its waveform, amber its arrow, so the
+ * window and the Dock icon read as one product. Neutrals carry a faint indigo
+ * cast so the accent sits on them cleanly. Primary, warning and danger are kept
+ * far apart in hue (indigo / amber / red) so an action never reads as an alert.
+ * Every text pairing here measures at least 4.5:1 on background, surface and
+ * surface-2 in both themes.
+ */
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
+    --background: 240 20% 98%;
+    --foreground: 240 15% 12%;
+
+    /* Raised planes: rail < background < surface < surface-2 */
+    --surface: 0 0% 100%;
+    --surface-2: 240 16% 95%;
+    --rail: 240 14% 95%;
+
     --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
+    --card-foreground: 240 15% 12%;
     --popover: 0 0% 100%;
-    --popover-foreground: 222.2 84% 4.9%;
-    --primary: 221.2 83.2% 53.3%;
-    --primary-foreground: 210 40% 98%;
-    --secondary: 210 40% 96.1%;
-    --secondary-foreground: 222.2 47.4% 11.2%;
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 46.9%;
-    --accent: 210 40% 96.1%;
-    --accent-foreground: 222.2 47.4% 11.2%;
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --ring: 221.2 83.2% 53.3%;
-    --radius: 0.5rem;
-    --chart-1: 12 76% 61%;
-    --chart-2: 173 58% 39%;
-    --chart-3: 197 37% 24%;
-    --chart-4: 43 74% 66%;
-    --chart-5: 27 87% 67%;
+    --popover-foreground: 240 15% 12%;
+
+    --primary: 244 72% 56%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 240 14% 93%;
+    --secondary-foreground: 240 12% 20%;
+    --muted: 240 14% 94%;
+    --muted-foreground: 240 6% 40%;
+    --accent: 240 16% 91%;
+    --accent-foreground: 240 15% 15%;
+
+    --success: 142 72% 26%;
+    --success-foreground: 0 0% 100%;
+    --warning: 32 92% 32%;
+    --warning-foreground: 0 0% 100%;
+    --destructive: 0 68% 45%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 240 12% 89%;
+    --input: 240 10% 84%;
+    --ring: 244 72% 56%;
+
+    --radius: 0.625rem;
+
+    /* Behind modal dialogs: always a darkening veil, in either theme. */
+    --scrim: 240 20% 8% / 0.4;
+
+    --chart-1: 244 72% 60%;
+    --chart-2: 142 60% 38%;
+    --chart-3: 200 60% 42%;
+    --chart-4: 38 90% 48%;
+    --chart-5: 320 45% 52%;
   }
 
   .dark {
-    --background: 222.2 84% 4.9%;
-    --foreground: 210 40% 98%;
-    --card: 222.2 84% 4.9%;
-    --card-foreground: 210 40% 98%;
-    --popover: 222.2 84% 4.9%;
-    --popover-foreground: 210 40% 98%;
-    --primary: 210 40% 98%;
-    --primary-foreground: 222.2 47.4% 11.2%;
-    --secondary: 217.2 32.6% 17.5%;
-    --secondary-foreground: 210 40% 98%;
-    --muted: 217.2 32.6% 17.5%;
-    --muted-foreground: 215 20.2% 65.1%;
-    --accent: 217.2 32.6% 17.5%;
-    --accent-foreground: 210 40% 98%;
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 217.2 32.6% 17.5%;
-    --input: 217.2 32.6% 17.5%;
-    --ring: 212.7 26.8% 83.9%;
-    --chart-1: 220 70% 50%;
-    --chart-2: 160 60% 45%;
-    --chart-3: 30 80% 55%;
-    --chart-4: 280 65% 60%;
-    --chart-5: 340 75% 55%;
+    --background: 240 10% 8%;
+    --foreground: 240 10% 94%;
+
+    --surface: 240 9% 11%;
+    --surface-2: 240 8% 15%;
+    --rail: 240 11% 6%;
+
+    --card: 240 9% 11%;
+    --card-foreground: 240 10% 94%;
+    --popover: 240 9% 13%;
+    --popover-foreground: 240 10% 94%;
+
+    --primary: 244 82% 72%;
+    --primary-foreground: 244 45% 12%;
+
+    --secondary: 240 8% 17%;
+    --secondary-foreground: 240 10% 92%;
+    --muted: 240 8% 16%;
+    --muted-foreground: 240 6% 64%;
+    --accent: 240 8% 20%;
+    --accent-foreground: 240 10% 95%;
+
+    --success: 142 58% 50%;
+    --success-foreground: 142 50% 8%;
+    --warning: 43 96% 56%;
+    --warning-foreground: 36 60% 9%;
+    --destructive: 0 76% 67%;
+    --destructive-foreground: 0 50% 10%;
+
+    --border: 240 7% 20%;
+    --input: 240 7% 25%;
+    --ring: 244 82% 72%;
+
+    --scrim: 240 20% 3% / 0.6;
+
+    --chart-1: 244 82% 72%;
+    --chart-2: 142 58% 50%;
+    --chart-3: 200 60% 58%;
+    --chart-4: 43 96% 56%;
+    --chart-5: 320 55% 66%;
   }
 }
 
@@ -63,8 +107,62 @@
     border-color: hsl(var(--border));
   }
 
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+
   body {
     background-color: hsl(var(--background));
     color: hsl(var(--foreground));
+    font-family: ui-sans-serif, -apple-system, "Segoe UI", Roboto, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    overscroll-behavior: none;
+  }
+
+  /* Native controls and selection otherwise ship in the browser's blue. */
+  :root {
+    accent-color: hsl(var(--primary));
+    caret-color: hsl(var(--primary));
+  }
+
+  ::selection {
+    background: hsl(var(--primary) / 0.22);
+  }
+
+  :focus-visible {
+    outline: 2px solid hsl(var(--ring));
+    outline-offset: 2px;
+  }
+
+  /* Durations and sizes sit in columns, so they must not jitter per digit. */
+  .nums {
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: "tnum";
+  }
+
+  /* The app chrome is not a document; text selection there is only noise. */
+  .no-select {
+    user-select: none;
+  }
+
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: hsl(var(--border));
+    border: 3px solid transparent;
+    background-clip: content-box;
+    border-radius: 99px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: hsl(var(--muted-foreground) / 0.5);
+    border: 3px solid transparent;
+    background-clip: content-box;
   }
 }

@@ -334,8 +334,62 @@ fn get_file_priority(filename: &str) -> u32 {
     }
 }
 
+/// Adds the image files in one folder to `discovered`: well-known names
+/// (`cover.jpg`, `folder.png`) first, then any other image.
+fn scan_folder_for_artwork(
+    parent: &Utf8Path,
+    discovered: &mut Vec<DiscoveredArtwork>,
+    seen_paths: &mut std::collections::HashSet<String>,
+) {
+    let mut push = |path: Utf8PathBuf, priority: u32, name: String| {
+        if !seen_paths.insert(path.to_string()) {
+            return;
+        }
+        let Ok(metadata) = std::fs::metadata(path.as_std_path()) else { return };
+        let (width, height) = std::fs::read(path.as_std_path())
+            .ok()
+            .and_then(|data| get_artwork_dimensions(&data).ok())
+            .unwrap_or((0, 0));
+        discovered.push(DiscoveredArtwork {
+            source: ArtworkSource::File { path: path.to_string() },
+            priority,
+            width: if width > 0 { Some(width) } else { None },
+            height: if height > 0 { Some(height) } else { None },
+            size_bytes: metadata.len() as usize,
+            name,
+        });
+    };
+
+    for filename in ARTWORK_FILENAMES {
+        for candidate in [filename.to_string(), filename.to_uppercase()] {
+            let path = parent.join(&candidate);
+            if path.exists() {
+                push(path, get_file_priority(filename), candidate);
+            }
+        }
+    }
+
+    let Ok(entries) = std::fs::read_dir(parent.as_std_path()) else { return };
+    for entry in entries.flatten() {
+        let Some(name) = entry.file_name().to_str().map(String::from) else { continue };
+        let lower = name.to_lowercase();
+        let is_image = lower.ends_with(".jpg") || lower.ends_with(".jpeg") || lower.ends_with(".png");
+        if is_image && !ARTWORK_FILENAMES.iter().any(|f| f.to_lowercase() == lower) {
+            if let Ok(path) = Utf8PathBuf::try_from(entry.path()) {
+                push(path, 20, name);
+            }
+        }
+    }
+}
+
+/// Lists every cover candidate for a book, best first.
+///
+/// Embedded art comes from the audio files. Image files are looked for beside
+/// each file and, when `scan_folders` is on, in the book's own folder: covers
+/// usually sit there, above disc folders like `CD1/` that hold only audio.
 pub fn discover_artwork_options(
     audio_files: &[Utf8PathBuf],
+    scan_folders: bool,
 ) -> AppResult<Vec<DiscoveredArtwork>> {
     let mut discovered: Vec<DiscoveredArtwork> = Vec::new();
     let mut seen_paths: std::collections::HashSet<String> = std::collections::HashSet::new();
@@ -358,100 +412,22 @@ pub fn discover_artwork_options(
                 });
             }
         }
+    }
 
-        if let Some(parent) = audio_path.parent() {
-            let parent_str = parent.to_string();
-            if !seen_paths.contains(&parent_str) {
-                seen_paths.insert(parent_str);
-
-                for filename in ARTWORK_FILENAMES {
-                    let path = parent.join(filename);
-                    if path.exists() {
-                        let key = path.to_string();
-                        if seen_paths.insert(key.clone()) {
-                            if let Ok(metadata) = std::fs::metadata(path.as_std_path()) {
-                                let size = metadata.len() as usize;
-                                let (width, height) = if let Ok(data) = std::fs::read(path.as_std_path()) {
-                                    get_artwork_dimensions(&data).unwrap_or((0, 0))
-                                } else {
-                                    (0, 0)
-                                };
-
-                                discovered.push(DiscoveredArtwork {
-                                    source: ArtworkSource::File { path: path.to_string() },
-                                    priority: get_file_priority(filename),
-                                    width: if width > 0 { Some(width) } else { None },
-                                    height: if height > 0 { Some(height) } else { None },
-                                    size_bytes: size,
-                                    name: filename.to_string(),
-                                });
-                            }
-                        }
-                    }
-
-                    let path_upper = parent.join(filename.to_uppercase());
-                    if path_upper.exists() {
-                        let key = path_upper.to_string();
-                        if seen_paths.insert(key.clone()) {
-                            if let Ok(metadata) = std::fs::metadata(path_upper.as_std_path()) {
-                                let size = metadata.len() as usize;
-                                let (width, height) = if let Ok(data) = std::fs::read(path_upper.as_std_path()) {
-                                    get_artwork_dimensions(&data).unwrap_or((0, 0))
-                                } else {
-                                    (0, 0)
-                                };
-
-                                discovered.push(DiscoveredArtwork {
-                                    source: ArtworkSource::File { path: path_upper.to_string() },
-                                    priority: get_file_priority(filename),
-                                    width: if width > 0 { Some(width) } else { None },
-                                    height: if height > 0 { Some(height) } else { None },
-                                    size_bytes: size,
-                                    name: filename.to_uppercase(),
-                                });
-                            }
-                        }
-                    }
-                }
-
-                if let Ok(entries) = std::fs::read_dir(parent.as_std_path()) {
-                    for entry in entries.flatten() {
-                        if let Some(name) = entry.file_name().to_str() {
-                            let name_lower = name.to_lowercase();
-                            if (name_lower.ends_with(".jpg")
-                                || name_lower.ends_with(".jpeg")
-                                || name_lower.ends_with(".png"))
-                                && !ARTWORK_FILENAMES.iter().any(|&f| {
-                                    f.to_lowercase() == name_lower
-                                })
-                            {
-                                if let Ok(path) = Utf8PathBuf::try_from(entry.path()) {
-                                    let key = path.to_string();
-                                    if seen_paths.insert(key.clone()) {
-                                        if let Ok(metadata) = entry.metadata() {
-                                            let size = metadata.len() as usize;
-                                            let (width, height) = if let Ok(data) = std::fs::read(path.as_std_path()) {
-                                                get_artwork_dimensions(&data).unwrap_or((0, 0))
-                                            } else {
-                                                (0, 0)
-                                            };
-
-                                            discovered.push(DiscoveredArtwork {
-                                                source: ArtworkSource::File { path: path.to_string() },
-                                                priority: 20,
-                                                width: if width > 0 { Some(width) } else { None },
-                                                height: if height > 0 { Some(height) } else { None },
-                                                size_bytes: size,
-                                                name: name.to_string(),
-                                            });
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
+    if scan_folders {
+        let mut folders: Vec<Utf8PathBuf> = Vec::new();
+        for parent in audio_files.iter().filter_map(|p| p.parent()) {
+            if !folders.iter().any(|f| f == parent) {
+                folders.push(parent.to_path_buf());
             }
+        }
+        if let Some(book) = crate::audio::batch::book_folder(audio_files) {
+            if !folders.contains(&book) {
+                folders.push(book);
+            }
+        }
+        for folder in &folders {
+            scan_folder_for_artwork(folder, &mut discovered, &mut seen_paths);
         }
     }
 
@@ -473,6 +449,23 @@ pub fn discover_artwork_options(
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn cover_above_disc_folders_is_found_only_when_folder_scan_is_on() {
+        let temp = tempfile::tempdir().unwrap();
+        let book = Utf8PathBuf::from_path_buf(temp.path().join("Dune")).unwrap();
+        std::fs::create_dir_all(book.join("CD1")).unwrap();
+        std::fs::create_dir_all(book.join("CD2")).unwrap();
+        std::fs::write(book.join("cover.jpg"), [0xFF, 0xD8, 0xFF, 0xE0]).unwrap();
+        // Paths only: no audio is read, since none of these files exist.
+        let audio = [book.join("CD1/01.mp3"), book.join("CD2/01.mp3")];
+
+        let found = discover_artwork_options(&audio, true).unwrap();
+        let names: Vec<_> = found.iter().map(|a| a.name.to_lowercase()).collect();
+        assert!(names.contains(&"cover.jpg".to_string()), "{names:?}");
+
+        assert!(discover_artwork_options(&audio, false).unwrap().is_empty());
+    }
+
     use super::*;
 
     // Minimal valid JPEG (1x1 red pixel)

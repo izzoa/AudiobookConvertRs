@@ -138,6 +138,9 @@ pub enum AppError {
     #[error("No files provided for conversion")]
     NoFilesProvided,
 
+    #[error("No audio files found in {location}. Supported formats: {supported}.")]
+    NoAudioFound { location: String, supported: String },
+
     #[error("Maximum file count exceeded: {count} (max: {max})")]
     TooManyFiles { count: usize, max: usize },
 

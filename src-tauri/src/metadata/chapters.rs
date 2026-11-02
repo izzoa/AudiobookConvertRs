@@ -20,32 +20,61 @@ pub struct ChapterUpdate {
 
 /// Create chapters from a list of audio files
 ///
-/// Each file becomes a chapter with the title derived from the filename.
+/// Each file becomes a chapter, named by [`chapter_titles_for_files`].
 /// Start times are calculated by accumulating durations of previous files.
 pub fn create_chapters_from_files(files: &[AudioFile]) -> Vec<Chapter> {
     debug!("Creating {} chapters from files", files.len());
 
+    let titles = chapter_titles_for_files(files);
     let mut chapters = Vec::with_capacity(files.len());
     let mut current_start_ms: u64 = 0;
 
-    for (index, file) in files.iter().enumerate() {
-        let title = file.stem().to_string();
+    for (index, (file, title)) in files.iter().zip(titles).enumerate() {
         let end_time_ms = current_start_ms + file.duration_ms;
 
-        let chapter = Chapter {
+        chapters.push(Chapter {
             index,
             title,
             start_time_ms: current_start_ms,
             end_time_ms,
             auto_detected: true,
-        };
-
-        chapters.push(chapter);
+        });
         current_start_ms = end_time_ms;
     }
 
     info!("Created {} chapters from files", chapters.len());
     chapters
+}
+
+/// The chapter name for each file: its title tag, or its filename stem when
+/// the tag does not name the chapter.
+///
+/// A tag is passed over when it is empty, when it only repeats the album, or
+/// when every file in a multi-file book carries the same one — rips often stamp
+/// the book's title on each track, which would leave every chapter identical.
+pub fn chapter_titles_for_files(files: &[AudioFile]) -> Vec<String> {
+    let tag = |file: &AudioFile| {
+        file.metadata
+            .title
+            .as_deref()
+            .map(str::trim)
+            .filter(|t| !t.is_empty())
+            .map(String::from)
+    };
+
+    let first = files.first().and_then(tag);
+    let all_same = files.len() > 1 && first.is_some() && files.iter().all(|f| tag(f) == first);
+
+    files
+        .iter()
+        .map(|file| {
+            let album = file.metadata.album.as_deref().map(str::trim);
+            match tag(file) {
+                Some(title) if !all_same && album != Some(title.as_str()) => title,
+                _ => file.stem().to_string(),
+            }
+        })
+        .collect()
 }
 
 /// Create chapters by automatically splitting the total duration
@@ -404,6 +433,41 @@ mod tests {
     use super::*;
     use camino::Utf8PathBuf;
     use crate::models::{AudioFormat, Metadata};
+
+    fn tagged_file(name: &str, title: Option<&str>, album: Option<&str>) -> AudioFile {
+        let mut file = create_test_audio_file(name, 60000);
+        file.metadata.title = title.map(String::from);
+        file.metadata.album = album.map(String::from);
+        file
+    }
+
+    #[test]
+    fn chapter_titles_prefer_title_tags_over_filenames() {
+        let files = vec![
+            tagged_file("01", Some("Opening"), Some("The Book")),
+            tagged_file("02", Some("  The Long Road "), Some("The Book")),
+            tagged_file("03", None, Some("The Book")),
+        ];
+        assert_eq!(chapter_titles_for_files(&files), ["Opening", "The Long Road", "03"]);
+    }
+
+    #[test]
+    fn chapter_titles_ignore_a_book_title_stamped_on_every_track() {
+        let files = vec![
+            tagged_file("01 - Opening", Some("The Book"), None),
+            tagged_file("02 - Arrival", Some("The Book"), None),
+        ];
+        assert_eq!(chapter_titles_for_files(&files), ["01 - Opening", "02 - Arrival"]);
+    }
+
+    #[test]
+    fn chapter_titles_ignore_a_tag_that_repeats_the_album() {
+        let files = vec![
+            tagged_file("01", Some("The Book"), Some("The Book")),
+            tagged_file("02", Some("Arrival"), Some("The Book")),
+        ];
+        assert_eq!(chapter_titles_for_files(&files), ["01", "Arrival"]);
+    }
 
     fn create_test_audio_file(name: &str, duration_ms: u64) -> AudioFile {
         AudioFile {

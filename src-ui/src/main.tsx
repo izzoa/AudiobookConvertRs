@@ -3,25 +3,24 @@ import { createRoot } from 'react-dom/client'
 import './index.css'
 import App from './App.tsx'
 import { AppProvider } from './context/AppContext'
+import { ConversionStoreProvider } from './context/ConversionStore'
+import { ConfirmProvider } from './components/ui/confirm'
 
-console.log("main.tsx: Starting React app...");
-const rootElement = document.getElementById('root');
-console.log("main.tsx: Root element found:", !!rootElement);
-
-if (rootElement) {
-  try {
-    console.log("main.tsx: Creating React root...");
-    const root = createRoot(rootElement);
-    console.log("main.tsx: Rendering app...");
-    root.render(
-      <StrictMode>
-        <AppProvider>
-          <App />
-        </AppProvider>
-      </StrictMode>,
-    );
-    console.log("main.tsx: Render call complete");
-  } catch (error) {
-    console.error("main.tsx: Error during React render:", error);
-  }
+// `?mock` serves the UI from fixtures so panes can be previewed without a
+// Tauri build. Dev only — the import is tree-shaken out of release bundles.
+if (import.meta.env.DEV && new URLSearchParams(window.location.search).has('mock')) {
+  const { installMockBackend } = await import('./dev/mockBackend');
+  installMockBackend();
 }
+
+createRoot(document.getElementById('root')!).render(
+  <StrictMode>
+    <AppProvider>
+      <ConversionStoreProvider>
+        <ConfirmProvider>
+          <App />
+        </ConfirmProvider>
+      </ConversionStoreProvider>
+    </AppProvider>
+  </StrictMode>,
+)

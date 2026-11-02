@@ -3,8 +3,8 @@ import { useConversionStore } from '@/context/ConversionStore';
 import { JobStatus, ConversionStageLabels } from '@/types/models';
 import type { ConversionJob, JobStatus as JobStatusType } from '@/types/models';
 import { Progress } from '@/components/ui/progress';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
+import { formatDuration } from '@/lib/format';
+import { cn } from '@/lib/utils';
 import {
     PlayIcon,
     PauseIcon,
@@ -12,14 +12,8 @@ import {
     ExclamationCircleIcon,
     XCircleIcon,
     ClockIcon,
-    TrashIcon,
     MagnifyingGlassIcon,
-    PlusIcon,
 } from '@heroicons/react/24/outline';
-
-interface JobListProps {
-    onNewJob?: () => void;
-}
 
 type FilterType = 'all' | JobStatusType;
 
@@ -27,73 +21,80 @@ const FILTERS: { label: string; value: FilterType }[] = [
     { label: 'All', value: 'all' },
     { label: 'Running', value: JobStatus.Running },
     { label: 'Queued', value: JobStatus.Queued },
-    { label: 'Complete', value: JobStatus.Complete },
+    { label: 'Done', value: JobStatus.Complete },
     { label: 'Failed', value: JobStatus.Error },
     { label: 'Cancelled', value: JobStatus.Cancelled },
 ];
 
-function getStatusIcon(status: JobStatusType) {
+const STATUS_ORDER: Record<string, number> = {
+    [JobStatus.Running]: 0,
+    [JobStatus.Queued]: 1,
+    [JobStatus.Error]: 2,
+    [JobStatus.Complete]: 3,
+    [JobStatus.Cancelled]: 4,
+};
+
+export function StatusIcon({ status, className = 'w-4 h-4' }: { status: JobStatusType; className?: string }) {
     switch (status) {
         case JobStatus.Running:
-            return <PlayIcon className="w-4 h-4 text-blue-500" />;
+            return <PlayIcon className={cn(className, 'text-primary')} />;
         case JobStatus.Queued:
-            return <ClockIcon className="w-4 h-4 text-muted-foreground" />;
+            return <ClockIcon className={cn(className, 'text-muted-foreground')} />;
         case JobStatus.Paused:
-            return <PauseIcon className="w-4 h-4 text-yellow-500" />;
+            return <PauseIcon className={cn(className, 'text-warning')} />;
         case JobStatus.Complete:
-            return <CheckCircleIcon className="w-4 h-4 text-green-500" />;
+            return <CheckCircleIcon className={cn(className, 'text-success')} />;
         case JobStatus.Error:
-            return <ExclamationCircleIcon className="w-4 h-4 text-destructive" />;
+            return <ExclamationCircleIcon className={cn(className, 'text-destructive')} />;
         case JobStatus.Cancelled:
-            return <XCircleIcon className="w-4 h-4 text-muted-foreground" />;
+            return <XCircleIcon className={cn(className, 'text-muted-foreground')} />;
         default:
             return null;
     }
 }
 
-function formatDuration(ms: number): string {
-    const secs = Math.floor(ms / 1000);
-    const mins = Math.floor(secs / 60);
-    const hours = Math.floor(mins / 60);
-    if (hours > 0) {
-        return `${hours}h ${mins % 60}m`;
-    }
-    return `${mins}m ${secs % 60}s`;
+export function jobTitle(job: ConversionJob): string {
+    return job.audiobook?.output_metadata?.title || job.audiobook?.title || 'Untitled';
 }
 
 function JobRow({ job, isSelected, onClick }: { job: ConversionJob; isSelected: boolean; onClick: () => void }) {
-    const title = job.audiobook?.output_metadata?.title || job.audiobook?.title || 'Untitled';
     const isRunning = job.status === JobStatus.Running;
     const progress = job.progress;
+    const totalProgress = progress?.total_progress ?? job.progress_percent ?? 0;
+    const stageLabel = progress?.stage
+        ? (ConversionStageLabels[progress.stage] || progress.stage)
+        : (job.status_message || 'Preparing');
 
     return (
         <button
             onClick={onClick}
-            className={`w-full text-left p-3 border-b transition-colors ${
-                isSelected ? 'bg-primary/10 border-l-2 border-l-primary' : 'hover:bg-muted/50'
-            }`}
+            aria-current={isSelected || undefined}
+            className={cn(
+                'w-full text-left px-3 py-2.5 border-b border-border/60 transition-colors',
+                isSelected ? 'bg-primary/[0.08]' : 'hover:bg-accent/50'
+            )}
         >
-            <div className="flex items-start gap-2">
-                <div className="mt-0.5">{getStatusIcon(job.status)}</div>
+            <div className="flex items-start gap-2.5">
+                <StatusIcon status={job.status} className="w-4 h-4 mt-0.5 shrink-0" />
                 <div className="flex-1 min-w-0">
-                    <div className="font-medium truncate text-sm">{title}</div>
-                    <div className="text-xs text-muted-foreground">
-                        {job.total_files} file{job.total_files !== 1 ? 's' : ''} •{' '}
+                    <div className="font-medium truncate text-sm">{jobTitle(job)}</div>
+                    <div className="text-xs text-muted-foreground nums">
+                        {job.total_files} {job.total_files === 1 ? 'file' : 'files'} ·{' '}
                         {formatDuration(job.audiobook?.total_duration_ms || 0)}
                     </div>
-                    {isRunning && progress && (
+                    {isRunning && (
                         <div className="mt-2 space-y-1">
                             <div className="flex items-center justify-between text-xs">
-                                <span className="text-muted-foreground">
-                                    {ConversionStageLabels[progress.stage] || progress.stage}
-                                </span>
-                                <span>{Math.round(progress.total_progress)}%</span>
+                                <span className="text-muted-foreground truncate">{stageLabel}</span>
+                                <span className="nums">{Math.round(totalProgress)}%</span>
                             </div>
-                            <Progress value={progress.total_progress} className="h-1.5" />
+                            <Progress value={totalProgress} className="h-1.5" />
                         </div>
                     )}
                     {job.status === JobStatus.Error && job.error_message && (
-                        <div className="mt-1 text-xs text-destructive truncate">{job.error_message}</div>
+                        <div className="mt-1 text-xs text-destructive truncate" title={job.error_message}>
+                            {job.error_message}
+                        </div>
                     )}
                 </div>
             </div>
@@ -101,96 +102,82 @@ function JobRow({ job, isSelected, onClick }: { job: ConversionJob; isSelected: 
     );
 }
 
-export function JobList({ onNewJob }: JobListProps) {
-    const { jobs, selectedJobId, selectJob, clearCompleted, queueState } = useConversionStore();
+/** Job index for the Queue page. Queue-wide commands live in the page header. */
+export function JobList() {
+    const { jobs, selectedJobId, selectJob } = useConversionStore();
     const [filter, setFilter] = useState<FilterType>('all');
     const [search, setSearch] = useState('');
 
+    const counts = useMemo(() => {
+        const byStatus: Record<string, number> = { all: jobs.length };
+        for (const job of jobs) byStatus[job.status] = (byStatus[job.status] ?? 0) + 1;
+        return byStatus;
+    }, [jobs]);
+
     const filteredJobs = useMemo(() => {
-        let result = jobs;
-
-        if (filter !== 'all') {
-            result = result.filter((job) => job.status === filter);
-        }
-
-        if (search.trim()) {
-            const query = search.toLowerCase();
-            result = result.filter((job) => {
-                const title = job.audiobook?.output_metadata?.title || job.audiobook?.title || '';
-                return title.toLowerCase().includes(query);
+        const query = search.trim().toLowerCase();
+        return jobs
+            .filter((job) => filter === 'all' || job.status === filter)
+            .filter((job) => !query || jobTitle(job).toLowerCase().includes(query))
+            .sort((a, b) => {
+                const order = (STATUS_ORDER[a.status] ?? 5) - (STATUS_ORDER[b.status] ?? 5);
+                if (order !== 0) return order;
+                return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
             });
-        }
-
-        return result.sort((a, b) => {
-            const statusOrder: Record<string, number> = {
-                [JobStatus.Running]: 0,
-                [JobStatus.Queued]: 1,
-                [JobStatus.Error]: 2,
-                [JobStatus.Complete]: 3,
-                [JobStatus.Cancelled]: 4,
-            };
-            const orderA = statusOrder[a.status] ?? 5;
-            const orderB = statusOrder[b.status] ?? 5;
-            if (orderA !== orderB) return orderA - orderB;
-            return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
-        });
     }, [jobs, filter, search]);
-
-    const hasCompletedJobs = jobs.some((j) => j.status === JobStatus.Complete);
 
     return (
         <div className="h-full flex flex-col">
-            <div className="p-3 border-b space-y-3">
-                <div className="flex items-center justify-between">
-                    <h2 className="font-semibold">Jobs</h2>
-                    <div className="flex items-center gap-2">
-                        {queueState && (
-                            <span className="text-xs text-muted-foreground">
-                                {queueState.active_jobs} running • {queueState.pending_jobs} queued
-                            </span>
-                        )}
-                        {onNewJob && (
-                            <Button variant="outline" size="sm" onClick={onNewJob} className="h-7 px-2">
-                                <PlusIcon className="w-4 h-4" />
-                            </Button>
-                        )}
-                    </div>
-                </div>
-
+            <div className="shrink-0 p-2.5 border-b space-y-2 no-select">
                 <div className="relative">
-                    <MagnifyingGlassIcon className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                    <Input
-                        type="text"
-                        placeholder="Search jobs..."
+                    <MagnifyingGlassIcon className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
+                    <input
+                        type="search"
+                        placeholder="Search by title"
+                        aria-label="Search jobs by title"
                         value={search}
                         onChange={(e) => setSearch(e.target.value)}
-                        className="pl-8 h-8 text-sm"
+                        className="w-full h-8 rounded-md border border-input bg-background pl-8 pr-2.5 text-sm placeholder:text-muted-foreground/70 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                     />
                 </div>
 
-                <div className="flex flex-wrap gap-1">
-                    {FILTERS.map((f) => (
-                        <button
-                            key={f.value}
-                            onClick={() => setFilter(f.value)}
-                            className={`px-2 py-1 text-xs rounded-full transition-colors ${
-                                filter === f.value
-                                    ? 'bg-primary text-primary-foreground'
-                                    : 'bg-muted text-muted-foreground hover:bg-muted/80'
-                            }`}
-                        >
-                            {f.label}
-                        </button>
-                    ))}
+                <div className="flex flex-wrap gap-1" role="radiogroup" aria-label="Filter jobs by status">
+                    {FILTERS.filter((f) => f.value === 'all' || counts[f.value]).map((f) => {
+                        const active = filter === f.value;
+                        return (
+                            <button
+                                key={f.value}
+                                role="radio"
+                                aria-checked={active}
+                                onClick={() => setFilter(f.value)}
+                                className={cn(
+                                    'h-6 px-2 rounded-md text-xs font-medium transition-colors flex items-center gap-1',
+                                    active
+                                        ? 'bg-accent text-foreground'
+                                        : 'text-muted-foreground hover:bg-accent/60 hover:text-foreground'
+                                )}
+                            >
+                                {f.label}
+                                <span className="nums text-muted-foreground">{counts[f.value] ?? 0}</span>
+                            </button>
+                        );
+                    })}
                 </div>
             </div>
 
             <div className="flex-1 overflow-y-auto">
                 {filteredJobs.length === 0 ? (
-                    <div className="flex flex-col items-center justify-center h-full text-muted-foreground p-4">
-                        <ClockIcon className="w-12 h-12 mb-2 opacity-50" />
-                        <div className="text-sm">No jobs found</div>
-                        <div className="text-xs mt-1">Convert an audiobook to see it here</div>
+                    <div className="h-full flex flex-col items-center justify-center gap-1 p-6 text-center">
+                        <p className="text-sm font-medium">No matching jobs</p>
+                        <button
+                            onClick={() => {
+                                setFilter('all');
+                                setSearch('');
+                            }}
+                            className="text-xs text-muted-foreground underline underline-offset-4 hover:text-foreground"
+                        >
+                            Show all jobs
+                        </button>
                     </div>
                 ) : (
                     filteredJobs.map((job) => (
@@ -203,20 +190,6 @@ export function JobList({ onNewJob }: JobListProps) {
                     ))
                 )}
             </div>
-
-            {hasCompletedJobs && (
-                <div className="p-2 border-t">
-                    <Button
-                        variant="ghost"
-                        size="sm"
-                        className="w-full text-xs"
-                        onClick={clearCompleted}
-                    >
-                        <TrashIcon className="w-3 h-3 mr-1" />
-                        Clear completed
-                    </Button>
-                </div>
-            )}
         </div>
     );
 }

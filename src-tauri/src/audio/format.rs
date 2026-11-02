@@ -24,7 +24,15 @@ pub const SUPPORTED_INPUT_FORMATS: &[AudioFormat] = &[
     AudioFormat::Aac,
 ];
 
+/// The supported input formats as people name them, for messages.
+///
+/// Matches `SUPPORTED_FORMAT_LABELS` in `src-ui/src/lib/formats.ts`.
+pub const SUPPORTED_FORMATS_LABEL: &str = "MP3, M4A, M4B, FLAC, WAV, OGG, AAC";
+
 /// Supported input file extensions
+///
+/// The UI lists these to users from `src-ui/src/lib/formats.ts`; change both
+/// together so the app never advertises a format this loader rejects.
 pub const SUPPORTED_EXTENSIONS: &[&str] = &[
     "mp3", "flac", "m4a", "m4b", "wav", "ogg", "oga", "aac",
 ];
