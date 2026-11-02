@@ -42,6 +42,8 @@ dist/
 *.mp3
 *.flac
 *.wav
+# ...except the small fixtures the tests read
+!/src-tauri/tests/fixtures/**
 /tests/output/
 
 .early.coverage
