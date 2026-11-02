@@ -219,11 +219,8 @@ mod tests {
 
 ## Release Process
 
-1. Update version in `Cargo.toml` and `tauri.conf.json`
-2. Update CHANGELOG.md
-3. Create a git tag: `git tag v0.x.x`
-4. Push tag: `git push origin v0.x.x`
-5. GitHub Actions builds and publishes the release
+Releases are built from a version tag by GitHub Actions and wait as a draft until
+someone publishes them. See [DEPLOY.md](DEPLOY.md).
 
 ## Getting Help
 

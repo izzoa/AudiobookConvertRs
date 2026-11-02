@@ -278,7 +278,7 @@ AudiobookConvertRs/
 └── scripts/release/  signing and checking the macOS release
 ```
 
-More detail: [ARCHITECTURE.md](ARCHITECTURE.md), [DEVELOPMENT.md](DEVELOPMENT.md), [CHANGELOG.md](CHANGELOG.md).
+More detail: [DEVELOPMENT.md](DEVELOPMENT.md).
 
 ## Compared with AudioBookConverter
 
@@ -298,7 +298,7 @@ This project is a Rust rewrite inspired by [AudioBookConverter](https://github.c
 
 ## Roadmap
 
-See [PARITY.md](PARITY.md) for the detailed plan. Next up:
+Next up:
 - MP3 output, with chapters in ID3 tags
 - Opus output
 - WMA input
