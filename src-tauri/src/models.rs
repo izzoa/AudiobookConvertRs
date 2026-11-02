@@ -240,8 +240,12 @@ pub struct Metadata {
     pub publisher: Option<String>,
     pub copyright: Option<String>,
     pub series: Option<String>,
-    pub series_index: Option<u32>,
+    /// Position in the series as text, so "1.5" survives.
+    #[serde(default, deserialize_with = "text_or_number")]
+    pub series_index: Option<String>,
     pub language: Option<String>,
+    /// Audible product id; lets a lookup fetch the exact book.
+    pub asin: Option<String>,
     pub artwork_path: Option<Utf8PathBuf>,
     /// Embedded artwork as base64 encoded data (for IPC transfer)
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -305,10 +309,13 @@ impl Metadata {
             self.series = other.series.clone();
         }
         if self.series_index.is_none() {
-            self.series_index = other.series_index;
+            self.series_index = other.series_index.clone();
         }
         if self.language.is_none() {
             self.language = other.language.clone();
+        }
+        if self.asin.is_none() {
+            self.asin = other.asin.clone();
         }
         if self.artwork_path.is_none() {
             self.artwork_path = other.artwork_path.clone();
@@ -336,6 +343,31 @@ impl Metadata {
         sanitize_string(&mut self.series);
         sanitize_string(&mut self.language);
     }
+}
+
+/// An ASIN as stored: trimmed and uppercased, or nothing when blank.
+pub fn normalize_asin(raw: &str) -> Option<String> {
+    let asin = raw.trim().to_uppercase();
+    (!asin.is_empty()).then_some(asin)
+}
+
+/// Reads a series position saved as text, or as the whole number that
+/// projects saved before it became text still carry (`"series_index": 2`).
+fn text_or_number<'de, D>(deserializer: D) -> Result<Option<String>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    #[derive(Deserialize)]
+    #[serde(untagged)]
+    enum TextOrNumber {
+        Text(String),
+        Number(serde_json::Number),
+    }
+
+    Ok(Option::<TextOrNumber>::deserialize(deserializer)?.map(|value| match value {
+        TextOrNumber::Text(text) => text,
+        TextOrNumber::Number(number) => number.to_string(),
+    }))
 }
 
 /// Audiobook chapter information
@@ -917,6 +949,26 @@ pub fn parse_time_string(s: &str) -> Option<u64> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn series_index_reads_old_numbers_and_new_text() {
+        let old: Metadata = serde_json::from_str(r#"{"series_index": 2}"#).unwrap();
+        assert_eq!(old.series_index.as_deref(), Some("2"));
+
+        let new: Metadata = serde_json::from_str(r#"{"series_index": "1.5"}"#).unwrap();
+        assert_eq!(new.series_index.as_deref(), Some("1.5"));
+
+        let missing: Metadata = serde_json::from_str("{}").unwrap();
+        assert_eq!(missing.series_index, None);
+        let null: Metadata = serde_json::from_str(r#"{"series_index": null}"#).unwrap();
+        assert_eq!(null.series_index, None);
+    }
+
+    #[test]
+    fn asin_is_stored_trimmed_and_uppercase() {
+        assert_eq!(normalize_asin(" b002v8h660 ").as_deref(), Some("B002V8H660"));
+        assert_eq!(normalize_asin("   "), None);
+    }
 
     #[test]
     fn test_audio_format_extension() {

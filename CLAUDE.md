@@ -1191,6 +1191,9 @@ single-document layout.
 | `hooks/useRebuildBook.ts` | Rebuild the open book from a new file list (reorder, sort, remove, add) |
 | `lib/conversionSettings.ts` | Builds a job's `ConversionSettings`; shared by the Convert bar and the batch |
 | `lib/outputTemplate.ts` | Renders the naming template (`{author}/{series}/{title}`) into an output path; tested by `npm test` |
+| `components/workbench/FindDetailsDialog.tsx` | Find details: search Audible or Open Library, review found values, apply as one undo step |
+| `lib/lookupReview.ts` | Find details review rows (what starts ticked) and the apply payload; tested by `npm test` |
+| `lib/audibleRegions.ts` | Audible stores; mirrors `REGIONS` in `metadata/audible.rs` |
 | `hooks/useFileDrop.ts` | Native Tauri drag-drop; degrades to no-op outside a webview |
 | `lib/format.ts` | `formatBytes` / `formatDuration` / `formatClock` / `formatEta` |
 | `lib/formats.ts` | Supported input formats as shown to users; mirrors `SUPPORTED_EXTENSIONS` in `audio/format.rs` |
@@ -1242,6 +1245,13 @@ stored by the backend; `lib/outputTemplate.ts` renders it for the Convert bar,
 the batch and the Settings preview. Empty fields drop out with their separators,
 and tag values are sanitized so they can never add folders. Its tests run under
 plain Node (`npm test --prefix src-ui`), so keep that file free of runtime imports.
+
+**Find details has one path for every source.** `metadata/audible.rs` (catalog search,
+then Audnexus for the picked ASIN) and `metadata/open_library.rs` map into the
+`LookupCandidate`/`LookupRecord` shapes in `metadata/lookup.rs`; `chapter_match.rs`
+fits found chapters to the book by runtime; `apply_lookup` merges only the ticked
+fields as one `EditCommand::Batch`. Nothing is requested until the user searches.
+Live checks: `cargo test --test audible_live -- --ignored`.
 
 **Undo is per book.** The backend keeps every loaded book, and `UndoManager`
 filters its shared history by `audiobook_id`. Never make undo/redo pop the global

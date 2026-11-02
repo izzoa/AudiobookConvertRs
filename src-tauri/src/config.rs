@@ -35,6 +35,9 @@ pub struct UserSettings {
     /// `lib/outputTemplate.ts`; the backend only stores it.
     pub output_template: String,
 
+    /// Audible store searched by "Find details" (us, uk, de, ...).
+    pub audible_region: String,
+
     /// Whether to auto-detect and use artwork from audio files
     pub auto_detect_artwork: bool,
 
@@ -146,6 +149,7 @@ impl Default for UserSettings {
             default_bitrate_kbps: 128,
             default_output_directory: None,
             output_template: "{title}".to_string(),
+            audible_region: crate::metadata::audible::DEFAULT_REGION.to_string(),
             auto_detect_artwork: true,
             scan_for_cover_images: true,
             concurrent_jobs: 1,
@@ -262,6 +266,13 @@ impl UserSettings {
             return Err(AppError::ConfigError(
                 "Concurrent jobs must be between 1 and 16".into(),
             ));
+        }
+
+        if !crate::metadata::audible::is_region(&self.audible_region) {
+            return Err(AppError::ConfigError(format!(
+                "Unknown Audible region: {}",
+                self.audible_region
+            )));
         }
 
         if let Some(ref sr) = self.default_sample_rate {
@@ -394,6 +405,17 @@ mod tests {
         let settings: UserSettings =
             serde_json::from_str(r#"{"default_output_directory":"/books"}"#).unwrap();
         assert_eq!(settings.output_template, "{title}");
+    }
+
+    #[test]
+    fn config_saved_before_audible_region_searches_the_us_store() {
+        let settings: UserSettings =
+            serde_json::from_str(r#"{"default_output_directory":"/books"}"#).unwrap();
+        assert_eq!(settings.audible_region, "us");
+        assert!(settings.validate().is_ok());
+
+        let unknown = UserSettings { audible_region: "nz".to_string(), ..UserSettings::default() };
+        assert!(unknown.validate().is_err());
     }
 }
 

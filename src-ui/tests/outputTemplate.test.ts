@@ -4,10 +4,12 @@ import assert from "node:assert/strict";
 import {
     describeTemplate,
     numberedPath,
+    outputPathForBook,
     renderOutputPath,
     unknownFields,
     type TemplateValues,
 } from "../src/lib/outputTemplate.ts";
+import type { AudioBook } from "../src/types/models.ts";
 
 const OUT = "/Users/you/Audiobooks";
 const LIBRARY = "{author}/{series}/{series_index} - {title}/{title}";
@@ -27,6 +29,17 @@ test("slashes make folders", () => {
     assert.equal(
         renderOutputPath(OUT, LIBRARY, messiah),
         `${OUT}/Frank Herbert/Dune/2 - Dune Messiah/Dune Messiah.m4b`
+    );
+});
+
+test("a decimal book number is kept as written", () => {
+    const novella = {
+        title: "The Churn",
+        output_metadata: { artist: "James S. A. Corey", series: "The Expanse", series_index: "1.5" },
+    } as unknown as AudioBook;
+    assert.equal(
+        outputPathForBook(OUT, LIBRARY, novella),
+        `${OUT}/James S. A. Corey/The Expanse/1.5 - The Churn/The Churn.m4b`
     );
 });
 

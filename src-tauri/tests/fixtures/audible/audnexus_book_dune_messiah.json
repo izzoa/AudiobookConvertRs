@@ -1,0 +1,81 @@
+{
+  "asin": "B002V8H660",
+  "authors": [
+    {
+      "asin": "B000APO5OM",
+      "name": "Frank Herbert"
+    }
+  ],
+  "copyright": 1969,
+  "description": "A sample summary.",
+  "formatType": "unabridged",
+  "genres": [
+    {
+      "asin": "18574426011",
+      "name": "Literature & Fiction",
+      "type": "genre"
+    },
+    {
+      "asin": "18580606011",
+      "name": "Science Fiction & Fantasy",
+      "type": "genre"
+    },
+    {
+      "asin": "18574449011",
+      "name": "Classics",
+      "type": "tag"
+    },
+    {
+      "asin": "18580628011",
+      "name": "Science Fiction",
+      "type": "tag"
+    },
+    {
+      "asin": "18580629011",
+      "name": "Adventure",
+      "type": "tag"
+    },
+    {
+      "asin": "18580645011",
+      "name": "Space Opera",
+      "type": "tag"
+    }
+  ],
+  "image": "https://m.media-amazon.com/images/I/81VCyFRJT2L.jpg",
+  "isAdult": false,
+  "isbn": "9781427202376",
+  "language": "english",
+  "literatureType": "fiction",
+  "narrators": [
+    {
+      "name": "Scott Brick"
+    },
+    {
+      "name": "Euan Morton"
+    },
+    {
+      "name": "Simon Vance"
+    },
+    {
+      "name": "Katherine Kellgren"
+    }
+  ],
+  "publisherName": "Macmillan Audio",
+  "rating": "4.4",
+  "region": "us",
+  "releaseDate": "2007-10-01T00:00:00.000Z",
+  "runtimeLengthMin": 537,
+  "seriesPrimary": {
+    "asin": "B005NALAG0",
+    "name": "Dune",
+    "position": "2"
+  },
+  "seriesSecondary": {
+    "asin": "B006W3V2B0",
+    "name": "The Dune Sequence",
+    "position": "13"
+  },
+  "subtitle": "Book Two in the Dune Chronicles",
+  "summary": "<p>A sample summary.</p><p>Second <i>paragraph</i>.</p>",
+  "title": "Dune Messiah"
+}

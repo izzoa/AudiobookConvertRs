@@ -155,7 +155,10 @@ fn main() {
             audiobookconvert_rs::commands::undo::get_undo_state,
             // Open Library
             audiobookconvert_rs::commands::open_library::open_library_search,
-            audiobookconvert_rs::commands::open_library::open_library_apply,
+            // Find details
+            audiobookconvert_rs::commands::lookup::audible_search,
+            audiobookconvert_rs::commands::lookup::lookup_record,
+            audiobookconvert_rs::commands::lookup::apply_lookup,
             // Playback
             audiobookconvert_rs::commands::playback::play_audio,
             audiobookconvert_rs::commands::playback::pause_audio,

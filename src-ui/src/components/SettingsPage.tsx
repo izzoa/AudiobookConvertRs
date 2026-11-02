@@ -11,6 +11,7 @@ import * as FilesApi from '@/api/files';
 import type { UserSettings, FFmpegStatus, ConversionDefaults, QualityPreset, EncodingMode } from '@/types/models';
 import { QualityPreset as QualityPresetValue, EncodingMode as EncodingModeValue } from '@/types/models';
 import { cn } from '@/lib/utils';
+import { AUDIBLE_REGIONS, DEFAULT_AUDIBLE_REGION } from '@/lib/audibleRegions';
 import {
     DEFAULT_OUTPUT_TEMPLATE,
     TEMPLATE_FIELDS,
@@ -317,6 +318,30 @@ export function SettingsPage() {
                             label="Look for cover images beside the files"
                         />
                     </div>
+                </Section>
+
+                <Section
+                    title="Find details"
+                    description="Fills narrator, series, summary, cover and chapters from Audible. Nothing is sent until you search."
+                >
+                    <Field
+                        label="Audible store"
+                        htmlFor="audible-region"
+                        hint="Searched by default. Find details can switch stores for one search."
+                    >
+                        <Select
+                            id="audible-region"
+                            className="w-56"
+                            value={draftSettings.audible_region || DEFAULT_AUDIBLE_REGION}
+                            onChange={(e) => updateDraft('audible_region', e.target.value)}
+                        >
+                            {AUDIBLE_REGIONS.map((region) => (
+                                <option key={region.code} value={region.code}>
+                                    {region.label}
+                                </option>
+                            ))}
+                        </Select>
+                    </Field>
                 </Section>
 
                 <Section title="Interface">

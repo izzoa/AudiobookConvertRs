@@ -1,0 +1,115 @@
+{
+  "product": {
+    "asin": "B002V8H660",
+    "asset_details": [
+      {
+        "attributes": {},
+        "name": "audio-discovery"
+      }
+    ],
+    "authors": [
+      {
+        "asin": "B000APO5OM",
+        "name": "Frank Herbert"
+      }
+    ],
+    "available_codecs": [
+      {
+        "enhanced_codec": "LC_64_44100_stereo",
+        "format": "Enhanced",
+        "is_kindle_enhanced": true,
+        "name": "aax_44_64"
+      },
+      {
+        "enhanced_codec": "LC_128_44100_stereo",
+        "format": "Enhanced",
+        "is_kindle_enhanced": true,
+        "name": "aax_44_128"
+      },
+      {
+        "enhanced_codec": "LC_64_22050_stereo",
+        "format": "Enhanced",
+        "is_kindle_enhanced": true,
+        "name": "aax_22_64"
+      },
+      {
+        "enhanced_codec": "LC_32_22050_stereo",
+        "format": "Enhanced",
+        "is_kindle_enhanced": true,
+        "name": "aax_22_32"
+      },
+      {
+        "enhanced_codec": "aax",
+        "format": "Enhanced",
+        "is_kindle_enhanced": false,
+        "name": "aax"
+      }
+    ],
+    "content_delivery_type": "SinglePartBook",
+    "content_type": "Product",
+    "format_type": "unabridged",
+    "has_children": false,
+    "is_adult_product": false,
+    "is_listenable": true,
+    "is_purchasability_suppressed": false,
+    "is_vvab": false,
+    "issue_date": "2007-10-01",
+    "language": "english",
+    "merchandising_summary": "<p>A sample summary.</p><p>Second <i>paragraph</i>.</p>",
+    "narrators": [
+      {
+        "name": "Scott Brick"
+      },
+      {
+        "name": "Euan Morton"
+      },
+      {
+        "name": "Simon Vance"
+      },
+      {
+        "name": "Katherine Kellgren"
+      }
+    ],
+    "product_images": {
+      "500": "https://m.media-amazon.com/images/I/41dcXp9bIoL._SL500_.jpg"
+    },
+    "publication_datetime": "2007-10-01T01:14:44Z",
+    "publication_name": "Dune",
+    "publisher_name": "Macmillan Audio",
+    "release_date": "2007-10-01",
+    "runtime_length_min": 537,
+    "series": [
+      {
+        "asin": "B006W3V2B0",
+        "sequence": "13",
+        "title": "The Dune Sequence",
+        "url": "/pd/Dune-Saga-Audiobook/B006W3V2B0"
+      },
+      {
+        "asin": "B005NALAG0",
+        "sequence": "2",
+        "title": "Dune",
+        "url": "/pd/Dune-Audiobook/B005NALAG0"
+      }
+    ],
+    "sku": "BK_AREN_000730",
+    "sku_lite": "BK_AREN_000730",
+    "social_media_images": {
+      "facebook": "https://m.media-amazon.com/images/I/41dcXp9bIoL._SL10_UR1600,800_CR200,50,1200,630_CLa%7C1200,630%7C41dcXp9bIoL.jpg%7C0,0,1200,630+82,82,465,465_PJAdblSocialShare-Gradientoverlay-largeasin-0to70,TopLeft,0,0_PJAdblSocialShare-AudibleLogo-Large,TopLeft,600,270_OU01_ZBLISTENING%20ON,617,216,52,500,AudibleSansMd,30,255,255,255.jpg",
+      "ig_bg": "https://m.media-amazon.com/images/I/41dcXp9bIoL._SL200_BL80_UR1080,2160.jpg",
+      "ig_static_with_bg": "https://m.media-amazon.com/images/I/41dcXp9bIoL._SL200_BL80_UR1080,2160_CLa%7C1080,2160%7C41dcXp9bIoL.jpg%7C0,0,1080,2160+288,614,500,500_PJAdblSocialShare-Gradientoverlay-Radial,TopLeft,0,0_PJAdblSocialShare-AudibleLogo-Small,TopLeft,290,461_ZBLISTENING%20ON,290,410,52,500,AudibleSansMd,34,255,255,255_ZBDune%20Messiah,290,1183,52,500,AudibleSansSm,32,255,255,255_ZBFrank%20Herbert,290,1247,52,500,AudibleSansRg,28,255,255,255.jpg",
+      "ig_sticker": "https://m.media-amazon.com/images/I/71UyRin7-TL._CLa%7C614,913%7C41dcXp9bIoL.jpg%7C0,0,614,913+70,79,471,473_FMpng_PJAudible-logo-dk,BottomLeft,70,-100_ZADune%20Messiah,70,560,65,500,AudibleSansSm,42,54,54,54_ZAby%20Frank%20Herbert,70,640,52,517,AudibleSansRg,32,0,0,0.png",
+      "twitter": "https://m.media-amazon.com/images/I/41dcXp9bIoL._SL10_UR1600,800_CR200,50,1024,512_CLa%7C1024,512%7C41dcXp9bIoL.jpg%7C0,0,1024,512+67,67,376,376_PJAdblSocialShare-Gradientoverlay-twitter-largeasin-0to60,TopLeft,0,0_PJAdblSocialShare-AudibleLogo-Medium,TopLeft,490,223_OU01_ZBLISTENING%20ON,483,152,55,450,AudibleSansMd,32,255,255,255.jpg"
+    },
+    "subtitle": "Book Two in the Dune Chronicles",
+    "title": "Dune Messiah"
+  },
+  "response_groups": [
+    "product_desc",
+    "always-returned",
+    "contributors",
+    "series",
+    "media",
+    "product_attrs"
+  ]
+}

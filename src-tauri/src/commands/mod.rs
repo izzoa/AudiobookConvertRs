@@ -8,4 +8,5 @@ pub mod presets;
 pub mod project;
 pub mod undo;
 pub mod open_library;
+pub mod lookup;
 pub mod playback;

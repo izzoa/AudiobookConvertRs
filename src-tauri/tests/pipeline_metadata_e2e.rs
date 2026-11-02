@@ -42,7 +42,7 @@ fn pipeline_output_carries_all_metadata_fields() {
         artist: Some("The Author".to_string()),
         narrator: Some("The Narrator".to_string()),
         series: Some("Pimsleur Italian".to_string()),
-        series_index: Some(1),
+        series_index: Some("1".to_string()),
         language: Some("it".to_string()),
         publisher: Some("The Publisher".to_string()),
         description: Some("A description".to_string()),

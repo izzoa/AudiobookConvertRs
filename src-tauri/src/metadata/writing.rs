@@ -27,6 +27,7 @@ pub const SERIES_PART_IDENT: FreeformIdentStatic =
     FreeformIdent::new_static(FREEFORM_MEAN, "SERIES-PART");
 pub const LANGUAGE_IDENT: FreeformIdentStatic =
     FreeformIdent::new_static(FREEFORM_MEAN, "LANGUAGE");
+pub const ASIN_IDENT: FreeformIdentStatic = FreeformIdent::new_static(FREEFORM_MEAN, "ASIN");
 
 /// Treat absent, empty, and whitespace-only values as "not configured".
 fn non_empty(value: &Option<String>) -> Option<&str> {
@@ -95,12 +96,16 @@ fn apply_metadata_to_tag(tag: &mut Tag, metadata: &Metadata) {
         tag.set_data(SERIES_IDENT, Data::Utf8(series.to_owned()));
     }
 
-    if let Some(series_index) = metadata.series_index {
-        tag.set_data(SERIES_PART_IDENT, Data::Utf8(series_index.to_string()));
+    if let Some(series_index) = non_empty(&metadata.series_index) {
+        tag.set_data(SERIES_PART_IDENT, Data::Utf8(series_index.to_owned()));
     }
 
     if let Some(language) = non_empty(&metadata.language) {
         tag.set_data(LANGUAGE_IDENT, Data::Utf8(language.to_owned()));
+    }
+
+    if let Some(asin) = non_empty(&metadata.asin) {
+        tag.set_data(ASIN_IDENT, Data::Utf8(asin.to_owned()));
     }
 
     if let Some(track) = metadata.track_number {
@@ -405,8 +410,9 @@ mod tests {
             publisher: Some("The Publisher".to_string()),
             copyright: Some("The Copyright".to_string()),
             series: Some("Pimsleur Italian".to_string()),
-            series_index: Some(1),
+            series_index: Some("1".to_string()),
             language: Some("it".to_string()),
+            asin: Some("B002V8H660".to_string()),
             artwork_path: None,
             artwork_data: None,
         };
@@ -433,6 +439,7 @@ mod tests {
         assert_eq!(tag.strings_of(&SERIES_IDENT).next(), Some("Pimsleur Italian"));
         assert_eq!(tag.strings_of(&SERIES_PART_IDENT).next(), Some("1"));
         assert_eq!(tag.strings_of(&LANGUAGE_IDENT).next(), Some("it"));
+        assert_eq!(tag.strings_of(&ASIN_IDENT).next(), Some("B002V8H660"));
     }
 
     /// The combined write path must persist the same complete field set
@@ -460,8 +467,9 @@ mod tests {
             publisher: Some("The Publisher".to_string()),
             copyright: Some("The Copyright".to_string()),
             series: Some("Pimsleur Italian".to_string()),
-            series_index: Some(1),
+            series_index: Some("1".to_string()),
             language: Some("it".to_string()),
+            asin: Some("B002V8H660".to_string()),
             artwork_path: None,
             artwork_data: None,
         };
@@ -488,6 +496,7 @@ mod tests {
         assert_eq!(tag.strings_of(&SERIES_IDENT).next(), Some("Pimsleur Italian"));
         assert_eq!(tag.strings_of(&SERIES_PART_IDENT).next(), Some("1"));
         assert_eq!(tag.strings_of(&LANGUAGE_IDENT).next(), Some("it"));
+        assert_eq!(tag.strings_of(&ASIN_IDENT).next(), Some("B002V8H660"));
     }
 
     /// Fields with no configured value (None or empty/whitespace) must leave
@@ -524,6 +533,7 @@ mod tests {
         assert_eq!(tag.strings_of(&SERIES_IDENT).next(), None);
         assert_eq!(tag.strings_of(&SERIES_PART_IDENT).next(), None);
         assert_eq!(tag.strings_of(&LANGUAGE_IDENT).next(), None);
+        assert_eq!(tag.strings_of(&ASIN_IDENT).next(), None);
     }
 
     #[test]

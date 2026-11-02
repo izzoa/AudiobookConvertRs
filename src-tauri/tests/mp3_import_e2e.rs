@@ -23,6 +23,8 @@ fn write_tagged_mp3(path: &Utf8Path, title: &str, track: u32) {
         .args(["-metadata", "date=2024"])
         .args(["-metadata", "genre=Steampunk"])
         .args(["-metadata", &format!("track={track}")])
+        // FFmpeg has no ID3 frame for ASIN, so it lands in a TXXX user text frame.
+        .args(["-metadata", "ASIN=b002v8h660"])
         .args(["-b:a", "64k", path.as_str()])
         .status()
         .expect("run ffmpeg");
@@ -47,6 +49,7 @@ fn mp3_import_reads_id3v2_tags() {
     assert_eq!(meta.genre.as_deref(), Some("Steampunk"));
     assert_eq!(meta.year, Some(2024));
     assert_eq!(meta.track_number, Some(1));
+    assert_eq!(meta.asin.as_deref(), Some("B002V8H660"));
 }
 
 #[test]

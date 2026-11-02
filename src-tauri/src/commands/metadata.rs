@@ -1,6 +1,6 @@
 use tauri::State;
 use camino::Utf8PathBuf;
-use crate::models::{Metadata, Chapter, AudioBook};
+use crate::models::{normalize_asin, Metadata, Chapter, AudioBook};
 use crate::metadata::editor::{self, ChapterUpdate};
 use crate::metadata::chapter_io::{ChapterFormat, parse_chapters, render_chapters};
 use crate::metadata::chapters::validate_chapters;
@@ -26,6 +26,8 @@ pub async fn update_audiobook_metadata(
         .ok_or_else(|| format!("Audiobook not found: {}", audiobook_id))?;
     
     let old_metadata = current.output_metadata.clone();
+    let mut metadata = metadata;
+    metadata.asin = metadata.asin.as_deref().and_then(normalize_asin);
     
     // Create edit command
     let command = EditCommand::UpdateMetadata {

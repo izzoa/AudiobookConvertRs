@@ -167,10 +167,15 @@ pub fn extract_mp4_metadata(path: &Utf8Path) -> AppResult<Metadata> {
         if metadata.series_index.is_none() {
             metadata.series_index =
                 first_freeform(&tag, &crate::metadata::writing::SERIES_PART_IDENT)
-                    .and_then(|s| s.parse::<u32>().ok());
+                    .map(|s| s.trim().to_string())
+                    .filter(|s| !s.is_empty());
         }
         if metadata.language.is_none() {
             metadata.language = first_freeform(&tag, &crate::metadata::writing::LANGUAGE_IDENT);
+        }
+        if metadata.asin.is_none() {
+            metadata.asin = first_freeform(&tag, &crate::metadata::writing::ASIN_IDENT)
+                .and_then(|s| crate::models::normalize_asin(&s));
         }
     }
 
@@ -285,6 +290,18 @@ pub(crate) fn extract_from_revision(
             }
             Some(StandardTagKey::IdentCatalogNumber) | Some(StandardTagKey::IdentIsrc) => {
                 // These could be useful for publisher/copyright
+            }
+            // MP4 and Vorbis ASIN tags map to IdentAsin. ID3 user text frames
+            // have no standard key; Symphonia names them "TXXX:<desc>".
+            Some(StandardTagKey::IdentAsin) => {
+                if metadata.asin.is_none() {
+                    metadata.asin = crate::models::normalize_asin(&value_str);
+                }
+            }
+            None if tag.key.eq_ignore_ascii_case("TXXX:ASIN") => {
+                if metadata.asin.is_none() {
+                    metadata.asin = crate::models::normalize_asin(&value_str);
+                }
             }
             _ => {}
         }
@@ -433,8 +450,9 @@ mod tests {
             narrator: Some("The Narrator".to_string()),
             publisher: Some("The Publisher".to_string()),
             series: Some("Pimsleur Italian".to_string()),
-            series_index: Some(1),
+            series_index: Some("1.5".to_string()),
             language: Some("it".to_string()),
+            asin: Some("B002V8H660".to_string()),
             description: Some("A description".to_string()),
             ..Default::default()
         };
@@ -445,7 +463,12 @@ mod tests {
         assert_eq!(extracted.narrator, Some("The Narrator".to_string()));
         assert_eq!(extracted.publisher, Some("The Publisher".to_string()));
         assert_eq!(extracted.series, Some("Pimsleur Italian".to_string()));
-        assert_eq!(extracted.series_index, Some(1));
+        assert_eq!(extracted.series_index.as_deref(), Some("1.5"));
+        assert_eq!(extracted.asin.as_deref(), Some("B002V8H660"));
+
+        // Import reads tags through Symphonia, not mp4ameta; the ASIN must survive that path too.
+        let imported = crate::audio::loader::load_audio_file(&dest).unwrap();
+        assert_eq!(imported.metadata.asin.as_deref(), Some("B002V8H660"));
         assert_eq!(extracted.language, Some("it".to_string()));
         assert_eq!(extracted.description, Some("A description".to_string()));
     }

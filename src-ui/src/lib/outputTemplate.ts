@@ -40,7 +40,7 @@ export function templateValues(book: AudioBook): TemplateValues {
         author: m.artist || m.album_artist || book.author,
         title: m.title || book.title,
         series: m.series,
-        series_index: m.series_index != null ? String(m.series_index) : undefined,
+        series_index: m.series_index || undefined,
         narrator: m.narrator,
         year: m.year ? String(m.year) : undefined,
     };

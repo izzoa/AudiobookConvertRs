@@ -5,7 +5,7 @@
  *
  * It is imported dynamically from main.tsx and never reaches a release build.
  */
-import type { AudioBook, AudioFile, Chapter, UserSettings } from "@/types/models";
+import type { AudioBook, AudioFile, Chapter, LookupCandidate, LookupRecord, Metadata, UserSettings } from "@/types/models";
 
 const FIXTURE_FILES = [
     ["01 - Dune - Book One.mp3", 2_892_000],
@@ -66,7 +66,7 @@ function makeBook(discs = false): AudioBook {
             artist: "Frank Herbert",
             narrator: "Simon Vance",
             series: "Dune Chronicles",
-            series_index: 1,
+            series_index: "1",
             year: 1965,
             genre: "Science Fiction",
         },
@@ -109,10 +109,54 @@ function makeLibraryBook(entry: (typeof LIBRARY)[number]): AudioBook {
     };
 }
 
+/**
+ * Find details fixtures, shaped like real Audible and Audnexus answers.
+ * "Dune" offers its chapter titles on the book's own chapters; "Dune Messiah"
+ * is a different edition, so its chapters are unavailable.
+ */
+const COVER = "https://m.media-amazon.com/images/I/41dcXp9bIoL._SL500_.jpg";
+const AUDIBLE_RESULTS: LookupCandidate[] = [
+    { source: "audible", id: "B002V1OF70", title: "Dune", subtitle: "Book One in the Dune Chronicles", authors: ["Frank Herbert"], narrators: ["Scott Brick", "Orlagh Cassidy", "Euan Morton", "Simon Vance"], series: "Dune", series_index: "1", runtime_ms: 1_265 * 60_000, year: 2007, cover_url: COVER },
+    { source: "audible", id: "B002V8H660", title: "Dune Messiah", subtitle: "Book Two in the Dune Chronicles", authors: ["Frank Herbert"], narrators: ["Scott Brick", "Euan Morton", "Simon Vance", "Katherine Kellgren"], series: "Dune", series_index: "2", runtime_ms: 537 * 60_000, year: 2007, cover_url: COVER },
+    { source: "audible", id: "B002V5B5JA", title: "Children of Dune", subtitle: null, authors: ["Frank Herbert"], narrators: ["Scott Brick", "Ilyana Kadushin"], series: "Dune", series_index: "3", runtime_ms: 1_074 * 60_000, year: 2007, cover_url: COVER },
+];
+const OPEN_LIBRARY_RESULTS: LookupCandidate[] = [
+    { source: "open_library", id: "/works/OL893415W", title: "Dune", subtitle: null, authors: ["Frank Herbert"], narrators: [], series: null, series_index: null, runtime_ms: null, year: 1965, cover_url: null },
+];
+
+function mockRecord(id: string, target: AudioBook | null | undefined): LookupRecord {
+    const found = AUDIBLE_RESULTS.find((c) => c.id === id) ?? OPEN_LIBRARY_RESULTS.find((c) => c.id === id) ?? AUDIBLE_RESULTS[0];
+    const fields: Metadata = found.source === "open_library"
+        ? { title: found.title, artist: found.authors.join(", "), year: found.year ?? undefined, publisher: "Chilton Books", genre: "Science fiction" }
+        : {
+              title: found.title,
+              artist: found.authors.join(", "),
+              narrator: found.narrators.join(", "),
+              series: found.series ?? undefined,
+              series_index: found.series_index ?? undefined,
+              year: found.year ?? undefined,
+              genre: "Literature & Fiction",
+              publisher: "Macmillan Audio",
+              language: "english",
+              copyright: "© 1965",
+              description: "A sample summary.\n\nSecond paragraph.",
+              asin: found.id,
+          };
+    const current = target?.chapters ?? [];
+    const chapters: LookupRecord["chapters"] =
+        found.source === "open_library"
+            ? { kind: "unavailable", reason: "Open Library has no chapter lists." }
+            : found.id === "B002V1OF70" && current.length > 0
+              ? { kind: "titles_only", chapters: current.map((c, i) => ({ ...c, title: i === 0 ? "Opening Credits" : `Book One: Part ${i}`, auto_detected: false })) }
+              : { kind: "unavailable", reason: `The found edition runs 8h 57m with 28 chapters; this book runs 8h 9m with ${current.length}.` };
+    return { source: found.source, id: found.id, fields, cover_url: found.cover_url, runtime_ms: found.runtime_ms, chapters };
+}
+
 const SETTINGS: UserSettings = {
     default_bitrate_kbps: 64,
     default_output_directory: "/Users/you/Audiobooks/out",
     output_template: "{title}",
+    audible_region: "us",
     embed_chapters_by_default: true,
     copy_metadata_by_default: true,
     embed_artwork_by_default: true,
@@ -142,6 +186,8 @@ export function installMockBackend() {
     const books = new Map<string, AudioBook>();
     let jobs: any[] = [];
     let callbackId = 1;
+    // Only Find details applies are undoable here, so its review can be checked end to end.
+    const undoStack: { before: AudioBook; description: string }[] = [];
 
     const handlers: Record<string, (args: any) => unknown> = {
         get_settings: () => SETTINGS,
@@ -161,10 +207,38 @@ export function installMockBackend() {
             supports_libfdk_aac: true,
         }),
 
-        can_undo: () => false,
+        can_undo: () => undoStack.length > 0,
         can_redo: () => false,
-        get_undo_description: () => null,
+        get_undo_description: () => undoStack.at(-1)?.description ?? null,
         get_redo_description: () => null,
+        undo: () => {
+            const last = undoStack.pop();
+            if (!last) return null;
+            books.set(last.before.id, last.before);
+            if (book?.id === last.before.id) book = last.before;
+            return last.description;
+        },
+
+        audible_search: ({ title }: { title?: string }) =>
+            AUDIBLE_RESULTS.filter((c) => !title || c.title.toLowerCase().includes(String(title).toLowerCase().split(" ")[0])),
+        open_library_search: () => OPEN_LIBRARY_RESULTS,
+        lookup_record: ({ id, audiobookId }: { id: string; audiobookId: string }) =>
+            mockRecord(id, books.get(audiobookId) ?? book),
+        apply_lookup: ({ audiobookId, source, fields, chapters }: { audiobookId: string; source: string; fields: Metadata; chapters: Chapter[] | null }) => {
+            const target = books.get(audiobookId) ?? book;
+            if (!target) return book;
+            const defined = Object.fromEntries(Object.entries(fields).filter(([, v]) => v != null));
+            // The real backend downloads the cover; the mock keeps the current one.
+            const updated: AudioBook = {
+                ...target,
+                output_metadata: { ...target.output_metadata, ...defined },
+                chapters: chapters ?? target.chapters,
+            };
+            undoStack.push({ before: target, description: `Apply details from ${source === "audible" ? "Audible" : "Open Library"}` });
+            books.set(updated.id, updated);
+            if (book?.id === updated.id) book = updated;
+            return updated;
+        },
 
         get_active_audiobook: () => book,
         group_paths_into_books: ({ paths }: any) =>
@@ -191,6 +265,8 @@ export function installMockBackend() {
             return null;
         },
         existing_paths: ({ paths }: any) => paths.filter((p: string) => p.includes("Children of Dune")),
+        // The fixture books have no CUE sheet beside them.
+        detect_cue_file: () => null,
         clear_current_audiobook: () => ((book = null), null),
         load_audiobook_file: () => (book = makeBook()),
 

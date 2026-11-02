@@ -367,6 +367,21 @@ mod tests {
     }
 
     #[test]
+    fn project_saved_with_numeric_series_index_still_loads() {
+        // A version-1 project file from before the series position became text.
+        let mut json = serde_json::to_value(Project::new(AudioBook::new("Dune".to_string()))).unwrap();
+        json["audiobook"]["output_metadata"]["series_index"] = serde_json::json!(2);
+
+        let dir = tempfile::tempdir().unwrap();
+        let path = Utf8PathBuf::from_path_buf(dir.path().join("old.acproj")).unwrap();
+        fs::write(&path, json.to_string()).unwrap();
+
+        let project = Project::load(&path).unwrap();
+        assert_eq!(project.version, 1);
+        assert_eq!(project.audiobook.output_metadata.series_index.as_deref(), Some("2"));
+    }
+
+    #[test]
     fn test_recent_projects_manager() {
         let mut manager = RecentProjectsManager::new();
         

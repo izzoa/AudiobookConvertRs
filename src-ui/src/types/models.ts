@@ -46,8 +46,11 @@ export interface Metadata {
     publisher?: string;
     copyright?: string;
     series?: string;
-    series_index?: number;
+    /** Position in the series as text, so "1.5" survives. */
+    series_index?: string;
     language?: string;
+    /** Audible product id; lets a lookup fetch the exact book. */
+    asin?: string;
     artwork_path?: string;
     artwork_data?: string;
 }
@@ -191,6 +194,8 @@ export interface UserSettings {
     default_output_directory?: string;
     /** Folders and file name inside the output folder; see lib/outputTemplate.ts. */
     output_template?: string;
+    /** Audible store searched by Find details: us, uk, de, ... */
+    audible_region?: string;
     default_sample_rate?: number;
     embed_chapters_by_default: boolean;
     copy_metadata_by_default: boolean;
@@ -377,23 +382,39 @@ export interface UndoState {
     redoDescription?: string;
 }
 
-// Open Library Types
-export interface OpenLibrarySearchResult {
-    key: string;
+// Find details (online lookup). Backend `None` values arrive as null.
+export type LookupSource = 'audible' | 'open_library';
+
+/** One search result: enough to recognise the book in a list. */
+export interface LookupCandidate {
+    source: LookupSource;
+    /** ASIN for Audible; work key for Open Library. */
+    id: string;
     title: string;
-    author_name?: string[];
-    first_publish_year?: number;
-    cover_i?: number;
-    publisher?: string[];
-    subject?: string[];
+    subtitle?: string | null;
+    authors: string[];
+    narrators: string[];
+    series?: string | null;
+    series_index?: string | null;
+    runtime_ms?: number | null;
+    year?: number | null;
+    cover_url?: string | null;
 }
 
-export interface OpenLibrarySelection {
-    key: string;
-    title: string;
-    author?: string;
-    year?: number;
-    cover_id?: number;
-    publisher?: string;
-    genre?: string;
+/** Found chapters, already fitted to the open book by the backend. */
+export type ChapterOffer =
+    | { kind: 'exact'; chapters: Chapter[] }
+    | { kind: 'shifted'; chapters: Chapter[]; shift_ms: number }
+    | { kind: 'titles_only'; chapters: Chapter[] }
+    | { kind: 'unavailable'; reason: string };
+
+/** The full record for one chosen result, ready for review. */
+export interface LookupRecord {
+    source: LookupSource;
+    id: string;
+    fields: Metadata;
+    cover_url?: string | null;
+    runtime_ms?: number | null;
+    chapters: ChapterOffer;
 }
+

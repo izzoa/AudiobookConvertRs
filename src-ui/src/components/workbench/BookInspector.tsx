@@ -7,8 +7,7 @@ import {
     ChevronDownIcon,
     ChevronRightIcon,
 } from "@heroicons/react/24/outline";
-import { Popover } from "@/components/ui/popover";
-import { OpenLibraryFetcher } from "@/components/OpenLibraryFetcher";
+import { FindDetailsDialog } from "@/components/workbench/FindDetailsDialog";
 import { useToast } from "@/components/ui/use-toast";
 import { useApp } from "@/context/useApp";
 import * as FilesApi from "@/api/files";
@@ -24,12 +23,20 @@ import { cn } from "@/lib/utils";
 export function BookInspector() {
     const { activeAudiobook } = useApp();
     const [showMore, setShowMore] = useState(false);
+    const [finding, setFinding] = useState(false);
 
     if (!activeAudiobook) return null;
 
     return (
         <aside className="w-[264px] lg:w-[312px] shrink-0 border-l bg-surface flex flex-col overflow-y-auto">
-            <CoverWell />
+            <div className="flex items-center justify-between px-4 pt-3 -mb-1 no-select">
+                <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Details</span>
+                <CoverAction icon={<MagnifyingGlassIcon className="w-3.5 h-3.5" />} onClick={() => setFinding(true)}>
+                    Find details…
+                </CoverAction>
+            </div>
+            <CoverWell onFindOnline={() => setFinding(true)} />
+            <FindDetailsDialog open={finding} onClose={() => setFinding(false)} />
 
             <div className="px-4 pb-5 space-y-3.5">
                 <Field name="title" label="Title" placeholder="Book title" />
@@ -38,7 +45,7 @@ export function BookInspector() {
 
                 <div className="grid grid-cols-[1fr_68px] gap-2">
                     <Field name="series" label="Series" placeholder="Series name" />
-                    <Field name="series_index" label="#" numeric placeholder="1" />
+                    <Field name="series_index" label="#" placeholder="1" />
                 </div>
 
                 <div className="grid grid-cols-2 gap-2">
@@ -65,6 +72,7 @@ export function BookInspector() {
                         <Field name="album_artist" label="Album artist" placeholder="Album artist tag" />
                         <Field name="publisher" label="Publisher" placeholder="Publisher" />
                         <Field name="language" label="Language" placeholder="eng" />
+                        <Field name="asin" label="ASIN" placeholder="Audible product ID" />
                         <Field name="copyright" label="Copyright" placeholder="© 2024" />
                         <Field name="description" label="Description" multiline placeholder="Blurb or summary" />
                         <Field name="comments" label="Comments" multiline placeholder="Private notes" />
@@ -75,7 +83,7 @@ export function BookInspector() {
     );
 }
 
-function CoverWell() {
+function CoverWell({ onFindOnline }: { onFindOnline: () => void }) {
     const { activeAudiobook, setActiveAudiobook, settings } = useApp();
     const { toast } = useToast();
     const [busy, setBusy] = useState(false);
@@ -195,17 +203,9 @@ function CoverWell() {
                     Auto
                 </CoverAction>
 
-                <Popover
-                    align="end"
-                    className="w-[380px] max-h-[460px] overflow-y-auto p-3"
-                    trigger={() => (
-                        <CoverAction icon={<MagnifyingGlassIcon className="w-3.5 h-3.5" />} disabled={busy}>
-                            Find online
-                        </CoverAction>
-                    )}
-                >
-                    <OpenLibraryFetcher />
-                </Popover>
+                <CoverAction icon={<MagnifyingGlassIcon className="w-3.5 h-3.5" />} onClick={onFindOnline} disabled={busy}>
+                    Find online
+                </CoverAction>
 
                 {preview && (
                     <CoverAction
@@ -265,14 +265,16 @@ type TextKey = Extract<
     | "album"
     | "album_artist"
     | "series"
+    | "series_index"
     | "genre"
     | "publisher"
     | "language"
+    | "asin"
     | "copyright"
     | "description"
     | "comments"
 >;
-type NumberKey = Extract<keyof Metadata, "year" | "series_index">;
+type NumberKey = Extract<keyof Metadata, "year">;
 
 /**
  * Commits on blur rather than per keystroke: every write is an undo entry and a
@@ -298,7 +300,7 @@ function Field({
     const [failed, setFailed] = useState(false);
     const committed = useRef(value);
 
-    // Re-sync when the book changes underneath us (import, undo, Open Library).
+    // Re-sync when the book changes underneath us (import, undo, Find details).
     useEffect(() => {
         const next = stored == null ? "" : String(stored);
         if (next !== committed.current) {

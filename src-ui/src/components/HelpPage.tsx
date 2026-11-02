@@ -10,6 +10,7 @@ const SECTIONS = [
     { id: 'files', label: 'Files and order' },
     { id: 'chapters', label: 'Chapters' },
     { id: 'tags', label: 'Tags and cover' },
+    { id: 'find-details', label: 'Find details' },
     { id: 'convert', label: 'Converting' },
     { id: 'queue', label: 'The queue' },
     { id: 'projects', label: 'Projects' },
@@ -169,7 +170,7 @@ export function HelpPage() {
                     <p>
                         Tags are read from the source files on import and edited on the right. A field saves when you
                         leave it; Escape puts back what was there. <B>More fields</B> shows album, publisher, language,
-                        copyright, description and comments.
+                        ASIN, copyright, description and comments.
                     </p>
                     <List>
                         <li>Click the cover to choose an image.</li>
@@ -178,10 +179,40 @@ export function HelpPage() {
                             book is imported.
                         </li>
                         <li>
-                            <B>Find online</B> searches Open Library for the book's details and cover.
+                            <B>Find online</B> opens Find details, below.
                         </li>
                     </List>
                     <p>Every edit can be undone from the arrows in the top bar, or with {MOD_KEY}Z.</p>
+                </Section>
+
+                <Section id="find-details" title="Find details">
+                    <p>
+                        <B>Find details…</B> above the cover searches Audible for the book and fills in what it knows:
+                        narrator, series and book number, summary, publisher, cover, ASIN and chapters. Books that are
+                        not on Audible, such as public-domain recordings, can be searched on Open Library instead.
+                    </p>
+                    <List>
+                        <li>
+                            Pick a result to review it. Each value is shown beside what the book has now. Empty fields
+                            start ticked; values you already have start unticked, so nothing you typed is replaced
+                            unless you tick it.
+                        </li>
+                        <li>
+                            Chapters from Audible are offered only when your files match that edition&apos;s length, or
+                            match it with the Audible intro and outro removed. With a different edition but the same
+                            number of chapters, only the titles are offered. Otherwise the review says why not.
+                        </li>
+                        <li>Applying is one step: a single undo puts back every field, the cover and the chapters.</li>
+                        <li>
+                            Typing an ASIN instead of a title goes straight to that book, and a book that already carries
+                            an ASIN is offered as an exact match.
+                        </li>
+                    </List>
+                    <p>
+                        A search sends the title and author you typed to Audible (Amazon) or Open Library, and the
+                        chosen book&apos;s ASIN to Audnexus (api.audnex.us). Nothing is sent until you search, and
+                        nothing on import. The Audible store is set in {toSettings}.
+                    </p>
                 </Section>
 
                 <Section id="convert" title="Converting">

@@ -16,6 +16,9 @@ pub mod format_specific;
 pub mod writing;
 pub mod editor;
 pub mod open_library;
+pub mod lookup;
+pub mod audible;
+pub mod chapter_match;
 pub mod cue_parser;
 
 // Re-export commonly used items

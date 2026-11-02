@@ -1,30 +1,19 @@
-//! Open Library API client for fetching audiobook metadata
-//!
-//! Provides functions to search for books and fetch metadata from OpenLibrary.org
+//! Open Library as a lookup source, for books that are not on Audible
+//! (public-domain recordings, LibriVox). Results map into the shared lookup
+//! shapes; Open Library has no narrators, series or chapters.
 
 use crate::error::{AppError, AppResult};
+use crate::metadata::lookup::{join_names, LookupCandidate, LookupSource};
 use crate::models::Metadata;
 use reqwest::Client;
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 use std::time::Duration;
-use tracing::{debug, info, warn};
+use tracing::{debug, info};
 
 const OPENLIBRARY_SEARCH_URL: &str = "https://openlibrary.org/search.json";
 const OPENLIBRARY_COVERS_URL: &str = "https://covers.openlibrary.org/b/id";
 const REQUEST_TIMEOUT_SECS: u64 = 10;
 const USER_AGENT: &str = "AudiobookConvertRs/1.0";
-
-/// Search result from Open Library API
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct OpenLibrarySearchResult {
-    pub key: String,
-    pub title: String,
-    pub author_name: Option<Vec<String>>,
-    pub first_publish_year: Option<i32>,
-    pub cover_i: Option<i64>,
-    pub publisher: Option<Vec<String>>,
-    pub subject: Option<Vec<String>>,
-}
 
 /// Response from Open Library search API
 #[derive(Debug, Deserialize)]
@@ -38,7 +27,7 @@ struct SearchResponse {
 
 /// Document in Open Library search results
 #[derive(Debug, Deserialize)]
-struct OpenLibraryDoc {
+pub(crate) struct OpenLibraryDoc {
     key: String,
     title: String,
     author_name: Option<Vec<String>>,
@@ -46,18 +35,6 @@ struct OpenLibraryDoc {
     cover_i: Option<i64>,
     publisher: Option<Vec<String>>,
     subject: Option<Vec<String>>,
-}
-
-/// Selection made by user from search results
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct OpenLibrarySelection {
-    pub key: String,
-    pub title: String,
-    pub author: Option<String>,
-    pub year: Option<i32>,
-    pub cover_id: Option<i64>,
-    pub publisher: Option<String>,
-    pub genre: Option<String>,
 }
 
 /// Create HTTP client with timeout and user agent
@@ -69,16 +46,40 @@ fn create_client() -> AppResult<Client> {
         .map_err(|e| AppError::NetworkError(format!("Failed to create HTTP client: {}", e)))
 }
 
-/// Search Open Library for books
-pub async fn search(query: &str, limit: Option<u32>) -> AppResult<Vec<OpenLibrarySearchResult>> {
-    let limit = limit.unwrap_or(10).min(100); // Cap at 100 results
-    
-    debug!("Searching Open Library: query='{}', limit={}", query, limit);
+/// Only the fields the lookup uses; full documents are large.
+const SEARCH_FIELDS: &str = "key,title,author_name,first_publish_year,cover_i,publisher,subject";
 
+/// Searches Open Library by free text.
+pub async fn search_candidates(query: &str, limit: Option<u32>) -> AppResult<Vec<LookupCandidate>> {
+    let limit = limit.unwrap_or(10).min(100);
+    debug!("Searching Open Library: query='{}', limit={}", query, limit);
+    let docs = fetch_docs(query, limit).await?;
+    info!("Found {} results from Open Library", docs.len());
+    Ok(docs.iter().map(candidate).collect())
+}
+
+/// The fields and cover for one work, by its key ("/works/OL893461W").
+pub async fn fetch_record(key: &str) -> AppResult<(Metadata, Option<String>)> {
+    let doc = fetch_docs(&format!("key:{}", key), 1)
+        .await?
+        .into_iter()
+        .next()
+        .ok_or_else(|| AppError::MetadataLookupError {
+            provider: "Open Library".to_string(),
+            reason: format!("no work with key {}", key),
+        })?;
+    Ok(record_fields(&doc))
+}
+
+async fn fetch_docs(query: &str, limit: u32) -> AppResult<Vec<OpenLibraryDoc>> {
     let client = create_client()?;
-    
-    let url = format!("{}?q={}&limit={}", OPENLIBRARY_SEARCH_URL, 
-        urlencoding::encode(query), limit);
+    let url = format!(
+        "{}?q={}&limit={}&fields={}",
+        OPENLIBRARY_SEARCH_URL,
+        urlencoding::encode(query),
+        limit,
+        SEARCH_FIELDS
+    );
 
     let response = client.get(&url)
         .send()
@@ -102,152 +103,80 @@ pub async fn search(query: &str, limit: Option<u32>) -> AppResult<Vec<OpenLibrar
             reason: format!("Failed to parse response: {}", e),
         })?;
 
-    info!("Found {} results from Open Library", search_response.docs.len());
-
-    let results = search_response.docs.into_iter()
-        .map(|doc| OpenLibrarySearchResult {
-            key: doc.key,
-            title: doc.title,
-            author_name: doc.author_name,
-            first_publish_year: doc.first_publish_year,
-            cover_i: doc.cover_i,
-            publisher: doc.publisher,
-            subject: doc.subject,
-        })
-        .collect();
-
-    Ok(results)
+    Ok(search_response.docs)
 }
 
-/// Download cover image from Open Library
-pub async fn download_cover(cover_id: i64, size: &str) -> AppResult<Vec<u8>> {
-    debug!("Downloading cover {} from Open Library (size: {})", cover_id, size);
-
-    let client = create_client()?;
-    
-    let url = format!("{}/{}-{}.jpg", OPENLIBRARY_COVERS_URL, cover_id, size);
-
-    let response = client.get(&url)
-        .send()
-        .await
-        .map_err(|e| AppError::MetadataLookupError {
-            provider: "Open Library".to_string(),
-            reason: format!("Cover download failed: {}", e),
-        })?;
-
-    if !response.status().is_success() {
-        return Err(AppError::MetadataLookupError {
-            provider: "Open Library".to_string(),
-            reason: format!("Cover HTTP error: {}", response.status()),
-        });
+fn candidate(doc: &OpenLibraryDoc) -> LookupCandidate {
+    LookupCandidate {
+        source: LookupSource::OpenLibrary,
+        id: doc.key.clone(),
+        title: doc.title.clone(),
+        subtitle: None,
+        authors: doc.author_name.clone().unwrap_or_default(),
+        narrators: Vec::new(),
+        series: None,
+        series_index: None,
+        runtime_ms: None,
+        year: doc.first_publish_year.and_then(valid_year),
+        cover_url: doc.cover_i.map(cover_url),
     }
-
-    let bytes = response.bytes()
-        .await
-        .map_err(|e| AppError::MetadataLookupError {
-            provider: "Open Library".to_string(),
-            reason: format!("Failed to read cover bytes: {}", e),
-        })?
-        .to_vec();
-
-    info!("Downloaded cover {} ({} bytes)", cover_id, bytes.len());
-
-    Ok(bytes)
 }
 
-/// Convert OpenLibrary selection to internal Metadata format
-pub fn selection_to_metadata(selection: &OpenLibrarySelection) -> Metadata {
-    let mut metadata = Metadata::default();
-
-    metadata.title = Some(selection.title.clone());
-    metadata.artist = selection.author.clone();
-    
-    if let Some(year) = selection.year {
-        if year > 0 && year <= 9999 {
-            metadata.year = Some(year as u16);
-        }
-    }
-
-    metadata.publisher = selection.publisher.clone();
-    
-    // Use genre if available (take first subject as genre)
-    metadata.genre = selection.genre.clone();
-
-    debug!("Converted selection to metadata: title={:?}, artist={:?}", 
-        metadata.title, metadata.artist);
-
-    metadata
-}
-
-/// Apply Open Library selection to metadata, optionally downloading cover
-pub async fn apply_selection(
-    selection: &OpenLibrarySelection,
-    download_cover: bool,
-) -> AppResult<(Metadata, Option<Vec<u8>>)> {
-    let metadata = selection_to_metadata(selection);
-
-    let cover_bytes = if download_cover {
-        if let Some(cover_id) = selection.cover_id {
-            match self::download_cover(cover_id, "L").await {
-                Ok(bytes) => {
-                    info!("Successfully downloaded cover for: {}", selection.title);
-                    Some(bytes)
-                }
-                Err(e) => {
-                    warn!("Failed to download cover: {}", e);
-                    None
-                }
-            }
-        } else {
-            None
-        }
-    } else {
-        None
+/// Title, authors, first publication year, first publisher, first subject
+/// as genre, and the large cover.
+fn record_fields(doc: &OpenLibraryDoc) -> (Metadata, Option<String>) {
+    let first = |list: &Option<Vec<String>>| list.as_ref().and_then(|l| l.first()).cloned();
+    let metadata = Metadata {
+        title: Some(doc.title.clone()),
+        artist: doc.author_name.as_deref().and_then(join_names),
+        year: doc.first_publish_year.and_then(valid_year),
+        publisher: first(&doc.publisher),
+        genre: first(&doc.subject),
+        ..Default::default()
     };
+    (metadata, doc.cover_i.map(cover_url))
+}
 
-    Ok((metadata, cover_bytes))
+fn cover_url(cover_id: i64) -> String {
+    format!("{}/{}-L.jpg", OPENLIBRARY_COVERS_URL, cover_id)
+}
+
+fn valid_year(year: i32) -> Option<u16> {
+    (1..=9999).contains(&year).then_some(year as u16)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    #[test]
-    fn test_selection_to_metadata() {
-        let selection = OpenLibrarySelection {
-            key: "/works/OL123W".to_string(),
-            title: "Test Book".to_string(),
-            author: Some("Test Author".to_string()),
-            year: Some(2020),
-            cover_id: Some(12345),
-            publisher: Some("Test Publisher".to_string()),
-            genre: Some("Fiction".to_string()),
-        };
-
-        let metadata = selection_to_metadata(&selection);
-
-        assert_eq!(metadata.title, Some("Test Book".to_string()));
-        assert_eq!(metadata.artist, Some("Test Author".to_string()));
-        assert_eq!(metadata.year, Some(2020));
-        assert_eq!(metadata.publisher, Some("Test Publisher".to_string()));
-        assert_eq!(metadata.genre, Some("Fiction".to_string()));
+    fn dune_docs() -> Vec<OpenLibraryDoc> {
+        let json = std::fs::read_to_string(format!(
+            "{}/tests/fixtures/open_library/search_dune_messiah.json",
+            env!("CARGO_MANIFEST_DIR")
+        ))
+        .unwrap();
+        serde_json::from_str::<SearchResponse>(&json).unwrap().docs
     }
 
     #[test]
-    fn test_selection_to_metadata_invalid_year() {
-        let selection = OpenLibrarySelection {
-            key: "/works/OL123W".to_string(),
-            title: "Test Book".to_string(),
-            author: Some("Test Author".to_string()),
-            year: Some(99999), // Invalid year
-            cover_id: None,
-            publisher: None,
-            genre: None,
-        };
+    fn search_docs_become_candidates_and_records() {
+        let docs = dune_docs();
+        let found = candidate(&docs[0]);
+        assert_eq!(found.source, LookupSource::OpenLibrary);
+        assert_eq!(found.id, "/works/OL893461W");
+        assert_eq!(found.authors, ["Frank Herbert"]);
+        assert_eq!(found.year, Some(1969));
+        assert_eq!(found.cover_url.as_deref(), Some("https://covers.openlibrary.org/b/id/980253-L.jpg"));
+        assert!(found.narrators.is_empty() && found.series.is_none());
 
-        let metadata = selection_to_metadata(&selection);
-
-        assert_eq!(metadata.year, None); // Should be filtered out
+        let (fields, cover) = record_fields(&docs[0]);
+        assert_eq!(fields.title.as_deref(), Some("Dune Messiah"));
+        assert_eq!(fields.artist.as_deref(), Some("Frank Herbert"));
+        assert_eq!(fields.year, Some(1969));
+        assert_eq!(fields.publisher.as_deref(), Some("Orion Publishing Group, Limited"));
+        assert_eq!(fields.genre.as_deref(), Some("American Science fiction"));
+        assert_eq!((fields.narrator, fields.series, fields.description), (None, None, None));
+        assert_eq!(cover, found.cover_url);
     }
 }
 
