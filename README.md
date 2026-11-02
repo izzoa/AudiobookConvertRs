@@ -1,130 +1,160 @@
 <p align="center">
-  <img src="src-tauri/icons/icon.png" alt="AudiobookConvertRs Logo" width="128" height="128">
+  <img src="src-tauri/icons/icon.png" alt="AudiobookConvertRs icon" width="128" height="128">
 </p>
 
 <h1 align="center">AudiobookConvertRs</h1>
 
 <p align="center">
-  <strong>A modern, cross-platform audiobook converter built with Rust and Tauri</strong>
+  <strong>Turn a folder of MP3, FLAC or M4A files into one tagged, chaptered M4B audiobook.</strong><br>
+  A desktop app for macOS, Windows and Linux, built with Rust and Tauri.
 </p>
 
 <p align="center">
-  <a href="#features">Features</a> •
-  <a href="#installation">Installation</a> •
-  <a href="#usage">Usage</a> •
-  <a href="#building-from-source">Building</a> •
-  <a href="#contributing">Contributing</a> •
-  <a href="#license">License</a>
+  <a href="https://github.com/izzoa/AudiobookConvertRs/releases/latest"><img src="https://img.shields.io/github/v/release/izzoa/AudiobookConvertRs?include_prereleases&label=release" alt="Latest release"></a>
+  <a href="https://github.com/izzoa/AudiobookConvertRs/actions/workflows/ci.yml"><img src="https://github.com/izzoa/AudiobookConvertRs/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <img src="https://img.shields.io/badge/platform-macOS%20%7C%20Windows%20%7C%20Linux-blue.svg" alt="macOS, Windows and Linux">
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green.svg" alt="MIT license"></a>
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/rust-1.75+-orange.svg" alt="Rust 1.75+">
-  <img src="https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-blue.svg" alt="Platform">
-  <img src="https://img.shields.io/badge/license-MIT-green.svg" alt="License MIT">
+  <a href="#download">Download</a> ·
+  <a href="#features">Features</a> ·
+  <a href="#a-tour">Tour</a> ·
+  <a href="#ffmpeg">FFmpeg</a> ·
+  <a href="#building-from-source">Build</a> ·
+  <a href="#contributing">Contribute</a>
 </p>
 
----
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/workbench-dark.png">
+  <img alt="The AudiobookConvertRs workbench: a book's files in the middle, its cover and details on the right, and the Convert bar along the bottom" src="docs/screenshots/workbench-light.png">
+</picture>
 
-> ⚠️ **ALPHA STATUS**: This project is in early alpha development. Features may be incomplete, APIs may change, and bugs are expected. Contributions and PRs are very welcome!
+> [!NOTE]
+> AudiobookConvertRs is in early development. Expect rough edges, and please [report what you find](https://github.com/izzoa/AudiobookConvertRs/issues).
 
----
+## Download
 
-## Overview
+Get the latest version from the [Releases](https://github.com/izzoa/AudiobookConvertRs/releases) page.
 
-AudiobookConvertRs converts your audio files (MP3, FLAC, M4A, WAV, OGG) into the M4B audiobook format with full support for chapters, metadata, and cover artwork. Built with Rust for performance and Tauri for a lightweight, native UI experience.
+| Platform | File | Notes |
+|----------|------|-------|
+| **macOS** | `AudiobookConvertRs_x.y.z_universal.dmg` | Runs natively on Apple Silicon and Intel. Signed and notarized, so it opens without a warning. |
+| **Windows** | `AudiobookConvertRs_x.y.z_x64-setup.exe` | Not signed yet: SmartScreen shows "Windows protected your PC". Choose **More info → Run anyway**. |
+| **Linux** | `audiobookconvert-rs_x.y.z_amd64.deb` | Ubuntu 22.04 or later and other Debian-based systems: `sudo apt install ./audiobookconvert-rs_x.y.z_amd64.deb`. FFmpeg is installed with it. |
 
-This project is a modern Rust rewrite inspired by [AudioBookConverter](https://github.com/yermak/AudioBookConverter) (Java), aiming to provide similar functionality with improved performance and a smaller footprint.
+Each release lists the SHA-256 of every file in `SHA256SUMS`.
 
-## Comparison with AudioBookConverter (Java)
-
-AudiobookConvertRs is inspired by the excellent [AudioBookConverter](https://github.com/yermak/AudioBookConverter) by @yermak. Here's how they compare:
-
-| Feature | AudiobookConvertRs (Rust) | AudioBookConverter (Java) |
-|---------|---------------------------|---------------------------|
-| **Language** | Rust + TypeScript | Java |
-| **GUI Framework** | Tauri 2.0 (web-based) | JavaFX |
-| **Binary Size** | ~15-25 MB | ~80-100 MB (with JRE) |
-| **Memory Usage** | Lower (no JVM overhead) | Higher (JVM required) |
-| **Startup Time** | Fast (native binary) | Slower (JVM startup) |
-| **Installation** | Standalone installer | Requires Java or bundled JRE |
-| **License** | MIT | GPL-2.0 |
-
-### Feature Comparison
-
-| Feature | AudiobookConvertRs | AudioBookConverter |
-|---------|:------------------:|:------------------:|
-| MP3/FLAC/M4A/WAV input | ✅ | ✅ |
-| M4B output | ✅ | ✅ |
-| OGG/Opus output | ❌ | ✅ |
-| MP3 (LAME) output | ❌ | ✅ |
-| Chapter management | ✅ | ✅ |
-| Metadata editing | ✅ | ✅ |
-| Cover artwork | ✅ | ✅ |
-| Conversion queue | ✅ | ✅ |
-| Parallel encoding | ✅ | ✅ |
-| Open Library integration | ✅ | ❌ |
-| Project save/load | ✅ | ❌ |
-| Undo/redo | ✅ | ❌ |
-| FLAC/CUE support | ✅ | ✅ |
-| WMA input | ❌ | ✅ |
-| Instant playback preview | ✅ | ✅ |
-| Smart artwork discovery | ✅ | ✅ |
-| Steam distribution | ❌ | ✅ |
-| Windows | ✅ | ✅ |
-| macOS | ✅ | ⚠️ Experimental |
-| Linux | ✅ | ⚠️ Experimental |
-
-### Why Choose AudiobookConvertRs?
-
-- **Lightweight** - No Java runtime required, smaller download and memory footprint
-- **Fast startup** - Native binary starts instantly
-- **Modern UI** - Clean, responsive web-based interface
-- **MIT License** - More permissive for integration and modification
-- **Open Library** - Fetch metadata and covers from Open Library API
-- **Project files** - Save and resume your work later
-
-### Why Choose AudioBookConverter (Java)?
-
-- **More output formats** - Supports OGG/Opus and MP3 output
-- **More input formats** - WMA support
-- **Mature & stable** - 8+ years of development, 100+ releases
-- **Steam distribution** - Easy installation via Steam
+Converting needs **FFmpeg**. You probably don't have to do anything: the app finds an installed copy, offers to download one on macOS and Windows, and the Linux package installs it. See [FFmpeg](#ffmpeg).
 
 ## Features
 
-- **Multi-format Support** - Import MP3, FLAC, M4A, WAV, and OGG files
-- **FLAC/CUE Sheet Support** - Import FLAC with CUE sheets, tracks become chapters
-- **Audio Preview** - Listen to audio files and chapters before converting (rodio-powered)
-- **Smart Artwork Discovery** - Auto-detect cover images from embedded metadata and file directories
-- **Chapter Management** - Create, edit, reorder (drag-and-drop), and auto-generate chapters
-- **Metadata Editing** - Edit title, author, narrator, year, genre, and more
-- **Cover Artwork** - Drag-and-drop, file picker, or fetch from Open Library
-- **Open Library Integration** - Search and apply metadata from Open Library API
-- **Conversion Queue** - Queue multiple audiobooks for batch conversion with retry support
-- **Real-time Progress** - Live progress tracking with ETA estimation during conversion
-- **Audio Normalization** - Optional loudness normalization with configurable target levels
-- **Quality Presets** - Built-in presets (Low, Medium, High, Ultra) with real-time file size estimation
-- **Project Management** - Save and load projects for later editing
-- **Conversion Presets** - Save your preferred conversion settings including normalization
-- **Undo/Redo** - Full undo/redo support for metadata changes
-- **Cross-platform** - Runs on Windows, macOS, and Linux
+**Import**
+- Drop files or a whole folder. Disc folders such as `CD1` and `CD2` keep their order.
+- Drop a library and each book becomes its own entry in a **batch**, ready to review and convert together.
+- Reads MP3, M4A, M4B, FLAC, WAV, OGG and AAC.
+- Reads the tags already in your files, including narrator, series and series number, publisher, language and ASIN, from ID3, MP4 and Vorbis tags alike.
+- Finds cover art embedded in the files or saved beside them.
 
-## Screenshots
+**Edit**
+- Title, author, narrator, series and book number (decimals such as `1.5` work), year, genre, publisher, language, copyright, description and ASIN.
+- **Find details** searches Audible (10 stores) or Open Library. You review each found value next to your own before anything changes. Audible results bring the narrators, series, summary, cover and chapter titles, and chapters are fitted to your book by its length.
+- Undo and redo for your edits, kept separately for each open book.
+- Save a project and pick it up later.
+- Play any file to check it before converting.
 
-<!-- Add screenshots here -->
-*Coming soon*
+**Chapters**
+- One chapter per file to start with.
+- Or read the chapter marks inside the files (M4B and M4A chapters, MP3 chapter frames, FLAC cue sheets), import a CUE sheet, or import a chapter list (`.txt`, `.csv`, `.ffmeta`).
+- Rename, reorder by dragging, and tidy titles in bulk with **Clean up titles**.
+- Export the list as Audacity labels, FFmetadata or CSV.
 
-## Installation
+**Convert**
+- AAC in an M4B with chapters, cover and tags embedded. FFmpeg's `libfdk_aac` encoder is used when your FFmpeg has it.
+- Quality presets (High 256 kbps, Medium 128 kbps, Low 64 kbps) or your own bitrate, sample rate and VBR or CBR.
+- Optional loudness normalization.
+- Name files and folders from a template such as `{author}/{series}/{title}`.
+- A queue that converts several books at once (1 to 16), with progress, time left and speed, and a **Retry** for failed jobs.
 
-### Prerequisites
+## A tour
 
-**FFmpeg encodes every book.** The app finds an installed FFmpeg on its own. When there is none:
+### Start with a folder
 
-- **macOS and Windows:** open Settings → FFmpeg and press **Get FFmpeg**. The app downloads one fixed build (27–34 MB), checks its SHA-256 before installing it, and keeps it in its own data folder. **Remove** deletes it.
-- **Linux (.deb):** the package depends on `ffmpeg`, so the package manager installs it with the app.
-- **Installed somewhere unusual?** Settings → FFmpeg → **Choose FFmpeg…**
+Drop audio files or a folder anywhere in the window, or choose them.
 
-To install it yourself instead:
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/empty-dark.png">
+  <img alt="The empty window, asking for audio files or a folder" src="docs/screenshots/empty-light.png">
+</picture>
+
+### Everything about the book on one screen
+
+The book's files sit in the middle and its cover and details on the right. The Convert bar along the bottom shows what is ready and what still needs a look, so the Convert button never scrolls out of reach. The **Chapters** tab works the same way.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/chapters-dark.png">
+  <img alt="The Chapters tab listing ten chapters with their start and end times" src="docs/screenshots/chapters-light.png">
+</picture>
+
+### Find details online
+
+Search Audible or Open Library by title, author or ASIN.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/find-details-dark.png">
+  <img alt="Find book details showing three Audible results with narrators, series, length and year" src="docs/screenshots/find-details-light.png">
+</picture>
+
+Then review what was found. Empty fields start ticked, values you already have start unticked, and identical ones say **Same**. **Apply** makes all the ticked changes as one undo step.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/find-details-review-dark.png">
+  <img alt="The review step comparing each field of the book with the value found on Audible" src="docs/screenshots/find-details-review-light.png">
+</picture>
+
+### Convert a whole library
+
+Drop a folder of books and each one becomes a row in the batch, with anything that needs attention called out: a missing author, a file that already exists, a folder that could not be read.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/batch-dark.png">
+  <img alt="A batch of six books, with warnings for an existing file, a missing author and an unreadable folder" src="docs/screenshots/batch-light.png">
+</picture>
+
+### Watch the queue
+
+Every book you convert goes to the queue, where you can follow each stage, read the error of a failed job, retry it, or show the finished file in Finder or Explorer.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/queue-dark.png">
+  <img alt="The queue with one book encoding at 42 percent, one waiting, one failed and one finished" src="docs/screenshots/queue-light.png">
+</picture>
+
+### Name your files once
+
+Settings holds the defaults for every new book, including the naming template, with a preview of where books will land.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/settings-output-dark.png">
+  <img alt="Settings showing the output folder, the file and folder naming template, and its preview" src="docs/screenshots/settings-output-light.png">
+</picture>
+
+## FFmpeg
+
+FFmpeg does the encoding. The app looks for it in this order:
+
+1. The program you chose in **Settings → FFmpeg → Choose FFmpeg…**
+2. An installed copy: the usual install folders (such as Homebrew's), then your `PATH`.
+3. A copy the app downloaded.
+
+If none is found, the Convert bar shows **No FFmpeg** and Convert is disabled. On macOS and Windows, **Get FFmpeg** in Settings downloads one fixed build (27 to 34 MB), checks its SHA-256 before installing it, and keeps it in the app's own data folder. **Remove** deletes it again. Nothing is downloaded until you click.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/get-ffmpeg-dark.png">
+  <img alt="Settings showing that FFmpeg was not found, with a Get FFmpeg button and install commands" src="docs/screenshots/get-ffmpeg-light.png">
+</picture>
+
+You can also install it yourself:
 
 <details>
 <summary><strong>macOS</strong></summary>
@@ -141,202 +171,163 @@ brew install ffmpeg
 winget install ffmpeg
 ```
 
-Or download it from [ffmpeg.org](https://ffmpeg.org/download.html), extract it to a folder such as `C:\ffmpeg`, and add its `bin` folder to your PATH.
+Or download it from [ffmpeg.org](https://ffmpeg.org/download.html), extract it to a folder such as `C:\ffmpeg`, and add its `bin` folder to your `PATH`.
 </details>
 
 <details>
-<summary><strong>Linux (Ubuntu/Debian)</strong></summary>
+<summary><strong>Linux</strong></summary>
 
 ```bash
-sudo apt update
-sudo apt install ffmpeg
+sudo apt install ffmpeg   # Ubuntu, Debian
+sudo dnf install ffmpeg   # Fedora
 ```
 </details>
 
-<details>
-<summary><strong>Linux (Fedora)</strong></summary>
+Then press **Check again** in Settings.
+
+## Formats
+
+| | |
+|---|---|
+| **Reads** | MP3, M4A, M4B, FLAC, WAV, OGG, AAC |
+| **Writes** | M4B (AAC audio) |
+| **Not supported** | WMA, Opus, and DRM-protected Audible files (AAX) |
+
+## Keyboard shortcuts
+
+| Action | macOS | Windows and Linux |
+|--------|-------|-------------------|
+| Undo | `⌘Z` | `Ctrl+Z` |
+| Redo | `⇧⌘Z` | `Ctrl+Y` or `Ctrl+Shift+Z` |
+| Save project | `⌘S` | `Ctrl+S` |
+| Open project | `⌘O` | `Ctrl+O` |
+
+## Where things are kept
+
+Settings and the queue are saved in:
+
+| Platform | Folder |
+|----------|--------|
+| macOS | `~/Library/Application Support/AudiobookConvertRs/` |
+| Windows | `%APPDATA%\AudiobookConvertRs\` |
+| Linux | `~/.config/AudiobookConvertRs/` |
+
+A downloaded FFmpeg goes in the `ffmpeg` folder of the app's local data folder: the same folder as above on macOS, and `%LOCALAPPDATA%\AudiobookConvertRs\ffmpeg\` on Windows.
+
+## Building from source
+
+You need:
+- [Rust](https://rustup.rs/) 1.85 or later
+- [Node.js](https://nodejs.org/) 20.19 or later
+- FFmpeg, installed or downloaded from the app's Settings
+- On Linux, the WebKitGTK build dependencies:
+  ```bash
+  sudo apt install libwebkit2gtk-4.1-dev build-essential curl wget file libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev
+  ```
 
 ```bash
-sudo dnf install ffmpeg
-```
-</details>
-
-### Download
-
-Download the latest release for your platform from the [Releases](https://github.com/yourusername/AudiobookConvertRs/releases) page:
-
-| Platform | Download |
-|----------|----------|
-| Windows | `AudiobookConvertRs_x.x.x_x64-setup.exe` |
-| macOS | `AudiobookConvertRs_x.x.x_aarch64.dmg` (Apple Silicon) or `_x64.dmg` (Intel) |
-| Linux | `AudiobookConvertRs_x.x.x_amd64.deb` |
-
-## Usage
-
-### Quick Start
-
-1. **Import Audio Files** - Click "Add Files" or drag-and-drop audio files
-2. **Edit Metadata** - Fill in title, author, and other metadata
-3. **Manage Chapters** - Auto-generate or manually create chapters
-4. **Add Cover Art** - Upload an image or fetch from Open Library
-5. **Convert** - Choose output location and start conversion
-
-### Keyboard Shortcuts
-
-| Action | Shortcut |
-|--------|----------|
-| Undo | `Ctrl/Cmd + Z` |
-| Redo | `Ctrl/Cmd + Shift + Z` |
-| Save Project | `Ctrl/Cmd + S` |
-| Open Project | `Ctrl/Cmd + O` |
-
-### Chapter Generation Options
-
-- **From Files** - Create one chapter per input file
-- **By Count** - Split into N equal chapters
-- **By Duration** - Create chapters of X minutes each
-- **From Source** - Import chapters from existing M4B files
-
-## Building from Source
-
-### Prerequisites
-
-- [Rust](https://rustup.rs/) 1.75 or later
-- [Node.js](https://nodejs.org/) 18 or later
-- [FFmpeg](https://ffmpeg.org/), installed or downloaded from the app's Settings
-
-### Build Steps
-
-```bash
-# Clone the repository
-git clone https://github.com/yourusername/AudiobookConvertRs.git
+git clone https://github.com/izzoa/AudiobookConvertRs.git
 cd AudiobookConvertRs
+npm ci --prefix src-ui
 
-# Install frontend dependencies
-cd src-ui
-npm install
-cd ..
+# Run the app with hot reload
+npm exec --prefix src-ui tauri dev
 
-# Build and run in development mode
-cargo tauri dev
-
-# Build for production
-cargo tauri build
+# Build an installer for this machine (lands in target/release/bundle/)
+npm exec --prefix src-ui tauri build
 ```
 
-The built application will be in `src-tauri/target/release/bundle/`.
+**Tests**
 
-## Architecture
+```bash
+cargo test                      # Rust unit and integration tests
+npm test --prefix src-ui        # frontend tests
+cargo test -- --ignored         # only the tests that need FFmpeg or the network
+```
+
+**Working on the UI without Rust.** `npm run dev --prefix src-ui`, then open <http://localhost:5173/?mock>. A mock backend with a sample book stands in for the Rust side. Use `?mock=library` for a batch, and add `&ffmpeg=missing` to try Get FFmpeg. The screenshots in this README come from this mode.
+
+**Releases** are built, signed and published by GitHub Actions from a version tag. See [DEPLOY.md](DEPLOY.md).
+
+## How it's built
+
+| Part | Technology |
+|------|------------|
+| App shell | [Tauri 2](https://tauri.app/) |
+| Backend | Rust |
+| Reading audio and tags | [Symphonia](https://github.com/pdeljanov/Symphonia) |
+| Encoding | [FFmpeg](https://ffmpeg.org/), run as a separate program |
+| Writing M4B tags and chapters | [mp4ameta](https://github.com/Saecki/mp4ameta) |
+| Interface | React 19, TypeScript, Tailwind CSS 4, Heroicons |
 
 ```
 AudiobookConvertRs/
-├── src-tauri/           # Rust backend
-│   ├── src/
-│   │   ├── audio/       # Audio file loading (Symphonia)
-│   │   ├── metadata/    # Metadata extraction/writing
-│   │   ├── ffmpeg/      # FFmpeg integration
-│   │   ├── conversion/  # Conversion pipeline
-│   │   ├── commands/    # Tauri IPC commands
-│   │   └── ...
-│   └── icons/           # Application icons
-├── src-ui/              # React/TypeScript frontend
-│   ├── src/
-│   │   ├── components/  # UI components
-│   │   ├── api/         # Backend API wrappers
-│   │   └── ...
-│   └── ...
-└── ...
+├── src-tauri/        Rust backend
+│   └── src/
+│       ├── audio/        loading files, batch import (Symphonia)
+│       ├── metadata/     tags, chapters, cover art, Audible and Open Library lookup
+│       ├── ffmpeg/       finding, downloading and running FFmpeg
+│       ├── conversion/   the pipeline and the queue
+│       └── commands/     what the interface can call
+├── src-ui/           React interface
+│   └── src/
+│       ├── components/   workbench, batch, queue, settings, help
+│       ├── context/      app, batch and queue state
+│       └── dev/          the ?mock backend
+├── docs/screenshots/ the images in this README
+└── scripts/release/  signing and checking the macOS release
 ```
 
-### Technology Stack
+More detail: [ARCHITECTURE.md](ARCHITECTURE.md), [DEVELOPMENT.md](DEVELOPMENT.md), [CHANGELOG.md](CHANGELOG.md).
 
-| Component | Technology |
-|-----------|------------|
-| Backend | Rust |
-| Frontend | React + TypeScript |
-| Desktop Framework | Tauri 2.0 |
-| Audio Reading | Symphonia |
-| Audio Encoding | FFmpeg |
-| M4B Metadata | mp4ameta |
-| Styling | Tailwind CSS |
-| UI Components | Radix UI |
+## Compared with AudioBookConverter
 
-## Configuration
+This project is a Rust rewrite inspired by [AudioBookConverter](https://github.com/yermak/AudioBookConverter) by [yermak](https://github.com/yermak), a Java app that has been doing this job since 2017. Pick whichever fits you.
 
-Settings are stored in the platform-specific config directory:
-
-| Platform | Location |
-|----------|----------|
-| Windows | `%APPDATA%\AudiobookConvertRs\` |
-| macOS | `~/Library/Application Support/AudiobookConvertRs/` |
-| Linux | `~/.config/AudiobookConvertRs/` |
-
-## Contributing
-
-Contributions are welcome! Please read our contributing guidelines before submitting a PR.
-
-### Development Setup
-
-1. Fork the repository
-2. Create a feature branch: `git checkout -b feature/amazing-feature`
-3. Make your changes
-4. Run tests: `cargo test`
-5. Commit: `git commit -m 'Add amazing feature'`
-6. Push: `git push origin feature/amazing-feature`
-7. Open a Pull Request
-
-### Code Style
-
-- Rust: Follow standard Rust conventions (`cargo fmt`)
-- TypeScript: ESLint configuration included
-- Commits: Use conventional commit messages
+| | AudiobookConvertRs | AudioBookConverter |
+|---|---|---|
+| Built with | Rust, Tauri, React | Java, JavaFX |
+| Needs Java | No | Bundled or installed |
+| macOS and Linux | Supported | Experimental, per its README |
+| Output formats | M4B | M4B, MP3, OGG (Opus) |
+| WMA input | No | Yes |
+| Audible and Open Library lookup | Yes | No |
+| Project save and undo | Yes | No |
+| Distribution | GitHub Releases | GitHub Releases and Steam |
+| License | MIT | GPL-2.0 |
 
 ## Roadmap
 
-See [PARITY.md](PARITY.md) for detailed implementation plans.
+See [PARITY.md](PARITY.md) for the detailed plan. Next up:
+- MP3 output, with chapters in ID3 tags
+- Opus output
+- WMA input
+- Signed Windows installers
+- Translations
 
-### Completed
-- [x] **Audio Preview/Playback** - Listen to audio before converting
-- [x] **Smart Artwork Discovery** - Auto-detect cover images from file directories
-- [x] **FLAC/CUE Sheet Support** - Import FLAC with CUE, map tracks to chapters
-- [x] **Audio Normalization** - Loudness normalization with configurable targets
-- [x] **Quality Presets** - Built-in quality presets with file size estimation
-- [x] **Quality Management UI** - Bitrate slider, VBR/CBR toggle, real-time file size estimation
-- [x] **ETA Estimation** - Real-time conversion progress with time remaining
-- [x] **Drag-and-Drop Chapters** - Reorder chapters via drag-and-drop
-- [x] **Conversion Retry** - Retry failed conversions from the queue
-- [x] **Reveal in Finder/Explorer** - Open output location after conversion
+## Contributing
 
-### Medium Priority
-- [ ] **MP3 Output Format** - Export to MP3 with chapter support via ID3v2
-- [ ] **OGG/Opus Output Format** - Export to open Opus format
+Contributions are welcome. Read [CONTRIBUTING.md](CONTRIBUTING.md), then:
 
-### Lower Priority
-- [ ] **WMA Input Support** - Import Windows Media Audio files
-
-### Polish & Enhancements
-- [ ] Additional metadata providers (Google Books, Audible)
-- [ ] Localization support
+1. Fork the repository and create a branch.
+2. Make your change, with tests.
+3. Run `cargo fmt`, `cargo test` and `npm test --prefix src-ui`.
+4. Open a pull request. CI builds and tests it on macOS, Windows and Linux.
 
 ## License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+MIT. See [LICENSE](LICENSE).
+
+FFmpeg is a separate program under its own license (LGPL or GPL, depending on the build). The app runs it; it does not include it.
 
 ## Acknowledgments
 
-- [Symphonia](https://github.com/pdeljanov/Symphonia) - Pure Rust audio decoding
-- [Tauri](https://tauri.app/) - Desktop application framework
-- [mp4ameta](https://github.com/Saecki/mp4ameta) - MP4 metadata library
-- [FFmpeg](https://ffmpeg.org/) - Audio/video processing
-- [Open Library](https://openlibrary.org/) - Book metadata API
+- [AudioBookConverter](https://github.com/yermak/AudioBookConverter), the inspiration
+- [Tauri](https://tauri.app/), [Symphonia](https://github.com/pdeljanov/Symphonia), [mp4ameta](https://github.com/Saecki/mp4ameta) and [FFmpeg](https://ffmpeg.org/)
+- [Audnexus](https://github.com/laxamentumtech/audnexus) and [Open Library](https://openlibrary.org/) for book details
+- [Martin Riedl](https://ffmpeg.martin-riedl.de/) and [gyan.dev](https://www.gyan.dev/ffmpeg/builds/) for the FFmpeg builds the app can download
 
 ## Support
 
-- **Issues**: [GitHub Issues](https://github.com/yourusername/AudiobookConvertRs/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/yourusername/AudiobookConvertRs/discussions)
-
----
-
-<p align="center">
-  Made with ❤️ and Rust
-</p>
+- **Bugs and requests:** [GitHub Issues](https://github.com/izzoa/AudiobookConvertRs/issues)
+- **Questions:** [GitHub Discussions](https://github.com/izzoa/AudiobookConvertRs/discussions)
