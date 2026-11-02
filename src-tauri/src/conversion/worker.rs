@@ -68,6 +68,7 @@ impl Default for WorkerPoolConfig {
                 supports_libfdk_aac: false,
                 version_output: String::new(),
                 supports_aac: true,
+                source: crate::ffmpeg::FFmpegSource::System,
             },
             pipeline_config: PipelineConfig::default(),
         }

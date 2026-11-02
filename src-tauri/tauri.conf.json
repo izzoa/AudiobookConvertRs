@@ -43,6 +43,11 @@
     "shortDescription": "Convert audio files to M4B audiobook format",
     "longDescription": "A cross-platform audiobook converter that converts various audio formats (MP3, FLAC, M4A, WAV, OGG) to M4B audiobook format with chapters, metadata, and artwork support.",
     "copyright": "Copyright © 2025 AudiobookConvertRs Contributors",
+    "linux": {
+      "deb": {
+        "depends": ["ffmpeg"]
+      }
+    },
     "macOS": {
       "entitlements": null,
       "exceptionDomain": "",

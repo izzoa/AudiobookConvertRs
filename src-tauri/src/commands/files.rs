@@ -140,6 +140,18 @@ pub async fn write_text_file(path: String, content: String) -> Result<(), String
     std::fs::write(&path, content).map_err(|e| e.to_string())
 }
 
+/// Pick the FFmpeg executable to use
+#[tauri::command]
+pub async fn pick_ffmpeg_file(app: AppHandle) -> Result<Option<String>, String> {
+    let dialog = app.dialog().file().set_title("Choose FFmpeg");
+    // Elsewhere the executable has no extension, so nothing can be filtered
+    #[cfg(windows)]
+    let dialog = dialog.add_filter("Programs", &["exe"]);
+    Ok(dialog
+        .blocking_pick_file()
+        .and_then(|path| path.as_path().map(|p| p.to_string_lossy().to_string())))
+}
+
 #[tauri::command]
 pub async fn pick_artwork_file(app: AppHandle) -> Result<Option<String>, String> {
     let file_path = app.dialog()

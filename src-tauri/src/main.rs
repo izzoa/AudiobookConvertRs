@@ -31,7 +31,7 @@ fn main() {
             );
         }
         Err(e) => {
-            warn!("FFmpeg not found: {}. Some features will be unavailable.", e);
+            warn!("{}", e);
         }
     }
 
@@ -93,6 +93,7 @@ fn main() {
             audiobookconvert_rs::commands::files::pick_export_summary_file,
             audiobookconvert_rs::commands::files::write_text_file,
             audiobookconvert_rs::commands::files::pick_artwork_file,
+            audiobookconvert_rs::commands::files::pick_ffmpeg_file,
             audiobookconvert_rs::commands::files::pick_chapters_file,
             audiobookconvert_rs::commands::files::read_text_file,
             audiobookconvert_rs::commands::files::pick_output_file,
@@ -109,6 +110,10 @@ fn main() {
             audiobookconvert_rs::commands::settings::check_ffmpeg_available,
             audiobookconvert_rs::commands::settings::get_ffmpeg_version,
             audiobookconvert_rs::commands::settings::get_ffmpeg_info,
+            audiobookconvert_rs::commands::settings::set_ffmpeg_path,
+            audiobookconvert_rs::commands::settings::download_ffmpeg,
+            audiobookconvert_rs::commands::settings::cancel_ffmpeg_download,
+            audiobookconvert_rs::commands::settings::remove_downloaded_ffmpeg,
             audiobookconvert_rs::commands::settings::reset_settings,
             // Conversion
             audiobookconvert_rs::commands::conversion::start_conversion,

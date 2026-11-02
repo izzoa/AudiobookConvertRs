@@ -1,0 +1,35 @@
+name: FFmpeg download links
+
+# Get FFmpeg downloads one fixed build per platform, checked against a SHA-256
+# compiled into the app (src-tauri/src/ffmpeg/download.rs). This catches a host
+# that moved or replaced a file before users hit it.
+on:
+  schedule:
+    - cron: "17 6 * * 1" # Mondays, 06:17 UTC
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  check:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install Linux dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential curl wget file libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev
+
+      - name: Cache cargo
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: './src-tauri -> target'
+
+      - name: Download and check every fixed build
+        run: cargo test --test ffmpeg_sources_live -- --ignored --nocapture
+        working-directory: ./src-tauri

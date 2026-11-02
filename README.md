@@ -118,7 +118,13 @@ AudiobookConvertRs is inspired by the excellent [AudioBookConverter](https://git
 
 ### Prerequisites
 
-**FFmpeg is required** for audio encoding. Install it for your platform:
+**FFmpeg encodes every book.** The app finds an installed FFmpeg on its own. When there is none:
+
+- **macOS and Windows:** open Settings → FFmpeg and press **Get FFmpeg**. The app downloads one fixed build (27–34 MB), checks its SHA-256 before installing it, and keeps it in its own data folder. **Remove** deletes it.
+- **Linux (.deb):** the package depends on `ffmpeg`, so the package manager installs it with the app.
+- **Installed somewhere unusual?** Settings → FFmpeg → **Choose FFmpeg…**
+
+To install it yourself instead:
 
 <details>
 <summary><strong>macOS</strong></summary>
@@ -131,9 +137,11 @@ brew install ffmpeg
 <details>
 <summary><strong>Windows</strong></summary>
 
-1. Download FFmpeg from [ffmpeg.org](https://ffmpeg.org/download.html)
-2. Extract to a folder (e.g., `C:\ffmpeg`)
-3. Add the `bin` folder to your PATH environment variable
+```powershell
+winget install ffmpeg
+```
+
+Or download it from [ffmpeg.org](https://ffmpeg.org/download.html), extract it to a folder such as `C:\ffmpeg`, and add its `bin` folder to your PATH.
 </details>
 
 <details>
@@ -195,7 +203,7 @@ Download the latest release for your platform from the [Releases](https://github
 
 - [Rust](https://rustup.rs/) 1.75 or later
 - [Node.js](https://nodejs.org/) 18 or later
-- [FFmpeg](https://ffmpeg.org/) installed and in PATH
+- [FFmpeg](https://ffmpeg.org/), installed or downloaded from the app's Settings
 
 ### Build Steps
 

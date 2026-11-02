@@ -56,6 +56,11 @@ base64 = "0.22"
 reqwest = { version = "0.11", features = ["json"] }
 urlencoding = "2.1"
 
+# FFmpeg download: checksum and the two archive formats the fixed builds use
+sha2 = "0.10"
+zip = { version = "4.2", default-features = false, features = ["deflate"] }
+sevenz-rust2 = { version = "0.20", default-features = false }
+
 # Testing
 tempfile = "3.10"
 

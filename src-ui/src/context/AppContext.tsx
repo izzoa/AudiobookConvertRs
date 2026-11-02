@@ -3,7 +3,8 @@ import type { AudioBook, UserSettings, ConversionJob, UndoState, ConversionDefau
 import * as SettingsApi from '../api/settings';
 import * as UndoApi from '../api/undo';
 import * as AudiobookApi from '../api/audiobook';
-import { AppContext, type AppView } from './useApp';
+import { AppContext, type AppView, type SettingsSection } from './useApp';
+import { useFFmpegState } from '../hooks/useFFmpegState';
 
 export function AppProvider({ children }: { children: ReactNode }) {
     const [view, setView] = useState<AppView>('book');
@@ -17,6 +18,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
         canUndo: false,
         canRedo: false,
     });
+    const ffmpeg = useFFmpegState();
+
+    const openSettings = useCallback((section?: SettingsSection) => {
+        setView('settings');
+        if (section) {
+            // After the Settings page has rendered
+            setTimeout(() => document.getElementById(`settings-${section}`)?.scrollIntoView({ block: 'start', behavior: 'smooth' }), 0);
+        }
+    }, []);
 
     const refreshSettings = useCallback(async () => {
         try {
@@ -143,6 +153,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
         <AppContext.Provider value={{
             view,
             setView,
+            openSettings,
+            ffmpeg,
             activeAudiobook,
             setActiveAudiobook,
             activeProject,

@@ -45,6 +45,8 @@ export function ConvertBar({ onShowChapters }: { onShowChapters: () => void }) {
         getEffectiveConversionDefaults,
         setView,
         setPendingConversionSettings,
+        ffmpeg,
+        openSettings,
     } = useApp();
     const { toast } = useToast();
     const confirm = useConfirm();
@@ -242,6 +244,13 @@ export function ConvertBar({ onShowChapters }: { onShowChapters: () => void }) {
     };
 
     const book = activeAudiobook;
+    // Unknown until the first check answers; Convert is not blocked on a guess
+    const ffmpegReady = ffmpeg.status?.available ?? true;
+    const ffmpegOffer = ffmpeg.status?.offer;
+    const ffmpegPercent =
+        ffmpeg.progress && ffmpeg.progress.total > 0
+            ? Math.floor((ffmpeg.progress.received / ffmpeg.progress.total) * 100)
+            : null;
     const checks = useMemo(
         () => [
             {
@@ -271,11 +280,28 @@ export function ConvertBar({ onShowChapters }: { onShowChapters: () => void }) {
                 hint: preview?.output_exists ? "A file is already there. You will be asked before it is replaced." : undefined,
                 onClick: chooseOutput,
             },
+            {
+                key: "ffmpeg",
+                ok: ffmpegReady,
+                label: ffmpeg.downloading
+                    ? `Getting FFmpeg${ffmpegPercent === null ? "…" : ` ${ffmpegPercent}%`}`
+                    : ffmpegReady
+                      ? "FFmpeg"
+                      : ffmpegOffer
+                        ? "No FFmpeg · Get it"
+                        : "No FFmpeg",
+                hint: ffmpegReady
+                    ? undefined
+                    : ffmpegOffer
+                      ? `Books cannot convert without FFmpeg. Get it in Settings (${formatBytes(ffmpegOffer.size_bytes)}).`
+                      : "Books cannot convert without FFmpeg. Install it, then press Check again in Settings.",
+                onClick: () => openSettings("ffmpeg"),
+            },
         ],
-        [book, outputPath, onShowChapters, preview?.output_exists]
+        [book, outputPath, onShowChapters, preview?.output_exists, ffmpegReady, ffmpegOffer, ffmpeg.downloading, ffmpegPercent, openSettings]
     );
 
-    const ready = !!book && book.files.length > 0 && !!outputPath;
+    const ready = !!book && book.files.length > 0 && !!outputPath && ffmpegReady;
     // The chips already report missing files, chapters, cover and an existing
     // output; repeating the backend's sentence for the same fact beside them
     // is noise. Anything else the dry run warns about still shows.

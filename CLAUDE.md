@@ -1049,6 +1049,20 @@ and keep their container's prefix: `TXXX:NARRATOR` (ID3), `com.apple.iTunes:NARR
 (MP4 freeform), `NARRATOR` (Vorbis). `read_custom_tag` compares only the part after
 the last colon, so one name list covers every format.
 
+### Every FFmpeg Run Goes Through `detect_ffmpeg()`
+
+Never start `ffmpeg` (or any FFmpeg tool) by bare name. An app opened from
+Finder or the Dock gets launchd's PATH, which on a default macOS setup is
+`/usr/bin:/bin:/usr/sbin:/sbin` with no `/opt/homebrew/bin`, so a bare
+`Command::new("ffmpeg")` can fail there even though `cargo tauri dev` works. (Some
+machines extend launchd's PATH, which hides the bug, so do not rely on reproducing it.) `detect_ffmpeg()` returns an absolute path from, in order,
+the chosen path, known folders, PATH and the downloaded copy, and it is the only
+way to get one. The app ships no `ffprobe`: chapter markers come from
+`ffmpeg -f ffmetadata -`, cue sheets and durations from Symphonia.
+
+To try the missing-FFmpeg path on a machine that has FFmpeg, run a debug build
+with `AUDIOBOOKCONVERT_FFMPEG_SEARCH=downloaded-only`. Release builds ignore it.
+
 ### Path Handling (camino vs std)
 
 **Converting Between Path Types**:
@@ -1202,6 +1216,8 @@ single-document layout.
 | `hooks/useFileDrop.ts` | Native Tauri drag-drop; degrades to no-op outside a webview |
 | `lib/format.ts` | `formatBytes` / `formatDuration` / `formatClock` / `formatEta` |
 | `lib/formats.ts` | Supported input formats as shown to users; mirrors `SUPPORTED_EXTENSIONS` in `audio/format.rs` |
+| `hooks/useFFmpegState.ts` | FFmpeg status, Get FFmpeg progress and actions; owned by `AppProvider` so a download outlives the Settings page |
+| `components/settings/FFmpegPanel.tsx` | Settings' FFmpeg section; the Convert bar's FFmpeg chip opens it via `openSettings('ffmpeg')` |
 | `dev/mockBackend.ts` | Dev-only `?mock` fixtures (see below) |
 
 ### Conventions
@@ -1273,3 +1289,7 @@ fixture audiobook, so panes can be laid out and screenshotted without waiting on
 `cargo build`. It is gated on `import.meta.env.DEV` and is stripped from release
 bundles. Add a handler there whenever a new command is called during startup or
 the book flow, or it logs `[mock] unhandled command`.
+
+Add `&ffmpeg=missing` to start without FFmpeg (Get FFmpeg then runs a two-second
+simulated download with progress events), or `&ffmpeg=fail` to make that download
+fail partway.

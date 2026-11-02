@@ -92,7 +92,7 @@ export function HelpPage() {
                     </p>
                     <List>
                         <li>Supported formats: {SUPPORTED_FORMATS_TEXT}. WMA, Audible AAX and Opus are not supported.</li>
-                        <li>FFmpeg must be installed. {toSettings} shows whether it was found.</li>
+                        <li>Converting needs FFmpeg. When none is found, {toSettings} can download it or use one you choose.</li>
                     </List>
                     <p>
                         The screen keeps everything about the open book in view: its files and chapters in the middle,
@@ -290,30 +290,25 @@ export function HelpPage() {
 
                 <Section id="troubleshooting" title="Troubleshooting">
                     <Topic title="FFmpeg not found">
-                        <p>Nothing can convert until FFmpeg is installed.</p>
+                        <p>
+                            Nothing can convert until the app has FFmpeg. The Convert bar then shows <B>No FFmpeg</B>; click it to
+                            open the FFmpeg section of {toSettings}.
+                        </p>
                         <List>
                             <li>
-                                macOS: <Code>brew install ffmpeg</Code>
+                                On macOS and Windows, press <B>Get FFmpeg</B>. The app downloads about 30 MB, checks it, and keeps it
+                                for its own use. <B>Remove</B> deletes it again.
                             </li>
                             <li>
-                                Linux: <Code>apt install ffmpeg</Code> or your distribution's equivalent
+                                If FFmpeg is already installed somewhere the app does not look, press <B>Choose FFmpeg…</B> and
+                                pick the program.
                             </li>
                             <li>
-                                Windows: download it from{' '}
-                                <a
-                                    href="https://ffmpeg.org/download.html"
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="underline underline-offset-4"
-                                >
-                                    ffmpeg.org
-                                </a>{' '}
-                                and add it to your PATH
+                                Or install it yourself: macOS <Code>brew install ffmpeg</Code>, Windows{' '}
+                                <Code>winget install ffmpeg</Code>, Linux <Code>sudo apt install ffmpeg</Code>. The Linux package
+                                installs it with the app. Then press <B>Check again</B>.
                             </li>
                         </List>
-                        <p>
-                            Then press <B>Check again</B> under FFmpeg in {toSettings}.
-                        </p>
                     </Topic>
                     <Topic title="Files will not import">
                         <List>
@@ -329,7 +324,7 @@ export function HelpPage() {
                             </li>
                             <li>Check the output folder exists, is writable and has free space.</li>
                             <li>
-                                Run <Code>ffmpeg -version</Code> in a terminal to confirm FFmpeg works.
+                                Press <B>Check again</B> under FFmpeg in {toSettings} to confirm FFmpeg still works.
                             </li>
                             <li>
                                 Press <B>Retry</B>, or convert to a different output path.

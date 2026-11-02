@@ -5,10 +5,11 @@ import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
 import { useConfirm } from '@/components/ui/confirm';
 import { useToast } from '@/components/ui/use-toast';
-import { FolderOpenIcon, CheckCircleIcon, XCircleIcon, ArrowPathIcon } from '@heroicons/react/24/outline';
+import { FolderOpenIcon } from '@heroicons/react/24/outline';
 import * as SettingsApi from '@/api/settings';
 import * as FilesApi from '@/api/files';
-import type { UserSettings, FFmpegStatus, ConversionDefaults, QualityPreset, EncodingMode } from '@/types/models';
+import type { UserSettings, ConversionDefaults, QualityPreset, EncodingMode } from '@/types/models';
+import { FFmpegPanel } from '@/components/settings/FFmpegPanel';
 import { QualityPreset as QualityPresetValue, EncodingMode as EncodingModeValue } from '@/types/models';
 import { cn } from '@/lib/utils';
 import { AUDIBLE_REGIONS, DEFAULT_AUDIBLE_REGION } from '@/lib/audibleRegions';
@@ -25,13 +26,11 @@ import {
 const BITRATE_OPTIONS = [320, 256, 192, 160, 128, 96, 64, 48, 32];
 
 export function SettingsPage() {
-    const { settings, updateSettings, refreshSettings, activeProject, setActiveProject } = useApp();
+    const { settings, updateSettings, refreshSettings, activeProject, setActiveProject, ffmpeg } = useApp();
     const confirm = useConfirm();
     const { toast } = useToast();
     const [draftSettings, setDraftSettings] = useState<UserSettings | null>(null);
     const [draftProjectDefaults, setDraftProjectDefaults] = useState<ConversionDefaults | null>(null);
-    const [ffmpegStatus, setFfmpegStatus] = useState<FFmpegStatus | null>(null);
-    const [checkingFfmpeg, setCheckingFfmpeg] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
@@ -48,21 +47,6 @@ export function SettingsPage() {
             setDraftProjectDefaults(null);
         }
     }, [activeProject]);
-
-    const checkFfmpeg = async () => {
-        setCheckingFfmpeg(true);
-        try {
-            setFfmpegStatus(await SettingsApi.getFFmpegInfo());
-        } catch (e) {
-            console.error('Failed to load FFmpeg info:', e);
-        } finally {
-            setCheckingFfmpeg(false);
-        }
-    };
-
-    useEffect(() => {
-        checkFfmpeg();
-    }, []);
 
     // Edits only reach disk on Save, so the page has to say when they haven't.
     const isDirty = !!settings && !!draftSettings && JSON.stringify(settings) !== JSON.stringify(draftSettings);
@@ -105,6 +89,8 @@ export function SettingsPage() {
         try {
             await SettingsApi.resetSettings();
             await refreshSettings();
+            // Defaults have no chosen FFmpeg path
+            await ffmpeg.check();
             toast({ title: 'Settings reset to defaults' });
         } catch (e) {
             setError(e instanceof Error ? e.message : 'Failed to reset settings');
@@ -373,43 +359,12 @@ export function SettingsPage() {
                     </div>
                 </Section>
 
-                <Section title="FFmpeg" description="Encodes every book. Installed separately.">
-                    <div className="flex items-start justify-between gap-4 rounded-lg border bg-surface px-4 py-3">
-                        {ffmpegStatus ? (
-                            <div className="min-w-0 space-y-0.5 text-sm">
-                                <p className={cn('flex items-center gap-2 font-medium', ffmpegStatus.available ? 'text-success' : 'text-destructive')}>
-                                    {ffmpegStatus.available ? (
-                                        <CheckCircleIcon className="w-4 h-4 shrink-0" />
-                                    ) : (
-                                        <XCircleIcon className="w-4 h-4 shrink-0" />
-                                    )}
-                                    {ffmpegStatus.available ? 'Found' : 'Not found — conversions cannot run'}
-                                </p>
-                                {ffmpegStatus.version && (
-                                    <p className="text-muted-foreground nums">Version {ffmpegStatus.version}</p>
-                                )}
-                                {ffmpegStatus.path && (
-                                    <p className="text-xs text-muted-foreground font-mono truncate" title={ffmpegStatus.path}>
-                                        {ffmpegStatus.path}
-                                    </p>
-                                )}
-                                {ffmpegStatus.supports_libfdk_aac && (
-                                    <p className="text-xs text-muted-foreground">Includes libfdk_aac, the higher-quality AAC encoder.</p>
-                                )}
-                                {!ffmpegStatus.available && (
-                                    <p className="text-xs text-muted-foreground">
-                                        Install it (on macOS: <code className="font-mono">brew install ffmpeg</code>), then check again.
-                                    </p>
-                                )}
-                            </div>
-                        ) : (
-                            <p className="text-sm text-muted-foreground">Checking…</p>
-                        )}
-                        <Button variant="ghost" size="sm" className="shrink-0" onClick={checkFfmpeg} disabled={checkingFfmpeg}>
-                            <ArrowPathIcon className={cn('w-4 h-4 mr-1.5', checkingFfmpeg && 'animate-spin')} />
-                            Check again
-                        </Button>
-                    </div>
+                <Section
+                    id="settings-ffmpeg"
+                    title="FFmpeg"
+                    description="Encodes every book. Found on this computer, chosen by you, or downloaded here."
+                >
+                    <FFmpegPanel />
                 </Section>
 
                 {activeProject && (
@@ -507,9 +462,9 @@ export function SettingsPage() {
     );
 }
 
-function Section({ title, description, children }: { title: string; description?: string; children: ReactNode }) {
+function Section({ id, title, description, children }: { id?: string; title: string; description?: string; children: ReactNode }) {
     return (
-        <section className="mt-8 pt-6 border-t first-of-type:border-t-0 grid grid-cols-[180px_1fr] gap-x-8 gap-y-4">
+        <section id={id} className="mt-8 pt-6 border-t first-of-type:border-t-0 grid grid-cols-[180px_1fr] gap-x-8 gap-y-4 scroll-mt-4">
             <div>
                 <h2 className="text-sm font-semibold">{title}</h2>
                 {description && <p className="mt-1 text-xs text-muted-foreground leading-relaxed">{description}</p>}

@@ -256,12 +256,39 @@ export interface ConversionDefaults {
     copy_metadata: boolean;
 }
 
+/** Where the FFmpeg in use was found. */
+export type FFmpegSource = 'chosen' | 'system' | 'downloaded';
+
+/** A fixed FFmpeg build the app can download (`ffmpeg/download.rs`). */
+export interface DownloadOffer {
+    version: string;
+    size_bytes: number;
+    /** Who publishes the build, e.g. "ffmpeg.martin-riedl.de". */
+    host: string;
+    page_url: string;
+}
+
+/** Payload of the `ffmpeg_download_progress` event. */
+export interface FFmpegDownloadProgress {
+    received: number;
+    total: number;
+}
+
 /// FFmpeg status from backend
 export interface FFmpegStatus {
     available: boolean;
     path?: string;
     version?: string;
     supports_libfdk_aac: boolean;
+    source?: FFmpegSource;
+    /** The path chosen in Settings, whether or not it works. */
+    chosen_path?: string;
+    /** Why the path chosen in Settings was skipped, when it was. */
+    chosen_path_error?: string;
+    /** Version of the downloaded copy, when one is installed. */
+    downloaded_version?: string;
+    /** Present only while FFmpeg is missing and this platform has a fixed build. */
+    offer?: DownloadOffer;
 }
 
 // Legacy FFmpegInfo - kept for backwards compatibility

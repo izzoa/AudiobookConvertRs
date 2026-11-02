@@ -1,5 +1,6 @@
-//! Import checks against real MP3s generated with FFmpeg: ID3v2 tags must be
-//! read, and a multi-disc folder must expand and keep disc order.
+//! Import checks against real files generated with FFmpeg: ID3v2 tags and
+//! chapter markers must be read, a FLAC cue sheet must become chapters, and a
+//! multi-disc folder must expand and keep disc order.
 //!
 //! Requires FFmpeg on PATH. Run explicitly with:
 //!   cargo test --test mp3_import_e2e -- --ignored
@@ -7,6 +8,7 @@ use audiobookconvert_rs::audio::batch::load_audiobook_from_files;
 use audiobookconvert_rs::audio::loader::load_audio_file;
 use audiobookconvert_rs::conversion::pipeline::{ConversionPipeline, PipelineConfig};
 use audiobookconvert_rs::ffmpeg::detection::detect_ffmpeg;
+use audiobookconvert_rs::metadata::{extract_chapters_from_flac_cuesheet, extract_chapters_from_mp3};
 use audiobookconvert_rs::models::{ConversionJob, ConversionSettings};
 use camino::{Utf8Path, Utf8PathBuf};
 use std::process::Command;
@@ -151,4 +153,56 @@ fn tagged_folder_converts_to_m4b_with_source_tags() {
         .map(|c| c["tags"]["title"].as_str().unwrap_or_default().to_string())
         .collect();
     assert_eq!(chapters, ["Part 1", "Part 2", "Part 3"]);
+}
+
+/// Runs the detected FFmpeg with `args`, writing a 4-second tone to `output`.
+fn write_tone(output: &Utf8Path, args: &[&str]) {
+    let ffmpeg = detect_ffmpeg().expect("FFmpeg must be available for this test");
+    let status = Command::new(ffmpeg.path.as_str())
+        .args(["-y", "-loglevel", "error", "-f", "lavfi", "-i", "sine=frequency=440:duration=4"])
+        .args(args)
+        .arg(output.as_str())
+        .status()
+        .expect("run ffmpeg");
+    assert!(status.success(), "ffmpeg failed to write {output}");
+}
+
+/// MP3 chapter markers (ID3 CHAP frames) are read through the detected FFmpeg,
+/// not an `ffprobe` found on PATH.
+#[test]
+#[ignore = "requires FFmpeg; run with cargo test -- --ignored"]
+fn mp3_chapter_markers_are_read() {
+    let temp = tempfile::tempdir().unwrap();
+    let dir = Utf8PathBuf::from_path_buf(temp.path().to_path_buf()).unwrap();
+    let meta = dir.join("chapters.txt");
+    std::fs::write(
+        &meta,
+        ";FFMETADATA1\n\
+         [CHAPTER]\nTIMEBASE=1/1000\nSTART=0\nEND=2000\ntitle=Opening\n\
+         [CHAPTER]\nTIMEBASE=1/1000\nSTART=2000\nEND=4000\ntitle=Second Part\n",
+    )
+    .unwrap();
+    let mp3 = dir.join("book.mp3");
+    write_tone(&mp3, &["-i", meta.as_str(), "-map", "0:a", "-map_chapters", "1", "-b:a", "64k"]);
+
+    let chapters = extract_chapters_from_mp3(&mp3).expect("read chapters");
+    let titles: Vec<_> = chapters.iter().map(|c| c.title.as_str()).collect();
+    assert_eq!(titles, ["Opening", "Second Part"]);
+    // FFmpeg shifts chapter times by the encoder delay (about 25 ms at 44.1 kHz)
+    let starts: Vec<_> = chapters.iter().map(|c| c.start_time_ms).collect();
+    assert!(starts[0] == 0 && starts[1].abs_diff(2000) <= 50, "starts {starts:?}");
+}
+
+/// A FLAC's CUESHEET tag is read through Symphonia, with no FFmpeg tool.
+#[test]
+#[ignore = "requires FFmpeg; run with cargo test -- --ignored"]
+fn flac_cue_sheet_becomes_chapters() {
+    let temp = tempfile::tempdir().unwrap();
+    let flac = Utf8PathBuf::from_path_buf(temp.path().join("book.flac")).unwrap();
+    let cuesheet = "FILE \"book.flac\" WAVE\n  TRACK 01 AUDIO\n    TITLE \"Opening\"\n    INDEX 01 00:00:00\n  TRACK 02 AUDIO\n    TITLE \"Second Part\"\n    INDEX 01 00:02:00\n";
+    write_tone(&flac, &["-metadata", &format!("CUESHEET={cuesheet}")]);
+
+    let chapters = extract_chapters_from_flac_cuesheet(&flac).expect("read cue sheet");
+    let found: Vec<_> = chapters.iter().map(|c| (c.title.as_str(), c.start_time_ms)).collect();
+    assert_eq!(found, [("Opening", 0), ("Second Part", 2000)]);
 }

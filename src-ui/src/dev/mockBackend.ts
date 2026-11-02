@@ -181,11 +181,49 @@ const SETTINGS: UserSettings = {
     normalization_two_pass: true,
 };
 
+/** `?mock&ffmpeg=missing`: start with no FFmpeg, so Get FFmpeg can be tried; `ffmpeg=fail` also makes the download fail. */
+const FFMPEG_OFFER = {
+    version: "9.0.2",
+    size_bytes: 28_395_699,
+    host: "ffmpeg.martin-riedl.de",
+    page_url: "https://ffmpeg.martin-riedl.de/",
+};
+
 export function installMockBackend() {
     let book: AudioBook | null = null;
     const books = new Map<string, AudioBook>();
     let jobs: any[] = [];
     let callbackId = 1;
+    const listeners = new Map<string, number[]>();
+    const emit = (event: string, payload: unknown) => {
+        const callbacks = window as unknown as Record<string, ((message: unknown) => void) | undefined>;
+        for (const id of listeners.get(event) ?? []) callbacks[`_${id}`]?.({ event, id, payload });
+    };
+
+    // FFmpeg: found on the system, unless `?ffmpeg=missing`; a "download" then installs a copy
+    const ffmpegMode = new URLSearchParams(window.location.search).get("ffmpeg");
+    const ffmpegFound = ffmpegMode !== "missing" && ffmpegMode !== "fail";
+    let ffmpegDownloaded = false;
+    let ffmpegChosen: string | null = null;
+    let downloadCancelled = false;
+    const ffmpegStatus = () => {
+        const source = ffmpegChosen ? "chosen" : ffmpegFound ? "system" : ffmpegDownloaded ? "downloaded" : undefined;
+        const path =
+            source === "chosen" ? ffmpegChosen
+            : source === "system" ? "/opt/homebrew/bin/ffmpeg"
+            : source === "downloaded" ? "/Users/you/Library/Application Support/AudiobookConvertRs/ffmpeg/9.0.2/ffmpeg"
+            : undefined;
+        return {
+            available: !!source,
+            path,
+            version: source === "downloaded" ? "9.0.2" : source ? "7.1" : undefined,
+            supports_libfdk_aac: source === "system",
+            source,
+            chosen_path: ffmpegChosen ?? undefined,
+            downloaded_version: ffmpegDownloaded ? "9.0.2" : undefined,
+            offer: source ? undefined : FFMPEG_OFFER,
+        };
+    };
     // Only Find details applies are undoable here, so its review can be checked end to end.
     const undoStack: { before: AudioBook; description: string }[] = [];
 
@@ -198,14 +236,37 @@ export function installMockBackend() {
             return null;
         },
         reset_settings: () => null,
-        check_ffmpeg_available: () => true,
+        check_ffmpeg_available: () => ffmpegStatus().available,
         get_ffmpeg_version: () => "ffmpeg version 7.1 (mock)",
-        get_ffmpeg_info: () => ({
-            available: true,
-            path: "/opt/homebrew/bin/ffmpeg",
-            version: "7.1",
-            supports_libfdk_aac: true,
-        }),
+        get_ffmpeg_info: () => ffmpegStatus(),
+        set_ffmpeg_path: ({ path }: { path: string | null }) => {
+            if (path && !path.endsWith("ffmpeg")) throw `File not found: ${path}`;
+            ffmpegChosen = path;
+            return ffmpegStatus();
+        },
+        // About two seconds of progress events, like a fast connection
+        download_ffmpeg: async () => {
+            downloadCancelled = false;
+            const total = FFMPEG_OFFER.size_bytes;
+            for (let step = 1; step <= 20; step++) {
+                await new Promise((resolve) => setTimeout(resolve, 100));
+                if (downloadCancelled) throw "download cancelled";
+                if (ffmpegMode === "fail" && step === 8) throw "could not reach ffmpeg.martin-riedl.de: connection reset";
+                emit("ffmpeg_download_progress", { received: Math.round((total * step) / 20), total });
+            }
+            await new Promise((resolve) => setTimeout(resolve, 600));
+            ffmpegDownloaded = true;
+            return ffmpegStatus();
+        },
+        cancel_ffmpeg_download: () => {
+            downloadCancelled = true;
+            return null;
+        },
+        remove_downloaded_ffmpeg: () => {
+            ffmpegDownloaded = false;
+            return ffmpegStatus();
+        },
+        pick_ffmpeg_file: () => "/usr/local/bin/ffmpeg",
 
         can_undo: () => undoStack.length > 0,
         can_redo: () => false,
@@ -447,6 +508,10 @@ export function installMockBackend() {
             return id;
         },
         async invoke(cmd: string, args: any) {
+            if (cmd === "plugin:event|listen") {
+                listeners.set(args.event, [...(listeners.get(args.event) ?? []), args.handler]);
+                return args.handler;
+            }
             if (cmd.startsWith("plugin:event|")) return 0;
             const handler = handlers[cmd];
             if (!handler) {
@@ -464,8 +529,8 @@ export function installMockBackend() {
 
     // The event plugin reads its own global, separate from __TAURI_INTERNALS__.
     (window as any).__TAURI_EVENT_PLUGIN_INTERNALS__ = {
-        unregisterListener() {
-            /* nothing is ever emitted, so there is nothing to detach */
+        unregisterListener(event: string, id: number) {
+            listeners.set(event, (listeners.get(event) ?? []).filter((handler) => handler !== id));
         },
     };
 

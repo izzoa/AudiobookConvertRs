@@ -5,13 +5,20 @@
 //! - FLAC cue sheets (optional)
 //! - MP3 ID3 CHAP frames (optional)
 
+use crate::audio::loader::load_audio_file;
 use crate::error::{AppError, AppResult};
+use crate::ffmpeg::detection::detect_ffmpeg;
 use crate::models::{AudioFormat, AudioFile, Chapter, Metadata};
 use crate::metadata::chapters::extract_chapters_from_m4b;
 use crate::metadata::extraction::extract_metadata;
 use camino::Utf8Path;
 use regex::Regex;
+use std::fs::File;
 use std::process::{Command, Stdio};
+use symphonia::core::formats::FormatOptions;
+use symphonia::core::io::MediaSourceStream;
+use symphonia::core::meta::MetadataOptions;
+use symphonia::core::probe::Hint;
 use tracing::{debug, info, warn};
 
 /// Result of analyzing an existing M4B file
@@ -44,7 +51,7 @@ pub fn analyze_existing_m4b(path: &Utf8Path) -> AppResult<M4bAnalysis> {
         Vec::new()
     });
 
-    let duration_ms = get_m4b_duration(path)?;
+    let duration_ms = load_audio_file(path)?.duration_ms;
     let has_artwork = metadata.artwork_data.is_some();
 
     Ok(M4bAnalysis {
@@ -53,29 +60,6 @@ pub fn analyze_existing_m4b(path: &Utf8Path) -> AppResult<M4bAnalysis> {
         duration_ms,
         has_artwork,
     })
-}
-
-/// Get the duration of an M4B file using FFprobe
-fn get_m4b_duration(path: &Utf8Path) -> AppResult<u64> {
-    let output = Command::new("ffprobe")
-        .args([
-            "-v", "error",
-            "-show_entries", "format=duration",
-            "-of", "default=noprint_wrappers=1:nokey=1",
-            path.as_str(),
-        ])
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .output()
-        .map_err(|e| AppError::FFmpegExecutionError {
-            reason: format!("ffprobe failed: {}", e),
-            
-        })?;
-
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    let duration_secs: f64 = stdout.trim().parse().unwrap_or(0.0);
-    
-    Ok((duration_secs * 1000.0) as u64)
 }
 
 /// Detect if an audio file is an M4B and analyze it
@@ -89,8 +73,8 @@ pub fn detect_and_analyze_m4b(file: &AudioFile) -> Option<M4bAnalysis> {
 
 /// Parse a FLAC cue sheet and convert to chapters
 ///
-/// FLAC files can embed cue sheets that contain track/chapter information.
-/// This extracts the cue sheet using FFmpeg and parses it into chapters.
+/// Rippers embed the cue sheet as a `CUESHEET` Vorbis comment, which Symphonia
+/// reads like any other tag; no FFmpeg tool is needed.
 pub fn extract_chapters_from_flac_cuesheet(path: &Utf8Path) -> AppResult<Vec<Chapter>> {
     if !path.exists() {
         return Err(AppError::FileNotFound(path.as_std_path().to_path_buf()));
@@ -98,30 +82,38 @@ pub fn extract_chapters_from_flac_cuesheet(path: &Utf8Path) -> AppResult<Vec<Cha
 
     debug!("Extracting cue sheet from FLAC: {}", path);
 
-    // Use FFmpeg to extract cue sheet metadata
-    let output = Command::new("ffprobe")
-        .args([
-            "-v", "error",
-            "-show_entries", "format_tags=cuesheet",
-            "-of", "default=noprint_wrappers=1:nokey=1",
-            path.as_str(),
-        ])
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .output()
-        .map_err(|e| AppError::FFmpegExecutionError {
-            reason: format!("ffprobe failed: {}", e),
-            
-        })?;
-
-    let cuesheet = String::from_utf8_lossy(&output.stdout);
-    
-    if cuesheet.trim().is_empty() {
-        debug!("No cue sheet found in FLAC file");
-        return Ok(Vec::new());
+    match read_tag(path, "CUESHEET")? {
+        Some(cuesheet) if !cuesheet.trim().is_empty() => parse_cuesheet(&cuesheet),
+        _ => {
+            debug!("No cue sheet found in FLAC file");
+            Ok(Vec::new())
+        }
     }
+}
 
-    parse_cuesheet(&cuesheet)
+/// The first tag named `name` (any case), from the reader or the probe result
+fn read_tag(path: &Utf8Path, name: &str) -> AppResult<Option<String>> {
+    let file = File::open(path.as_std_path()).map_err(|e| AppError::metadata_read(path, e.to_string()))?;
+    let mss = MediaSourceStream::new(Box::new(file), Default::default());
+    let mut hint = Hint::new();
+    if let Some(ext) = path.extension() {
+        hint.with_extension(ext);
+    }
+    let mut probed = symphonia::default::get_probe()
+        .format(&hint, mss, &FormatOptions::default(), &MetadataOptions::default())
+        .map_err(|e| AppError::metadata_read(path, e.to_string()))?;
+
+    let find = |rev: &symphonia::core::meta::MetadataRevision| {
+        rev.tags()
+            .iter()
+            .find(|tag| tag.key.eq_ignore_ascii_case(name))
+            .map(|tag| tag.value.to_string())
+    };
+    let mut reader = probed.format;
+    if let Some(value) = reader.metadata().current().and_then(find) {
+        return Ok(Some(value));
+    }
+    Ok(probed.metadata.get().as_ref().and_then(|m| m.current()).and_then(find))
 }
 
 /// Parse a cue sheet string into chapters
@@ -212,7 +204,8 @@ fn parse_cuesheet(cuesheet: &str) -> AppResult<Vec<Chapter>> {
 /// Extract ID3 CHAP frames from MP3 files
 ///
 /// MP3 files can contain chapter information in ID3v2 CHAP and CTOC frames.
-/// This uses FFprobe to extract the chapter data.
+/// The resolved FFmpeg prints them as ffmetadata; it is never looked up by
+/// name, because an app opened from Finder may have no Homebrew folder on its PATH.
 pub fn extract_chapters_from_mp3(path: &Utf8Path) -> AppResult<Vec<Chapter>> {
     if !path.exists() {
         return Err(AppError::FileNotFound(path.as_std_path().to_path_buf()));
@@ -220,70 +213,100 @@ pub fn extract_chapters_from_mp3(path: &Utf8Path) -> AppResult<Vec<Chapter>> {
 
     debug!("Extracting ID3 chapters from MP3: {}", path);
 
-    let output = Command::new("ffprobe")
-        .args([
-            "-v", "error",
-            "-show_chapters",
-            "-of", "json",
-            path.as_str(),
-        ])
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
+    let ffmpeg = detect_ffmpeg()?;
+    let output = Command::new(ffmpeg.path.as_str())
+        .args(["-v", "error", "-i", path.as_str(), "-f", "ffmetadata", "-"])
+        .stdin(Stdio::null())
         .output()
-        .map_err(|e| AppError::FFmpegExecutionError {
-            reason: format!("ffprobe failed: {}", e),
-            
-        })?;
+        .map_err(|e| AppError::ffmpeg_error(format!("could not read chapters: {}", e)))?;
 
-    let json = String::from_utf8_lossy(&output.stdout);
-    parse_ffprobe_chapters(&json)
-}
-
-/// Parse FFprobe JSON chapter output
-fn parse_ffprobe_chapters(json: &str) -> AppResult<Vec<Chapter>> {
-    // Simple regex-based parsing for chapter data
-    // Format: "start_time": "0.000000", "end_time": "300.000000", "tags": {"title": "Chapter 1"}
-    
-    let mut chapters = Vec::new();
-    let start_re = Regex::new(r#""start_time"\s*:\s*"([\d.]+)""#).unwrap();
-    let end_re = Regex::new(r#""end_time"\s*:\s*"([\d.]+)""#).unwrap();
-    let title_re = Regex::new(r#""title"\s*:\s*"([^"]+)""#).unwrap();
-
-    // Split by chapter blocks
-    let chapter_blocks: Vec<&str> = json.split("\"id\"").skip(1).collect();
-
-    for (i, block) in chapter_blocks.iter().enumerate() {
-        let start_secs: f64 = start_re
-            .captures(block)
-            .and_then(|c| c.get(1))
-            .and_then(|m| m.as_str().parse().ok())
-            .unwrap_or(0.0);
-
-        let end_secs: f64 = end_re
-            .captures(block)
-            .and_then(|c| c.get(1))
-            .and_then(|m| m.as_str().parse().ok())
-            .unwrap_or(0.0);
-
-        let title = title_re
-            .captures(block)
-            .and_then(|c| c.get(1))
-            .map(|m| m.as_str().to_string())
-            .unwrap_or_else(|| format!("Chapter {}", i + 1));
-
-        if end_secs > start_secs {
-            chapters.push(Chapter {
-                index: i,
-                title,
-                start_time_ms: (start_secs * 1000.0) as u64,
-                end_time_ms: (end_secs * 1000.0) as u64,
-                auto_detected: true,
-            });
-        }
+    if !output.status.success() {
+        return Err(AppError::ffmpeg_error(format!(
+            "could not read chapters: {}",
+            String::from_utf8_lossy(&output.stderr).trim()
+        )));
     }
 
+    let chapters = parse_ffmetadata_chapters(&String::from_utf8_lossy(&output.stdout));
     info!("Extracted {} chapters from MP3", chapters.len());
     Ok(chapters)
+}
+
+/// Chapters from FFmpeg's ffmetadata text. Each `[CHAPTER]` gives START and END
+/// in its own TIMEBASE, nanoseconds when TIMEBASE is missing.
+fn parse_ffmetadata_chapters(text: &str) -> Vec<Chapter> {
+    #[derive(Default)]
+    struct Section {
+        timebase: Option<(u64, u64)>,
+        start: Option<i64>,
+        end: Option<i64>,
+        title: Option<String>,
+    }
+
+    let mut sections = Vec::new();
+    let mut current: Option<Section> = None;
+
+    for line in text.lines() {
+        let line = line.trim_end_matches('\r');
+        if line.starts_with(';') || line.starts_with('#') {
+            continue;
+        }
+        if line.starts_with('[') {
+            sections.extend(current.take());
+            if line.eq_ignore_ascii_case("[CHAPTER]") {
+                current = Some(Section::default());
+            }
+            continue;
+        }
+        let (Some(section), Some((key, value))) = (current.as_mut(), line.split_once('=')) else {
+            continue;
+        };
+        match key.trim().to_ascii_uppercase().as_str() {
+            "TIMEBASE" => {
+                section.timebase = value
+                    .split_once('/')
+                    .and_then(|(n, d)| Some((n.trim().parse().ok()?, d.trim().parse().ok()?)))
+                    .filter(|&(_, d): &(u64, u64)| d > 0);
+            }
+            "START" => section.start = value.trim().parse().ok(),
+            "END" => section.end = value.trim().parse().ok(),
+            "TITLE" => section.title = Some(unescape_ffmetadata(value)),
+            _ => {}
+        }
+    }
+    sections.extend(current);
+
+    sections
+        .into_iter()
+        .filter_map(|section| {
+            let (num, den) = section.timebase.unwrap_or((1, 1_000_000_000));
+            let to_ms = |t: i64| (t.max(0) as u128 * num as u128 * 1000 / den as u128) as u64;
+            let (start, end) = (to_ms(section.start?), to_ms(section.end?));
+            (end > start).then_some((start, end, section.title))
+        })
+        .enumerate()
+        .map(|(i, (start_time_ms, end_time_ms, title))| Chapter {
+            index: i,
+            title: title.filter(|t| !t.trim().is_empty()).unwrap_or_else(|| format!("Chapter {}", i + 1)),
+            start_time_ms,
+            end_time_ms,
+            auto_detected: true,
+        })
+        .collect()
+}
+
+/// ffmetadata escapes `=`, `;`, `#`, `\` and newlines with a backslash
+fn unescape_ffmetadata(value: &str) -> String {
+    let mut out = String::with_capacity(value.len());
+    let mut chars = value.chars();
+    while let Some(c) = chars.next() {
+        if c == '\\' {
+            out.extend(chars.next());
+        } else {
+            out.push(c);
+        }
+    }
+    out
 }
 
 /// Auto-detect and extract chapters from any supported format
@@ -333,33 +356,26 @@ TRACK 03 AUDIO
     }
 
     #[test]
-    fn test_parse_ffprobe_chapters() {
-        let json = r#"{
-            "chapters": [
-                {
-                    "id": 0,
-                    "start_time": "0.000000",
-                    "end_time": "300.000000",
-                    "tags": {
-                        "title": "Chapter 1"
-                    }
-                },
-                {
-                    "id": 1,
-                    "start_time": "300.000000",
-                    "end_time": "600.000000",
-                    "tags": {
-                        "title": "Chapter 2"
-                    }
-                }
-            ]
-        }"#;
+    fn ffmetadata_chapters_use_each_timebase() {
+        let text = ";FFMETADATA1\ntitle=Book\n\
+[CHAPTER]\nTIMEBASE=1/1000\nSTART=0\nEND=300000\ntitle=Opening \\= Prologue\n\
+[CHAPTER]\nTIMEBASE=1/44100\nSTART=13230000\nEND=26460000\ntitle=Part Two\n\
+[CHAPTER]\nSTART=600000000000\nEND=660000000000\n\
+[CHAPTER]\nTIMEBASE=1/1000\nSTART=5\nEND=5\ntitle=Empty\n\
+[STREAM]\ntitle=not a chapter\n";
 
-        let chapters = parse_ffprobe_chapters(json).unwrap();
-        assert_eq!(chapters.len(), 2);
-        assert_eq!(chapters[0].title, "Chapter 1");
-        assert_eq!(chapters[0].start_time_ms, 0);
-        assert_eq!(chapters[0].end_time_ms, 300000);
-        assert_eq!(chapters[1].title, "Chapter 2");
+        let chapters = parse_ffmetadata_chapters(text);
+        let summary: Vec<_> = chapters
+            .iter()
+            .map(|c| (c.index, c.title.as_str(), c.start_time_ms, c.end_time_ms))
+            .collect();
+        assert_eq!(
+            summary,
+            [
+                (0, "Opening = Prologue", 0, 300_000),
+                (1, "Part Two", 300_000, 600_000),
+                (2, "Chapter 3", 600_000, 660_000),
+            ]
+        );
     }
 }

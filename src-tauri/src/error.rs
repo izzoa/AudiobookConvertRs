@@ -90,7 +90,7 @@ pub enum AppError {
     // ============================================
     // FFmpeg Errors
     // ============================================
-    #[error("FFmpeg not found. Please install FFmpeg and ensure it's in your PATH.")]
+    #[error("FFmpeg not found. Get it under FFmpeg in Settings, or install it and press Check again.")]
     FFmpegNotFound,
 
     #[error("FFmpeg version {version} is too old. Minimum required: {minimum}")]
@@ -219,7 +219,7 @@ impl AppError {
                 Some("Free up disk space and try again.")
             }
             AppError::FFmpegNotFound => {
-                Some("Install FFmpeg from https://ffmpeg.org/download.html")
+                Some("Open Settings and press Get FFmpeg, or choose an FFmpeg you already have.")
             }
             AppError::OutputFileExists(_) => {
                 Some("Choose a different output path or delete the existing file.")
