@@ -27,8 +27,13 @@ pub struct UserSettings {
     /// Default output audio bitrate in kbps
     pub default_bitrate_kbps: u32,
 
-    /// Default output directory (None = same as input)
+    /// Default output directory (None = ask for each book)
     pub default_output_directory: Option<Utf8PathBuf>,
+
+    /// Folders and file name inside the output directory, e.g.
+    /// `{author}/{series}/{title}`. Rendered by the frontend's
+    /// `lib/outputTemplate.ts`; the backend only stores it.
+    pub output_template: String,
 
     /// Whether to auto-detect and use artwork from audio files
     pub auto_detect_artwork: bool,
@@ -140,6 +145,7 @@ impl Default for UserSettings {
         Self {
             default_bitrate_kbps: 128,
             default_output_directory: None,
+            output_template: "{title}".to_string(),
             auto_detect_artwork: true,
             scan_for_cover_images: true,
             concurrent_jobs: 1,
@@ -381,6 +387,13 @@ mod tests {
         let deserialized: UserSettings = serde_json::from_str(&json).unwrap();
 
         assert_eq!(settings.default_bitrate_kbps, deserialized.default_bitrate_kbps);
+    }
+
+    #[test]
+    fn config_saved_before_output_template_keeps_title_naming() {
+        let settings: UserSettings =
+            serde_json::from_str(r#"{"default_output_directory":"/books"}"#).unwrap();
+        assert_eq!(settings.output_template, "{title}");
     }
 }
 

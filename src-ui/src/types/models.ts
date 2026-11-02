@@ -189,6 +189,8 @@ export interface UserSettings {
     // Conversion defaults
     default_bitrate_kbps: number;
     default_output_directory?: string;
+    /** Folders and file name inside the output folder; see lib/outputTemplate.ts. */
+    output_template?: string;
     default_sample_rate?: number;
     embed_chapters_by_default: boolean;
     copy_metadata_by_default: boolean;

@@ -2,6 +2,7 @@ import { useState } from "react";
 import {
     AdjustmentsHorizontalIcon,
     ArrowPathIcon,
+    DocumentTextIcon,
     ArrowRightIcon,
     EllipsisHorizontalIcon,
     ExclamationTriangleIcon,
@@ -15,6 +16,7 @@ import { useApp } from "@/context/AppContext";
 import { useBatch, bookTitle, type BatchEntry } from "@/context/BatchStore";
 import * as FilesApi from "@/api/files";
 import { formatDuration, shortenPath } from "@/lib/format";
+import { describeTemplate } from "@/lib/outputTemplate";
 import { cn } from "@/lib/utils";
 
 /**
@@ -25,7 +27,7 @@ import { cn } from "@/lib/utils";
  * opens any of them in the workbench for the full editor.
  */
 export function BatchPage() {
-    const { setView, getEffectiveConversionDefaults } = useApp();
+    const { settings, setView, getEffectiveConversionDefaults } = useApp();
     const batch = useBatch();
     const { toast } = useToast();
     const [replaceExisting, setReplaceExisting] = useState(false);
@@ -188,7 +190,7 @@ export function BatchPage() {
                     >
                         <FolderIcon className="w-4 h-4 text-muted-foreground shrink-0" />
                         <span className="min-w-0 text-left">
-                            <span className="block text-[10px] font-semibold uppercase tracking-wider text-muted-foreground leading-tight">
+                            <span className="block text-[10px] font-semibold uppercase tracking-wider text-muted-foreground leading-tight whitespace-nowrap">
                                 Output folder
                             </span>
                             <span
@@ -204,12 +206,28 @@ export function BatchPage() {
 
                     <button
                         onClick={() => setView("settings")}
+                        className="flex items-center gap-2 h-9 px-2.5 rounded-md min-w-0 max-w-[30%] shrink-[3] transition-colors hover:bg-accent"
+                        title={`File and folder names come from Settings: ${settings?.output_template || "{title}"}`}
+                    >
+                        <DocumentTextIcon className="w-4 h-4 text-muted-foreground shrink-0" />
+                        <span className="min-w-0 text-left">
+                            <span className="block text-[10px] font-semibold uppercase tracking-wider text-muted-foreground leading-tight whitespace-nowrap">
+                                Names
+                            </span>
+                            <span className="block text-xs leading-tight truncate">
+                                {describeTemplate(settings?.output_template)}
+                            </span>
+                        </span>
+                    </button>
+
+                    <button
+                        onClick={() => setView("settings")}
                         className="flex items-center gap-2 h-9 px-2.5 rounded-md shrink-0 transition-colors hover:bg-accent"
                         title="Every book uses the defaults from Settings"
                     >
                         <AdjustmentsHorizontalIcon className="w-4 h-4 text-muted-foreground" />
                         <span className="text-left">
-                            <span className="block text-[10px] font-semibold uppercase tracking-wider text-muted-foreground leading-tight">
+                            <span className="block text-[10px] font-semibold uppercase tracking-wider text-muted-foreground leading-tight whitespace-nowrap">
                                 Quality
                             </span>
                             <span className="block text-xs leading-tight nums">

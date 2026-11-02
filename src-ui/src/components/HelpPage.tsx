@@ -115,8 +115,8 @@ export function HelpPage() {
                             <B> Open</B> edits that book in full; the batch keeps your changes.
                         </li>
                         <li>
-                            <B>Convert</B> queues every ticked book into one output folder, using the quality defaults from{' '}
-                            {toSettings}. Existing files are skipped unless you choose to replace them.
+                            <B>Convert</B> queues every ticked book into one output folder, using the quality defaults and
+                            file names from {toSettings}. Existing files are skipped unless you choose to replace them.
                         </li>
                         <li>
                             If a book was split wrongly, use <B>Combine into one book</B> from the batch menu. A folder of
@@ -193,6 +193,12 @@ export function HelpPage() {
                         <li>
                             <B>Output</B> defaults to the output folder from {toSettings}, named after the book. Click it to
                             choose another place. If a file is already there, you are asked before it is replaced.
+                        </li>
+                        <li>
+                            <B>File and folder names</B> in {toSettings} can file books into folders, for example{' '}
+                            <code className="font-mono text-xs">{'{author}/{series}/{title}'}</code>. A field the book
+                            does not have drops out, so one pattern suits books with and without a series. The output
+                            path follows tag edits until you choose a place by hand.
                         </li>
                         <li>
                             <B>Quality</B> sets bitrate, VBR or CBR, what to embed, and loudness normalization. 64k is

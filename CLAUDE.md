@@ -1189,6 +1189,7 @@ single-document layout.
 | `hooks/useProjectActions.ts` | Import / open / save / export / close, shared by the menu and shortcuts |
 | `hooks/useRebuildBook.ts` | Rebuild the open book from a new file list (reorder, sort, remove, add) |
 | `lib/conversionSettings.ts` | Builds a job's `ConversionSettings`; shared by the Convert bar and the batch |
+| `lib/outputTemplate.ts` | Renders the naming template (`{author}/{series}/{title}`) into an output path; tested by `npm test` |
 | `hooks/useFileDrop.ts` | Native Tauri drag-drop; degrades to no-op outside a webview |
 | `lib/format.ts` | `formatBytes` / `formatDuration` / `formatClock` / `formatEta` |
 | `lib/formats.ts` | Supported input formats as shown to users; mirrors `SUPPORTED_EXTENSIONS` in `audio/format.rs` |
@@ -1229,6 +1230,12 @@ shape alone: a folder is one book when it holds audio or only disc folders
 same library always splits the same way. Batch books load with
 `create_audiobook_from_files(paths, activate: false)` so the book open in the
 workbench stays the active one.
+
+**Output paths come from one template.** `UserSettings.output_template` is only
+stored by the backend; `lib/outputTemplate.ts` renders it for the Convert bar,
+the batch and the Settings preview. Empty fields drop out with their separators,
+and tag values are sanitized so they can never add folders. Its tests run under
+plain Node (`npm test --prefix src-ui`), so keep that file free of runtime imports.
 
 **Undo is per book.** The backend keeps every loaded book, and `UndoManager`
 filters its shared history by `audiobook_id`. Never make undo/redo pop the global

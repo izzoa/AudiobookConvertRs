@@ -44,9 +44,3 @@ export function buildConversionSettings(
             : undefined,
     };
 }
-
-/** `<folder>/<title>.m4b`, with characters no filesystem accepts replaced. */
-export function outputPathFor(folder: string, title: string | undefined): string {
-    const safeTitle = (title || "audiobook").replace(/[\\/:*?"<>|]/g, "_").trim() || "audiobook";
-    return `${folder.replace(/[\\/]+$/, "")}/${safeTitle}.m4b`;
-}

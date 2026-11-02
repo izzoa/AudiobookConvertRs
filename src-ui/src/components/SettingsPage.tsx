@@ -1,4 +1,4 @@
-import { useState, useEffect, type ReactNode } from 'react';
+import { useState, useEffect, useLayoutEffect, useRef, type ReactNode } from 'react';
 import { useApp } from '@/context/AppContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -11,6 +11,15 @@ import * as FilesApi from '@/api/files';
 import type { UserSettings, FFmpegStatus, ConversionDefaults, QualityPreset, EncodingMode } from '@/types/models';
 import { QualityPreset as QualityPresetValue, EncodingMode as EncodingModeValue } from '@/types/models';
 import { cn } from '@/lib/utils';
+import {
+    DEFAULT_OUTPUT_TEMPLATE,
+    TEMPLATE_FIELDS,
+    TEMPLATE_PRESETS,
+    renderOutputPath,
+    templateValues,
+    unknownFields,
+    type TemplateValues,
+} from '@/lib/outputTemplate';
 
 const BITRATE_OPTIONS = [320, 256, 192, 160, 128, 96, 64, 48, 32];
 
@@ -249,7 +258,7 @@ export function SettingsPage() {
                     </div>
                 </Section>
 
-                <Section title="Output" description="Where finished books are written.">
+                <Section title="Output" description="Where finished books are written, and what they are called.">
                     <Field
                         label="Output folder"
                         htmlFor="output-dir"
@@ -275,6 +284,10 @@ export function SettingsPage() {
                             </Button>
                         </div>
                     </Field>
+                    <OutputTemplateField
+                        value={draftSettings.output_template ?? DEFAULT_OUTPUT_TEMPLATE}
+                        onChange={(template) => updateDraft('output_template', template)}
+                    />
                 </Section>
 
                 <Section title="Queue" description="How much converts at once.">
@@ -504,5 +517,112 @@ function Check({ checked, onChange, label }: { checked: boolean; onChange: (valu
             />
             {label}
         </label>
+    );
+}
+
+// One book in a series and one without, so the preview shows how an empty
+// field drops out of the name.
+const SAMPLE_BOOKS: TemplateValues[] = [
+    { author: 'Frank Herbert', title: 'Dune Messiah', series: 'Dune', series_index: '2', narrator: 'Scott Brick', year: '1969' },
+    { author: 'Andy Weir', title: 'Project Hail Mary', narrator: 'Ray Porter', year: '2021' },
+];
+
+function OutputTemplateField({ value, onChange }: { value: string; onChange: (template: string) => void }) {
+    const { activeAudiobook } = useApp();
+    const inputRef = useRef<HTMLInputElement>(null);
+    const caret = useRef<number | null>(null);
+    const unknown = unknownFields(value);
+    const preset = TEMPLATE_PRESETS.find((p) => p.template === value.trim())?.template ?? 'custom';
+    const examples = activeAudiobook ? [templateValues(activeAudiobook), SAMPLE_BOOKS[0]] : SAMPLE_BOOKS;
+
+    // Inserts at the caret, so a field can go between two others.
+    const insert = (token: string) => {
+        const input = inputRef.current;
+        const text = `{${token}}`;
+        const start = input?.selectionStart ?? value.length;
+        const end = input?.selectionEnd ?? value.length;
+        caret.current = start + text.length;
+        onChange(value.slice(0, start) + text + value.slice(end));
+    };
+
+    // Put the caret after the inserted field once the new value is in the input.
+    useLayoutEffect(() => {
+        if (caret.current === null) return;
+        inputRef.current?.focus();
+        inputRef.current?.setSelectionRange(caret.current, caret.current);
+        caret.current = null;
+    }, [value]);
+
+    return (
+        <Field
+            label="File and folder names"
+            htmlFor="output-template"
+            hint="Use / to make folders inside the output folder. A field with no value drops out, along with the separators around it."
+        >
+            <div className="flex gap-2">
+                <Input
+                    ref={inputRef}
+                    id="output-template"
+                    className="h-9 font-mono text-[13px]"
+                    value={value}
+                    onChange={(e) => onChange(e.target.value)}
+                    placeholder={DEFAULT_OUTPUT_TEMPLATE}
+                    spellCheck={false}
+                    autoComplete="off"
+                />
+                <Select
+                    aria-label="Naming presets"
+                    className="w-48 shrink-0"
+                    value={preset}
+                    onChange={(e) => e.target.value !== 'custom' && onChange(e.target.value)}
+                >
+                    {TEMPLATE_PRESETS.map((p) => (
+                        <option key={p.template} value={p.template}>
+                            {p.label}
+                        </option>
+                    ))}
+                    <option value="custom" disabled>
+                        Custom
+                    </option>
+                </Select>
+            </div>
+
+            <div className="mt-2 flex flex-wrap items-center gap-1.5 no-select">
+                <span className="mr-0.5 text-xs text-muted-foreground">Insert</span>
+                {TEMPLATE_FIELDS.map((field) => (
+                    <button
+                        key={field.token}
+                        type="button"
+                        // Keeps focus (and the caret) in the template input.
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={() => insert(field.token)}
+                        className="h-6 px-2 rounded border text-xs transition-colors hover:bg-accent"
+                    >
+                        {field.label}
+                    </button>
+                ))}
+            </div>
+
+            {unknown.length > 0 && (
+                <p className="mt-2 text-xs text-warning">
+                    {unknown.map((name) => `{${name}}`).join(', ')} {unknown.length === 1 ? 'is not a field' : 'are not fields'}{' '}
+                    and will be written as typed.
+                </p>
+            )}
+
+            <div className="mt-3 rounded-md border bg-surface-2 px-3 py-2">
+                <p className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground no-select">
+                    Preview
+                </p>
+                {examples.map((values, i) => {
+                    const path = renderOutputPath('', value, values).slice(1);
+                    return (
+                        <p key={i} className="font-mono text-xs leading-relaxed truncate" title={path}>
+                            {path}
+                        </p>
+                    );
+                })}
+            </div>
+        </Field>
     );
 }

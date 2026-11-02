@@ -112,6 +112,7 @@ function makeLibraryBook(entry: (typeof LIBRARY)[number]): AudioBook {
 const SETTINGS: UserSettings = {
     default_bitrate_kbps: 64,
     default_output_directory: "/Users/you/Audiobooks/out",
+    output_template: "{title}",
     embed_chapters_by_default: true,
     copy_metadata_by_default: true,
     embed_artwork_by_default: true,
@@ -145,7 +146,11 @@ export function installMockBackend() {
     const handlers: Record<string, (args: any) => unknown> = {
         get_settings: () => SETTINGS,
         get_default_settings: () => SETTINGS,
-        update_settings: () => null,
+        // Kept, so a saved setting (like the naming template) shows up in the book flow.
+        update_settings: ({ settings }: any) => {
+            Object.assign(SETTINGS, settings);
+            return null;
+        },
         reset_settings: () => null,
         check_ffmpeg_available: () => true,
         get_ffmpeg_version: () => "ffmpeg version 7.1 (mock)",

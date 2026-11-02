@@ -6,7 +6,8 @@ import * as ConversionApi from "@/api/conversion";
 import * as FilesApi from "@/api/files";
 import * as MetadataApi from "@/api/metadata";
 import type { AudioBook, BookGroup } from "@/types/models";
-import { buildConversionSettings, outputPathFor } from "@/lib/conversionSettings";
+import { buildConversionSettings } from "@/lib/conversionSettings";
+import { numberedPath, outputPathForBook } from "@/lib/outputTemplate";
 import { basename } from "@/lib/format";
 
 export type BatchStatus = "loading" | "ready" | "failed";
@@ -213,17 +214,16 @@ export function BatchProvider({ children }: { children: ReactNode }) {
         if (!outputDir) return paths;
         const used = new Set<string>();
         for (const entry of entries) {
-            if (entry.status !== "ready") continue;
-            let path = outputPathFor(outputDir, bookTitle(entry));
-            // Two books with one title would otherwise overwrite each other.
-            for (let n = 2; used.has(path.toLowerCase()); n++) {
-                path = outputPathFor(outputDir, `${bookTitle(entry)} (${n})`);
-            }
+            if (entry.status !== "ready" || !entry.book) continue;
+            const base = outputPathForBook(outputDir, settings?.output_template, entry.book);
+            let path = base;
+            // Two books with one name would otherwise overwrite each other.
+            for (let n = 2; used.has(path.toLowerCase()); n++) path = numberedPath(base, n);
             used.add(path.toLowerCase());
             paths.set(entry.key, path);
         }
         return paths;
-    }, [entries, outputDir]);
+    }, [entries, outputDir, settings?.output_template]);
 
     const pathList = useMemo(() => [...outputPaths.values()].sort().join("\n"), [outputPaths]);
     useEffect(() => {

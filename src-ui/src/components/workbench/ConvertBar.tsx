@@ -18,9 +18,10 @@ import * as ConversionApi from "@/api/conversion";
 import { dryRunConversion, listPresets, savePreset } from "@/api/presets";
 import { suggestNormalization } from "@/api/quality";
 import type { ConversionPreset, ConversionSettings, DryRunResult, EncodingMode } from "@/types/models";
-import { formatBytes, formatEta, shortenPath } from "@/lib/format";
+import { basename, formatBytes, formatEta, shortenPath } from "@/lib/format";
 import { cn } from "@/lib/utils";
-import { buildConversionSettings, outputPathFor } from "@/lib/conversionSettings";
+import { buildConversionSettings } from "@/lib/conversionSettings";
+import { outputPathForBook } from "@/lib/outputTemplate";
 
 const BITRATES = [32, 48, 64, 96, 128, 160, 192, 256];
 
@@ -50,7 +51,7 @@ export function ConvertBar({ onShowChapters }: { onShowChapters: () => void }) {
     const { refreshJobs, refreshQueueState } = useConversionStore();
 
     const defaults = getEffectiveConversionDefaults();
-    const [outputPath, setOutputPath] = useState<string | null>(null);
+    const [chosenPath, setChosenPath] = useState<string | null>(null);
     const [bitrate, setBitrate] = useState(defaults.bitrate_kbps);
     const [matchSource, setMatchSource] = useState(false);
     const [mode, setMode] = useState<EncodingMode>(defaults.encoding_mode);
@@ -65,15 +66,14 @@ export function ConvertBar({ onShowChapters }: { onShowChapters: () => void }) {
     const [analyzing, setAnalyzing] = useState(false);
     const [presetName, setPresetName] = useState<string | null>(null);
 
-    // A newly imported book gets a sensible destination without being asked.
-    useEffect(() => {
-        if (!activeAudiobook) {
-            setOutputPath(null);
-            return;
-        }
+    // A book gets its destination from the naming template without being
+    // asked, and it follows tag edits until a path is picked by hand.
+    const templatePath = useMemo(() => {
         const dir = settings?.default_output_directory;
-        setOutputPath(dir ? outputPathFor(dir, activeAudiobook.title) : null);
-    }, [activeAudiobook?.id, settings?.default_output_directory]);
+        return activeAudiobook && dir ? outputPathForBook(dir, settings?.output_template, activeAudiobook) : null;
+    }, [activeAudiobook, settings?.default_output_directory, settings?.output_template]);
+    useEffect(() => setChosenPath(null), [activeAudiobook?.id]);
+    const outputPath = chosenPath ?? templatePath;
 
     // Average of the files' own bitrates, capped at what the encoder accepts.
     const sourceBitrate = useMemo(() => {
@@ -198,8 +198,9 @@ export function ConvertBar({ onShowChapters }: { onShowChapters: () => void }) {
     const chooseOutput = async () => {
         if (!activeAudiobook) return;
         try {
-            const picked = await FilesApi.pickOutputFile(`${activeAudiobook.title || "audiobook"}.m4b`);
-            if (picked) setOutputPath(picked);
+            const suggested = templatePath ? basename(templatePath) : `${activeAudiobook.title || "audiobook"}.m4b`;
+            const picked = await FilesApi.pickOutputFile(suggested);
+            if (picked) setChosenPath(picked);
         } catch (error) {
             toast({ title: "Could not choose output", description: String(error), variant: "destructive" });
         }
