@@ -6,7 +6,9 @@
 
 use crate::error::{AppError, AppResult};
 use crate::metadata::chapter_match::{FoundChapter, FoundChapters};
-use crate::metadata::lookup::{html_to_text, join_names, series_position, LookupCandidate, LookupSource};
+use crate::metadata::lookup::{
+    html_to_text, join_names, language_name, series_position, LookupCandidate, LookupSource,
+};
 use crate::models::{normalize_asin, Metadata};
 use reqwest::{Client, StatusCode, Url};
 use serde::de::DeserializeOwned;
@@ -124,7 +126,7 @@ fn record_from_book(book: &AudnexusBook, chapters: Result<FoundChapters, String>
             publisher: book.publisher_name.clone(),
             copyright: book.copyright.map(|year| format!("© {}", year)),
             description: book.summary.as_deref().and_then(html_to_text),
-            language: book.language.clone(),
+            language: book.language.as_deref().and_then(language_name),
             asin: normalize_asin(&book.asin),
             ..Default::default()
         },
@@ -146,7 +148,7 @@ fn record_from_catalog(product: &CatalogProduct) -> AudibleRecord {
             year: product.release_date.as_deref().and_then(year_of),
             publisher: product.publisher_name.clone(),
             description: product.merchandising_summary.as_deref().and_then(html_to_text),
-            language: product.language.clone(),
+            language: product.language.as_deref().and_then(language_name),
             asin: normalize_asin(&product.asin),
             ..Default::default()
         },
@@ -448,6 +450,7 @@ mod tests {
         assert_eq!(f.genre.as_deref(), Some("Literature & Fiction"));
         assert_eq!(f.publisher.as_deref(), Some("Macmillan Audio"));
         assert_eq!(f.copyright.as_deref(), Some("© 1969"));
+        assert_eq!(f.language.as_deref(), Some("English"));
         assert_eq!(f.description.as_deref(), Some("A sample summary.\n\nSecond paragraph."));
         assert_eq!(f.asin.as_deref(), Some("B002V8H660"));
 
@@ -469,6 +472,7 @@ mod tests {
         assert!(f.narrator.as_deref().is_some_and(|n| n.starts_with("Scott Brick")));
         assert_eq!((f.series.as_deref(), f.series_index.as_deref()), (Some("Dune"), Some("2")));
         assert_eq!(f.year, Some(2007));
+        assert_eq!(f.language.as_deref(), Some("English"));
         assert!(record.cover_url.is_some());
         assert!(record.chapters.is_err());
     }

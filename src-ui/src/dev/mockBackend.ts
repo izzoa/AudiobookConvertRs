@@ -137,7 +137,7 @@ function mockRecord(id: string, target: AudioBook | null | undefined): LookupRec
               year: found.year ?? undefined,
               genre: "Literature & Fiction",
               publisher: "Macmillan Audio",
-              language: "english",
+              language: "English",
               copyright: "© 1965",
               description: "A sample summary.\n\nSecond paragraph.",
               asin: found.id,

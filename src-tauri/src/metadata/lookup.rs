@@ -178,6 +178,21 @@ pub fn series_position(raw: &str) -> Option<String> {
     Some(SERIES_NUMBER.find(raw).map_or(raw, |m| m.as_str()).to_string())
 }
 
+/// A catalog language as a display name. Audible sends lowercase ("english");
+/// each word is capitalized, with underscores read as spaces.
+pub fn language_name(raw: &str) -> Option<String> {
+    let words: Vec<String> = raw
+        .split(|c: char| c == '_' || c.is_whitespace())
+        .filter(|w| !w.is_empty())
+        .map(|w| {
+            let mut chars = w.chars();
+            let first = chars.next().map(|c| c.to_uppercase().collect::<String>()).unwrap_or_default();
+            first + &chars.as_str().to_lowercase()
+        })
+        .collect();
+    (!words.is_empty()).then(|| words.join(" "))
+}
+
 static BLOCK_END: Lazy<Regex> =
     Lazy::new(|| Regex::new(r"(?i)<\s*(?:/p|/div|/li|br\s*/?)\s*>").unwrap());
 static TAG: Lazy<Regex> = Lazy::new(|| Regex::new(r"<[^>]*>").unwrap());
@@ -232,6 +247,14 @@ mod tests {
         assert_eq!(series_position(".5").as_deref(), Some(".5"));
         assert_eq!(series_position("Prequel").as_deref(), Some("Prequel"));
         assert_eq!(series_position("  "), None);
+    }
+
+    #[test]
+    fn language_is_capitalized() {
+        assert_eq!(language_name("english").as_deref(), Some("English"));
+        assert_eq!(language_name("GERMAN").as_deref(), Some("German"));
+        assert_eq!(language_name("mandarin_chinese").as_deref(), Some("Mandarin Chinese"));
+        assert_eq!(language_name("  "), None);
     }
 
     #[test]
