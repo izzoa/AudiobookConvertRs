@@ -1,7 +1,14 @@
-import { BookOpenIcon, QueueListIcon, Cog6ToothIcon, QuestionMarkCircleIcon } from "@heroicons/react/24/outline";
+import {
+    BookOpenIcon,
+    QueueListIcon,
+    Cog6ToothIcon,
+    QuestionMarkCircleIcon,
+    RectangleStackIcon,
+} from "@heroicons/react/24/outline";
 import { cn } from "@/lib/utils";
 import { useApp, type AppView } from "@/context/AppContext";
 import { useConversionStore } from "@/context/ConversionStore";
+import { useBatch } from "@/context/BatchStore";
 import { JobStatus } from "@/types/models";
 
 /**
@@ -14,6 +21,7 @@ import { JobStatus } from "@/types/models";
 export function Rail() {
     const { view, setView } = useApp();
     const { jobs } = useConversionStore();
+    const { entries } = useBatch();
 
     const activeCount = jobs.filter(
         (j) => j.status === JobStatus.Running || j.status === JobStatus.Queued
@@ -29,6 +37,18 @@ export function Rail() {
                 current={view}
                 onSelect={setView}
             />
+            {/* Only while there is a batch to return to; it is a place, not a mode. */}
+            {entries.length > 0 && (
+                <RailItem
+                    icon={<RectangleStackIcon className="w-[22px] h-[22px]" />}
+                    label="Batch"
+                    target="batch"
+                    current={view}
+                    onSelect={setView}
+                    badge={entries.length}
+                    badgeLabel="books"
+                />
+            )}
             <RailItem
                 icon={<QueueListIcon className="w-[22px] h-[22px]" />}
                 label="Queue"
@@ -66,16 +86,18 @@ interface RailItemProps {
     current: AppView;
     onSelect: (view: AppView) => void;
     badge?: number;
+    /** What the badge counts, for screen readers. */
+    badgeLabel?: string;
     /** A failure needs noticing even while other jobs are running, so it is its own mark. */
     alert?: string;
 }
 
-function RailItem({ icon, label, target, current, onSelect, badge, alert }: RailItemProps) {
+function RailItem({ icon, label, target, current, onSelect, badge, badgeLabel = "active", alert }: RailItemProps) {
     const active = current === target;
     return (
         <button
             onClick={() => onSelect(target)}
-            aria-label={badge || alert ? [label, badge && `${badge} active`, alert].filter(Boolean).join(", ") : undefined}
+            aria-label={badge || alert ? [label, badge && `${badge} ${badgeLabel}`, alert].filter(Boolean).join(", ") : undefined}
             aria-current={active ? "page" : undefined}
             className={cn(
                 "relative w-[58px] h-[54px] rounded-lg flex flex-col items-center justify-center gap-[3px]",

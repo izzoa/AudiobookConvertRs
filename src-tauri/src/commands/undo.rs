@@ -73,28 +73,34 @@ pub async fn redo(
     Ok(description)
 }
 
-/// Check if undo is available
+/// Check if the active book has an edit to undo
 #[tauri::command]
-pub async fn can_undo(undo_state: State<'_, UndoState>) -> Result<bool, String> {
-    Ok(undo_state.inner.read().can_undo())
+pub async fn can_undo(state: State<'_, AppState>, undo_state: State<'_, UndoState>) -> Result<bool, String> {
+    Ok(state.get_active_audiobook_id().map(|id| undo_state.inner.read().can_undo_for(&id)).unwrap_or(false))
 }
 
-/// Check if redo is available
+/// Check if the active book has an undone edit to redo
 #[tauri::command]
-pub async fn can_redo(undo_state: State<'_, UndoState>) -> Result<bool, String> {
-    Ok(undo_state.inner.read().can_redo())
+pub async fn can_redo(state: State<'_, AppState>, undo_state: State<'_, UndoState>) -> Result<bool, String> {
+    Ok(state.get_active_audiobook_id().map(|id| undo_state.inner.read().can_redo_for(&id)).unwrap_or(false))
 }
 
-/// Get description of the next undo action
+/// Get description of the active book's next undo
 #[tauri::command]
-pub async fn get_undo_description(undo_state: State<'_, UndoState>) -> Result<Option<String>, String> {
-    Ok(undo_state.inner.read().peek_undo())
+pub async fn get_undo_description(
+    state: State<'_, AppState>,
+    undo_state: State<'_, UndoState>,
+) -> Result<Option<String>, String> {
+    Ok(state.get_active_audiobook_id().and_then(|id| undo_state.inner.read().peek_undo_for(&id)))
 }
 
-/// Get description of the next redo action
+/// Get description of the active book's next redo
 #[tauri::command]
-pub async fn get_redo_description(undo_state: State<'_, UndoState>) -> Result<Option<String>, String> {
-    Ok(undo_state.inner.read().peek_redo())
+pub async fn get_redo_description(
+    state: State<'_, AppState>,
+    undo_state: State<'_, UndoState>,
+) -> Result<Option<String>, String> {
+    Ok(state.get_active_audiobook_id().and_then(|id| undo_state.inner.read().peek_redo_for(&id)))
 }
 
 /// Response for undo state query
@@ -106,14 +112,21 @@ pub struct UndoStateResponse {
     pub redo_description: Option<String>,
 }
 
-/// Get complete undo state
+/// Get the active book's undo state. Undo is per book, so with no active book
+/// there is nothing to undo.
 #[tauri::command]
-pub async fn get_undo_state(undo_state: State<'_, UndoState>) -> Result<UndoStateResponse, String> {
+pub async fn get_undo_state(
+    state: State<'_, AppState>,
+    undo_state: State<'_, UndoState>,
+) -> Result<UndoStateResponse, String> {
     let manager = undo_state.inner.read();
+    let Some(id) = state.get_active_audiobook_id() else {
+        return Ok(UndoStateResponse { can_undo: false, can_redo: false, undo_description: None, redo_description: None });
+    };
     Ok(UndoStateResponse {
-        can_undo: manager.can_undo(),
-        can_redo: manager.can_redo(),
-        undo_description: manager.peek_undo(),
-        redo_description: manager.peek_redo(),
+        can_undo: manager.can_undo_for(&id),
+        can_redo: manager.can_redo_for(&id),
+        undo_description: manager.peek_undo_for(&id),
+        redo_description: manager.peek_redo_for(&id),
     })
 }

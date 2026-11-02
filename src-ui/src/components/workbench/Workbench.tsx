@@ -13,11 +13,9 @@ export type WorkbenchTab = "files" | "chapters";
 export function Workbench({
     tab,
     onTabChange,
-    onImport,
 }: {
     tab: WorkbenchTab;
     onTabChange: (tab: WorkbenchTab) => void;
-    onImport: (paths: string[]) => void;
 }) {
     const { activeAudiobook } = useApp();
 
@@ -43,7 +41,7 @@ export function Workbench({
 
                 <div className="flex-1 overflow-hidden">
                     {tab === "files" ? (
-                        <FilesPanel onImport={onImport} />
+                        <FilesPanel />
                     ) : (
                         <ChapterEditor />
                     )}

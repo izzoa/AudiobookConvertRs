@@ -3,7 +3,7 @@ use std::path::PathBuf;
 use camino::Utf8PathBuf;
 use crate::models::{AudioBook};
 use crate::state::AppState;
-use crate::audio::batch::load_audiobook_from_files;
+use crate::audio::batch::{group_into_books, load_audiobook_from_files, BookGroup};
 
 // Helper to convert Result to String for IPC
 fn to_string_err<E: ToString>(err: E) -> String {
@@ -13,6 +13,7 @@ fn to_string_err<E: ToString>(err: E) -> String {
 #[tauri::command]
 pub async fn create_audiobook_from_files(
     paths: Vec<String>,
+    activate: Option<bool>,
     state: State<'_, AppState>
 ) -> Result<AudioBook, String> {
     let path_bufs: Vec<Utf8PathBuf> = paths.iter().map(Utf8PathBuf::from).collect();
@@ -24,8 +25,12 @@ pub async fn create_audiobook_from_files(
     .map_err(|e| format!("Task join error: {}", e))?
     .map_err(to_string_err)?;
 
-    // Update state
-    state.add_audiobook(audiobook.clone());
+    // Batch imports load books without taking over the one being edited.
+    if activate.unwrap_or(true) {
+        state.add_audiobook(audiobook.clone());
+    } else {
+        state.insert_audiobook(audiobook.clone());
+    }
     
     Ok(audiobook)
 }
@@ -66,6 +71,25 @@ pub async fn clear_current_audiobook(
 ) -> Result<(), String> {
     state.set_active_audiobook(None).map_err(to_string_err)?;
     Ok(())
+}
+
+/// Splits dropped files and folders into books without reading any audio, so a
+/// library import can show every book at once and load them one by one.
+#[tauri::command]
+pub async fn group_paths_into_books(paths: Vec<String>) -> Result<Vec<BookGroup>, String> {
+    let path_bufs: Vec<Utf8PathBuf> = paths.iter().map(Utf8PathBuf::from).collect();
+    tauri::async_runtime::spawn_blocking(move || group_into_books(&path_bufs))
+        .await
+        .map_err(|e| format!("Task join error: {}", e))
+}
+
+/// Makes an already-loaded book the one edits and undo apply to.
+#[tauri::command]
+pub async fn set_active_audiobook(
+    audiobook_id: String,
+    state: State<'_, AppState>
+) -> Result<(), String> {
+    state.set_active_audiobook(Some(audiobook_id)).map_err(to_string_err)
 }
 
 #[tauri::command]

@@ -20,6 +20,7 @@ import { suggestNormalization } from "@/api/quality";
 import type { ConversionPreset, ConversionSettings, DryRunResult, EncodingMode } from "@/types/models";
 import { formatBytes, formatEta, shortenPath } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import { buildConversionSettings, outputPathFor } from "@/lib/conversionSettings";
 
 const BITRATES = [32, 48, 64, 96, 128, 160, 192, 256];
 
@@ -70,9 +71,8 @@ export function ConvertBar({ onShowChapters }: { onShowChapters: () => void }) {
             setOutputPath(null);
             return;
         }
-        const safeTitle = (activeAudiobook.title || "audiobook").replace(/[\\/:*?"<>|]/g, "_");
         const dir = settings?.default_output_directory;
-        setOutputPath(dir ? `${dir}/${safeTitle}.m4b` : null);
+        setOutputPath(dir ? outputPathFor(dir, activeAudiobook.title) : null);
     }, [activeAudiobook?.id, settings?.default_output_directory]);
 
     // Average of the files' own bitrates, capped at what the encoder accepts.
@@ -85,31 +85,20 @@ export function ConvertBar({ onShowChapters }: { onShowChapters: () => void }) {
     }, [activeAudiobook?.files]);
     const effectiveBitrate = matchSource && sourceBitrate ? sourceBitrate : bitrate;
 
+    // Only the defaults' sample rate and overwrite flag reach the job; every
+    // other field is chosen here, so those two are the dependencies.
     const buildSettings = useCallback(
         (): ConversionSettings | null =>
             !activeAudiobook || !outputPath
                 ? null
-                : {
+                : buildConversionSettings(defaults, settings, outputPath, {
                       bitrate_kbps: effectiveBitrate,
-                      sample_rate_hz: defaults.sample_rate_hz,
                       encoding_mode: mode,
-                      output_format: "m4b",
-                      output_path: outputPath,
-                      concurrent_jobs: settings?.concurrent_jobs ?? 1,
-                      overwrite_existing: defaults.overwrite_existing,
                       embed_chapters: embedChapters,
                       embed_artwork: embedArtwork,
                       copy_metadata: copyMetadata,
-                      normalize_audio: normalize,
-                      normalization_settings: normalize
-                          ? {
-                                target_lufs: settings?.normalization_target_lufs ?? -18,
-                                target_true_peak: settings?.normalization_target_true_peak ?? -2,
-                                target_lra: settings?.normalization_target_lra ?? 7,
-                                two_pass: settings?.normalization_two_pass ?? true,
-                            }
-                          : undefined,
-                  },
+                      normalize,
+                  }),
         [
             activeAudiobook,
             outputPath,

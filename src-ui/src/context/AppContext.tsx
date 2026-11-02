@@ -4,7 +4,7 @@ import * as SettingsApi from '../api/settings';
 import * as UndoApi from '../api/undo';
 import * as AudiobookApi from '../api/audiobook';
 
-export type AppView = 'book' | 'queue' | 'settings' | 'help';
+export type AppView = 'book' | 'batch' | 'queue' | 'settings' | 'help';
 
 interface AppState {
     // Navigation

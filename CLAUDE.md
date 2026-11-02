@@ -1181,10 +1181,14 @@ single-document layout.
 | `components/shell/` | `AppShell`, `TopBar`, `Rail` — the fixed chrome |
 | `components/workbench/` | `Workbench`, `FilesPanel`, `BookInspector`, `ConvertBar`, `EmptyState` |
 | `components/queue/QueuePage.tsx` | Jobs as a destination, with queue-level commands |
+| `components/batch/BatchPage.tsx` | Several books from one import, reviewed and converted together |
+| `context/BatchStore.tsx` | Batch state: import routing (one book → workbench, several → batch), background loading, Convert all |
 | `components/ui/popover.tsx` | Anchored panel + menu items (no Radix dependency) |
 | `components/ui/select.tsx` | Native `<select>` in the field style — use it, not a bare select |
 | `components/ui/confirm.tsx` | `useConfirm()`: in-app confirm dialog on `<dialog>`; provider is in `main.tsx` |
 | `hooks/useProjectActions.ts` | Import / open / save / export / close, shared by the menu and shortcuts |
+| `hooks/useRebuildBook.ts` | Rebuild the open book from a new file list (reorder, sort, remove, add) |
+| `lib/conversionSettings.ts` | Builds a job's `ConversionSettings`; shared by the Convert bar and the batch |
 | `hooks/useFileDrop.ts` | Native Tauri drag-drop; degrades to no-op outside a webview |
 | `lib/format.ts` | `formatBytes` / `formatDuration` / `formatClock` / `formatEta` |
 | `lib/formats.ts` | Supported input formats as shown to users; mirrors `SUPPORTED_EXTENSIONS` in `audio/format.rs` |
@@ -1217,10 +1221,23 @@ single-document layout.
   `FilesPanel.rebuild()` re-applies typed metadata afterwards and prompts first
   when chapters were hand-edited, since they are regenerated.
 
+### Batch import
+
+`group_paths_into_books` (`audio/batch.rs`) splits a drop into books by folder
+shape alone: a folder is one book when it holds audio or only disc folders
+(`CD1/`), otherwise its subfolders are searched. It never reads tags, so the
+same library always splits the same way. Batch books load with
+`create_audiobook_from_files(paths, activate: false)` so the book open in the
+workbench stays the active one.
+
+**Undo is per book.** The backend keeps every loaded book, and `UndoManager`
+filters its shared history by `audiobook_id`. Never make undo/redo pop the global
+stack — it would replay one book's edit onto another.
+
 ### Previewing the UI without a Tauri build
 
 ```bash
-npm run dev --prefix src-ui   # then open http://localhost:5173/?mock
+npm run dev --prefix src-ui   # then open http://localhost:5173/?mock (or ?mock=library for a batch)
 ```
 
 `?mock` installs `window.__TAURI_INTERNALS__` from `src/dev/mockBackend.ts` with a

@@ -1,6 +1,8 @@
 import { useCallback } from "react";
 import { useToast } from "@/components/ui/use-toast";
 import { useApp } from "@/context/AppContext";
+import { useBatch } from "@/context/BatchStore";
+import { useRebuildBook } from "@/hooks/useRebuildBook";
 import * as FilesApi from "@/api/files";
 import * as ProjectApi from "@/api/project";
 import * as AudiobookApi from "@/api/audiobook";
@@ -17,22 +19,24 @@ export function useProjectActions() {
         getEffectiveConversionDefaults,
     } = useApp();
     const { toast } = useToast();
+    const { importPaths } = useBatch();
+    const rebuildBook = useRebuildBook();
 
     const importFiles = useCallback(
         async (append = false) => {
             try {
                 const picked = await FilesApi.pickFiles();
                 if (!picked?.length) return;
-                const paths =
-                    append && activeAudiobook
-                        ? [...activeAudiobook.files.map((f) => f.path), ...picked]
-                        : picked;
-                setActiveAudiobook(await AudiobookApi.createAudiobookFromFiles(paths));
+                if (append && activeAudiobook) {
+                    await rebuildBook([...activeAudiobook.files.map((f) => f.path), ...picked], "Adding files");
+                } else {
+                    await importPaths(picked);
+                }
             } catch (error) {
                 toast({ title: "Import failed", description: String(error), variant: "destructive" });
             }
         },
-        [activeAudiobook, setActiveAudiobook, toast]
+        [activeAudiobook, importPaths, rebuildBook, toast]
     );
 
     const openProject = useCallback(

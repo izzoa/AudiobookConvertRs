@@ -5,6 +5,7 @@ import App from './App.tsx'
 import { AppProvider } from './context/AppContext'
 import { ConversionStoreProvider } from './context/ConversionStore'
 import { ConfirmProvider } from './components/ui/confirm'
+import { BatchProvider } from './context/BatchStore'
 
 // `?mock` serves the UI from fixtures so panes can be previewed without a
 // Tauri build. Dev only — the import is tree-shaken out of release bundles.
@@ -17,9 +18,11 @@ createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <AppProvider>
       <ConversionStoreProvider>
-        <ConfirmProvider>
-          <App />
-        </ConfirmProvider>
+        <BatchProvider>
+          <ConfirmProvider>
+            <App />
+          </ConfirmProvider>
+        </BatchProvider>
       </ConversionStoreProvider>
     </AppProvider>
   </StrictMode>,

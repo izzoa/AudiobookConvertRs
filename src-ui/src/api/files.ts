@@ -84,3 +84,8 @@ export async function pickNormalizedOutputFile(defaultName?: string): Promise<st
 export async function revealInFileManager(path: string): Promise<void> {
     return await invoke('reveal_in_file_manager', { path });
 }
+
+/** The given paths that already exist on disk. */
+export async function existingPaths(paths: string[]): Promise<string[]> {
+    return await invoke('existing_paths', { paths });
+}

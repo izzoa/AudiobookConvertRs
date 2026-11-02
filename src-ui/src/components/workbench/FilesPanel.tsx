@@ -28,11 +28,9 @@ import { Button } from "@/components/ui/button";
 import { Popover, MenuItem, MenuLabel } from "@/components/ui/popover";
 import { PlayButton } from "@/components/AudioPlayer";
 import { useToast } from "@/components/ui/use-toast";
-import { useConfirm } from "@/components/ui/confirm";
 import { useApp } from "@/context/AppContext";
+import { useRebuildBook } from "@/hooks/useRebuildBook";
 import * as FilesApi from "@/api/files";
-import * as AudiobookApi from "@/api/audiobook";
-import * as MetadataApi from "@/api/metadata";
 import type { AudioFile } from "@/types/models";
 import { basename, formatBytes, formatClock } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -43,10 +41,9 @@ type SortKey = "name" | "track" | "duration";
  * The file list is the book's spine: order here is playback order, so it is
  * directly draggable rather than hidden behind a sort dialog.
  */
-export function FilesPanel({ onImport }: { onImport: (paths: string[]) => void }) {
-    const { activeAudiobook, setActiveAudiobook } = useApp();
+export function FilesPanel() {
+    const { activeAudiobook } = useApp();
     const { toast } = useToast();
-    const confirm = useConfirm();
     const [selected, setSelected] = useState<Set<string>>(new Set());
     const [busy, setBusy] = useState(false);
 
@@ -56,42 +53,12 @@ export function FilesPanel({ onImport }: { onImport: (paths: string[]) => void }
     );
 
     const files = activeAudiobook?.files ?? [];
-    const hasManualChapters = useMemo(
-        () => (activeAudiobook?.chapters ?? []).some((c) => !c.auto_detected),
-        [activeAudiobook?.chapters]
-    );
 
-    /**
-     * The backend builds an audiobook from an ordered path list and has no
-     * "move file" command, so changing the order means rebuilding. Typed
-     * metadata is re-applied afterwards; chapters are derived from the files
-     * and are regenerated, which is why hand-edited chapters prompt first.
-     */
+    const rebuildBook = useRebuildBook();
     const rebuild = async (paths: string[], action: string) => {
-        if (!activeAudiobook) return;
-        if (
-            hasManualChapters &&
-            !(await confirm({
-                title: "Replace your edited chapters?",
-                description: `${action} rebuilds the book from its files, which recreates its chapters from the files' tags and names. Chapter titles you edited will be lost.`,
-                confirmLabel: "Rebuild anyway",
-                danger: true,
-            }))
-        ) {
-            return;
-        }
-
         setBusy(true);
-        const metadata = activeAudiobook.output_metadata;
         try {
-            let book = await AudiobookApi.createAudiobookFromFiles(paths);
-            if (metadata && Object.keys(metadata).length > 0) {
-                book = await MetadataApi.updateAudiobookMetadata(book.id, metadata);
-            }
-            setActiveAudiobook(book);
-            setSelected(new Set());
-        } catch (error) {
-            toast({ title: `${action} failed`, description: String(error), variant: "destructive" });
+            if (await rebuildBook(paths, action)) setSelected(new Set());
         } finally {
             setBusy(false);
         }
@@ -135,7 +102,9 @@ export function FilesPanel({ onImport }: { onImport: (paths: string[]) => void }
     const addFiles = async () => {
         try {
             const picked = await FilesApi.pickFiles();
-            if (picked?.length) onImport([...files.map((f) => f.path), ...picked]);
+            // Added files join this book (keeping its typed tags); they are never
+            // split into a batch the way a fresh import is.
+            if (picked?.length) await rebuild([...files.map((f) => f.path), ...picked], "Adding files");
         } catch (error) {
             toast({ title: "Could not add files", description: String(error), variant: "destructive" });
         }

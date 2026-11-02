@@ -60,6 +60,8 @@ fn main() {
             audiobookconvert_rs::commands::audiobook::load_audiobook_file,
             audiobookconvert_rs::commands::audiobook::save_audiobook_project,
             audiobookconvert_rs::commands::audiobook::clear_current_audiobook,
+            audiobookconvert_rs::commands::audiobook::group_paths_into_books,
+            audiobookconvert_rs::commands::audiobook::set_active_audiobook,
             audiobookconvert_rs::commands::audiobook::get_active_audiobook,
             // Metadata
             audiobookconvert_rs::commands::metadata::update_audiobook_metadata,
@@ -99,6 +101,7 @@ fn main() {
             audiobookconvert_rs::commands::files::pick_cue_file,
             audiobookconvert_rs::commands::files::pick_normalized_output_file,
             audiobookconvert_rs::commands::files::reveal_in_file_manager,
+            audiobookconvert_rs::commands::files::existing_paths,
             // Settings
             audiobookconvert_rs::commands::settings::get_settings,
             audiobookconvert_rs::commands::settings::update_settings,

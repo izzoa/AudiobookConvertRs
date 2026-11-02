@@ -75,6 +75,15 @@ impl AppState {
     // ============================================
 
     /// Add an audiobook to the state
+    /// Store a book without making it the active one, for books loaded in the
+    /// background (a batch import) while another book is open.
+    pub fn insert_audiobook(&self, audiobook: AudioBook) -> String {
+        let id = audiobook.id.clone();
+        self.inner.write().audiobooks.insert(id.clone(), audiobook);
+        info!("Stored audiobook: {}", id);
+        id
+    }
+
     pub fn add_audiobook(&self, audiobook: AudioBook) -> String {
         let id = audiobook.id.clone();
         let mut state = self.inner.write();

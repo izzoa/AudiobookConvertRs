@@ -78,6 +78,37 @@ function makeBook(discs = false): AudioBook {
     };
 }
 
+/**
+ * `?mock=library`: Choose folder picks a library of several books, so the
+ * batch page can be laid out. Each entry is one book folder.
+ */
+const LIBRARY_ROOT = "/Users/you/Audiobooks/Library";
+const LIBRARY: { folder: string; title: string; author?: string; narrator?: string; fails?: string }[] = [
+    { folder: "Herbert/Dune", title: "Dune", author: "Frank Herbert", narrator: "Simon Vance" },
+    { folder: "Herbert/Dune Messiah", title: "Dune Messiah", author: "Frank Herbert", narrator: "Scott Brick" },
+    { folder: "Herbert/Children of Dune", title: "Children of Dune", author: "Frank Herbert", narrator: "Scott Brick" },
+    { folder: "Le Guin/Earthsea", title: "A Wizard of Earthsea", author: "Ursula K. Le Guin", narrator: "Kobna Holdbrook-Smith" },
+    { folder: "Unsorted/Tape rips", title: "Tape rips" },
+    { folder: "Unsorted/Broken download", title: "Broken download", fails: "Could not parse audio format: 03.mp3" },
+];
+
+let mockBookId = 1;
+function makeLibraryBook(entry: (typeof LIBRARY)[number]): AudioBook {
+    const base = makeBook();
+    const files = base.files.slice(0, 6).map((f) => ({ ...f, path: `${LIBRARY_ROOT}/${entry.folder}/${f.path.split("/").pop()}` }));
+    return {
+        ...base,
+        id: `mock-book-${mockBookId++}`,
+        title: entry.title,
+        author: entry.author,
+        files,
+        chapters: makeChapters(files),
+        total_duration_ms: files.reduce((sum, f) => sum + f.duration_ms, 0),
+        total_size_bytes: files.reduce((sum, f) => sum + f.file_size_bytes, 0),
+        output_metadata: { title: entry.title, artist: entry.author, narrator: entry.narrator },
+    };
+}
+
 const SETTINGS: UserSettings = {
     default_bitrate_kbps: 64,
     default_output_directory: "/Users/you/Audiobooks/out",
@@ -107,6 +138,7 @@ const SETTINGS: UserSettings = {
 
 export function installMockBackend() {
     let book: AudioBook | null = null;
+    const books = new Map<string, AudioBook>();
     let jobs: any[] = [];
     let callbackId = 1;
 
@@ -130,14 +162,41 @@ export function installMockBackend() {
         get_redo_description: () => null,
 
         get_active_audiobook: () => book,
+        group_paths_into_books: ({ paths }: any) =>
+            paths.includes(LIBRARY_ROOT)
+                ? LIBRARY.map((e) => ({ name: e.folder.split("/").pop(), folder: `${LIBRARY_ROOT}/${e.folder}`, files: [`${LIBRARY_ROOT}/${e.folder}`] }))
+                : [{ name: "Dune", folder: null, files: paths }],
         // Choose folder passes one directory; files arrive as a list.
-        create_audiobook_from_files: ({ paths }: any) =>
-            (book = makeBook(Array.isArray(paths) && paths.length === 1 && !/\.\w+$/.test(paths[0]))),
+        create_audiobook_from_files: ({ paths, activate }: any) => {
+            const first: string = paths?.[0] ?? "";
+            const entry = LIBRARY.find((e) => {
+                const folder = `${LIBRARY_ROOT}/${e.folder}`;
+                return first === folder || first.startsWith(`${folder}/`);
+            });
+            if (entry?.fails) throw entry.fails;
+            const made = entry
+                ? makeLibraryBook(entry)
+                : makeBook(Array.isArray(paths) && paths.length === 1 && !/\.\w+$/.test(paths[0]));
+            books.set(made.id, made);
+            if (activate !== false) book = made;
+            return made;
+        },
+        set_active_audiobook: ({ audiobookId }: any) => {
+            book = books.get(audiobookId) ?? book;
+            return null;
+        },
+        existing_paths: ({ paths }: any) => paths.filter((p: string) => p.includes("Children of Dune")),
         clear_current_audiobook: () => ((book = null), null),
         load_audiobook_file: () => (book = makeBook()),
 
-        update_audiobook_metadata: ({ metadata }: any) => {
-            if (book) book = { ...book, output_metadata: metadata, title: metadata.title ?? book.title };
+        update_audiobook_metadata: ({ audiobookId, metadata }: any) => {
+            const target = books.get(audiobookId) ?? book;
+            if (target) {
+                const updated = { ...target, output_metadata: metadata, title: metadata.title ?? target.title };
+                books.set(updated.id, updated);
+                if (book?.id === updated.id) book = updated;
+                return updated;
+            }
             return book;
         },
         set_chapters: ({ chapters }: any) => {
@@ -192,7 +251,25 @@ export function installMockBackend() {
             active_jobs: jobs.filter((j) => j.status === "running").length,
             pending_jobs: jobs.filter((j) => j.status === "queued").length,
         }),
-        enqueue_conversion: ({ settings }: any) => {
+        enqueue_conversion: ({ audiobookId, settings }: any) => {
+            const libraryBook = audiobookId?.startsWith("mock-book-") ? books.get(audiobookId) : undefined;
+            if (libraryBook) {
+                const running = jobs.some((j) => j.status === "running");
+                jobs = [
+                    ...jobs,
+                    {
+                        id: `job-${audiobookId}`,
+                        audiobook: libraryBook,
+                        settings,
+                        status: running ? "queued" : "running",
+                        progress_percent: running ? 0 : 12,
+                        current_file_index: 0,
+                        total_files: libraryBook.files.length,
+                        created_at: new Date().toISOString(),
+                    },
+                ];
+                return `job-${audiobookId}`;
+            }
             if (!book) return null;
             const now = Date.now();
             const job = (id: string, status: string, extra: Record<string, unknown>) => ({
@@ -274,7 +351,8 @@ export function installMockBackend() {
         get_playback_status: () => ({ state: "stopped", current_path: null, position_ms: 0, duration_ms: 0, volume: 1 }),
 
         pick_files: () => FIXTURE_FILES.map(([name]) => `/Users/you/Audiobooks/Dune/${name}`),
-        pick_directory: () => "/Users/you/Audiobooks/Dune",
+        pick_directory: () =>
+            new URLSearchParams(window.location.search).get("mock") === "library" ? LIBRARY_ROOT : "/Users/you/Audiobooks/Dune",
         pick_output_file: () => "/Users/you/Audiobooks/out/Dune.m4b",
         pick_artwork_file: () => null,
         pick_open_project_file: () => null,

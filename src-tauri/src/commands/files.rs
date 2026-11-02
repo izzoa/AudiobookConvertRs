@@ -242,6 +242,13 @@ pub async fn pick_normalized_output_file(app: AppHandle, default_name: Option<St
     }
 }
 
+/// Returns the given paths that already exist, so a batch can warn before it
+/// overwrites finished books.
+#[tauri::command]
+pub async fn existing_paths(paths: Vec<String>) -> Result<Vec<String>, String> {
+    Ok(paths.into_iter().filter(|p| std::path::Path::new(p).exists()).collect())
+}
+
 #[tauri::command]
 pub async fn reveal_in_file_manager(path: String) -> Result<(), String> {
     let path_buf = std::path::PathBuf::from(&path);

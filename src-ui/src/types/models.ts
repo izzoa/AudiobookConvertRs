@@ -232,6 +232,13 @@ export interface UserSettings {
 }
 
 /// Conversion defaults without output path (for global/project defaults)
+/** One book found in dropped files or folders, before any audio is read. */
+export interface BookGroup {
+    name: string;
+    folder?: string | null;
+    files: string[];
+}
+
 export interface ConversionDefaults {
     bitrate_kbps: number;
     sample_rate_hz?: number;

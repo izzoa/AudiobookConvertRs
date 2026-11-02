@@ -1,9 +1,22 @@
 import { invoke } from '@tauri-apps/api/core';
-import type { AudioBook } from '../types/models';
+import type { AudioBook, BookGroup } from '../types/models';
 
-export async function createAudiobookFromFiles(files: string[]): Promise<AudioBook> {
-    // Backend expects { paths } per command signature
-    return await invoke('create_audiobook_from_files', { paths: files });
+/**
+ * Loads files as one book. `activate: false` keeps the book that is open for
+ * editing (and undo) where it is — batch imports load in the background.
+ */
+export async function createAudiobookFromFiles(files: string[], activate = true): Promise<AudioBook> {
+    return await invoke('create_audiobook_from_files', { paths: files, activate });
+}
+
+/** Splits dropped files and folders into books, without reading any audio. */
+export async function groupPathsIntoBooks(paths: string[]): Promise<BookGroup[]> {
+    return await invoke('group_paths_into_books', { paths });
+}
+
+/** Makes a loaded book the one that edits and undo apply to. */
+export async function setActiveAudiobookId(audiobookId: string): Promise<void> {
+    return await invoke('set_active_audiobook', { audiobookId });
 }
 
 export async function loadAudiobookFile(path: string): Promise<AudioBook> {

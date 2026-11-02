@@ -361,6 +361,119 @@ pub fn book_folder(paths: &[Utf8PathBuf]) -> Option<Utf8PathBuf> {
     close.then_some(root)
 }
 
+/// One book found by [`group_into_books`]: its name and its audio files in
+/// playback order.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct BookGroup {
+    /// The book folder's name, used until the files' tags give a better one.
+    pub name: String,
+    /// The folder the book lives in, when it has one.
+    pub folder: Option<Utf8PathBuf>,
+    pub files: Vec<Utf8PathBuf>,
+}
+
+/// How deep a library is searched for book folders (Library/Author/Series/Book).
+const MAX_LIBRARY_DEPTH: usize = 6;
+
+/// Splits dropped paths into books, so a whole library can be imported at once.
+///
+/// A folder is one book when it holds audio itself, or when every subfolder
+/// that holds audio is a disc folder (`CD1/`, `Disc 2/`): everything under it
+/// then belongs to that book, extras folders included. Any other folder is a
+/// shelf, and each of its subfolders is judged the same way. Loose files are
+/// grouped by the folder they sit in, stepping out of a disc folder.
+///
+/// The rule only looks at folder shape, never at tags, so the same library
+/// always splits the same way.
+pub fn group_into_books(paths: &[Utf8PathBuf]) -> Vec<BookGroup> {
+    let mut groups: Vec<BookGroup> = Vec::new();
+    let mut loose: Vec<Utf8PathBuf> = Vec::new();
+
+    for path in paths {
+        if path.is_dir() {
+            collect_book_folders(path, 0, &mut groups);
+        } else if is_supported_format(path) {
+            loose.push(path.clone());
+        }
+    }
+
+    for file in loose {
+        let folder = file.parent().map(|parent| {
+            if parent.file_name().map(is_disc_folder_name).unwrap_or(false) {
+                parent.parent().unwrap_or(parent).to_path_buf()
+            } else {
+                parent.to_path_buf()
+            }
+        });
+        match groups.iter_mut().find(|g| g.folder.is_some() && g.folder == folder) {
+            Some(group) => group.files.push(file),
+            None => groups.push(BookGroup {
+                name: folder
+                    .as_deref()
+                    .and_then(Utf8Path::file_name)
+                    .map(String::from)
+                    .unwrap_or_else(|| file.file_stem().unwrap_or("Untitled").to_string()),
+                folder,
+                files: vec![file],
+            }),
+        }
+    }
+
+    for group in &mut groups {
+        group.files.sort_by(|a, b| natural_sort(a, b));
+        group.files.dedup();
+    }
+    groups.retain(|g| !g.files.is_empty());
+    groups
+}
+
+fn collect_book_folders(dir: &Utf8Path, depth: usize, groups: &mut Vec<BookGroup>) {
+    let Ok(entries) = std::fs::read_dir(dir.as_std_path()) else { return };
+    let mut has_audio = false;
+    let mut subdirs: Vec<Utf8PathBuf> = Vec::new();
+    for entry in entries.flatten() {
+        let Ok(path) = Utf8PathBuf::from_path_buf(entry.path()) else { continue };
+        if path.file_name().map(|n| n.starts_with('.')).unwrap_or(true) {
+            continue;
+        }
+        if path.is_dir() {
+            subdirs.push(path);
+        } else if is_supported_format(&path) {
+            has_audio = true;
+        }
+    }
+    subdirs.sort_by(|a, b| natural_sort(a, b));
+
+    let audio_subdirs: Vec<&Utf8PathBuf> = subdirs.iter().filter(|d| contains_audio(d)).collect();
+    let only_discs = !audio_subdirs.is_empty()
+        && audio_subdirs.iter().all(|d| d.file_name().map(is_disc_folder_name).unwrap_or(false));
+
+    if has_audio || only_discs || depth >= MAX_LIBRARY_DEPTH {
+        let files = expand_input_paths(&[dir.to_path_buf()]);
+        if !files.is_empty() {
+            groups.push(BookGroup {
+                name: dir.file_name().unwrap_or(dir.as_str()).to_string(),
+                folder: Some(dir.to_path_buf()),
+                files,
+            });
+        }
+        return;
+    }
+
+    for sub in audio_subdirs {
+        collect_book_folders(sub, depth + 1, groups);
+    }
+}
+
+fn contains_audio(dir: &Utf8Path) -> bool {
+    walkdir::WalkDir::new(dir.as_std_path())
+        .into_iter()
+        .filter_map(Result::ok)
+        .filter(|e| e.file_type().is_file())
+        .filter_map(|e| Utf8PathBuf::from_path_buf(e.into_path()).ok())
+        .any(|p| !p.file_name().map(|n| n.starts_with('.')).unwrap_or(false) && is_supported_format(&p))
+}
+
 /// Names what was dropped, for an error that says where nothing was found.
 fn describe_inputs(paths: &[Utf8PathBuf]) -> String {
     match paths {
@@ -579,6 +692,83 @@ mod tests {
     fn single_file_book_is_named_by_its_title_tag() {
         let files = [book_file("/lib/dune.m4b", Some("Dune"), Some("Dune Chronicles"))];
         assert_eq!(choose_book_title(&files, &merge_metadata_from_files(&files), None), "Dune");
+    }
+
+    fn touch(path: &Utf8Path) {
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        std::fs::write(path, b"not really audio").unwrap();
+    }
+
+    fn library(files: &[&str]) -> (tempfile::TempDir, Utf8PathBuf) {
+        let temp = tempfile::tempdir().unwrap();
+        let root = Utf8PathBuf::from_path_buf(temp.path().join("Library")).unwrap();
+        for file in files {
+            touch(&root.join(file));
+        }
+        (temp, root)
+    }
+
+    fn summary(groups: &[BookGroup], root: &Utf8Path) -> Vec<(String, Vec<String>)> {
+        groups
+            .iter()
+            .map(|g| {
+                let files = g.files.iter().map(|f| f.strip_prefix(root).unwrap().to_string()).collect();
+                (g.name.clone(), files)
+            })
+            .collect()
+    }
+
+    #[test]
+    fn library_folder_splits_into_one_book_per_folder() {
+        let (_t, root) = library(&[
+            "Herbert/Dune/CD1/01.mp3",
+            "Herbert/Dune/CD2/01.mp3",
+            "Herbert/Dune/cover.jpg",
+            "Herbert/Dune Messiah/01.mp3",
+            "Herbert/Dune Messiah/02.mp3",
+            "Le Guin/Earthsea/01 - Warrior.mp3",
+            "Le Guin/Earthsea/Extras/interview.mp3",
+            "Le Guin/notes.txt",
+        ]);
+        let groups = group_into_books(&[root.clone()]);
+        assert_eq!(
+            summary(&groups, &root),
+            [
+                ("Dune".into(), vec!["Herbert/Dune/CD1/01.mp3".into(), "Herbert/Dune/CD2/01.mp3".into()]),
+                ("Dune Messiah".into(), vec!["Herbert/Dune Messiah/01.mp3".into(), "Herbert/Dune Messiah/02.mp3".into()]),
+                (
+                    "Earthsea".into(),
+                    vec!["Le Guin/Earthsea/01 - Warrior.mp3".into(), "Le Guin/Earthsea/Extras/interview.mp3".into()]
+                ),
+            ]
+        );
+    }
+
+    #[test]
+    fn a_single_book_folder_stays_one_book() {
+        let (_t, root) = library(&["CD1/01.mp3", "CD1/02.mp3", "CD2/01.mp3"]);
+        let groups = group_into_books(&[root.clone()]);
+        assert_eq!(groups.len(), 1);
+        assert_eq!(groups[0].name, "Library");
+        assert_eq!(groups[0].files.len(), 3);
+    }
+
+    #[test]
+    fn loose_files_group_by_their_book_folder() {
+        let (_t, root) = library(&["Dune/CD1/01.mp3", "Dune/CD2/01.mp3", "Emma/01.mp3"]);
+        let groups = group_into_books(&[
+            root.join("Dune/CD2/01.mp3"),
+            root.join("Dune/CD1/01.mp3"),
+            root.join("Emma/01.mp3"),
+            root.join("Emma/readme.txt"),
+        ]);
+        assert_eq!(
+            summary(&groups, &root),
+            [
+                ("Dune".into(), vec!["Dune/CD1/01.mp3".into(), "Dune/CD2/01.mp3".into()]),
+                ("Emma".into(), vec!["Emma/01.mp3".into()]),
+            ]
+        );
     }
 
     #[test]

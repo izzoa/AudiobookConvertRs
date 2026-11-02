@@ -6,6 +6,7 @@ import { cn } from '@/lib/utils';
 
 const SECTIONS = [
     { id: 'start', label: 'Getting started' },
+    { id: 'batch', label: 'Many books at once' },
     { id: 'files', label: 'Files and order' },
     { id: 'chapters', label: 'Chapters' },
     { id: 'tags', label: 'Tags and cover' },
@@ -96,6 +97,32 @@ export function HelpPage() {
                         The screen keeps everything about the open book in view: its files and chapters in the middle,
                         its cover and tags on the right, and the <B>Convert to M4B</B> bar along the bottom.
                     </p>
+                </Section>
+
+                <Section id="batch" title="Many books at once">
+                    <p>
+                        Drop a folder that holds several books, such as a whole library, and each book gets its own
+                        row on the <B>Batch</B> page instead of being merged into one.
+                    </p>
+                    <List>
+                        <li>
+                            A folder is one book when it holds audio itself, or only disc folders like{' '}
+                            <Code>CD1</Code>. Any other folder is searched for book folders inside it, so{' '}
+                            <Code>Library/Author/Book</Code> works.
+                        </li>
+                        <li>
+                            Each row shows what needs a look: no author, no cover, or a file already at the output path.
+                            <B> Open</B> edits that book in full; the batch keeps your changes.
+                        </li>
+                        <li>
+                            <B>Convert</B> queues every ticked book into one output folder, using the quality defaults from{' '}
+                            {toSettings}. Existing files are skipped unless you choose to replace them.
+                        </li>
+                        <li>
+                            If a book was split wrongly, use <B>Combine into one book</B> from the batch menu. A folder of
+                            finished single-file books can be split with <B>Split into one book per file</B>.
+                        </li>
+                    </List>
                 </Section>
 
                 <Section id="files" title="Files and order">
