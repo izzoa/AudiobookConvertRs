@@ -1,8 +1,8 @@
 import { useCallback } from "react";
 import { useToast } from "@/components/ui/use-toast";
 import { useConfirm } from "@/components/ui/confirm";
-import { useApp } from "@/context/AppContext";
-import { useBatch } from "@/context/BatchStore";
+import { useApp } from "@/context/useApp";
+import { useBatch } from "@/context/useBatch";
 import * as AudiobookApi from "@/api/audiobook";
 import * as MetadataApi from "@/api/metadata";
 

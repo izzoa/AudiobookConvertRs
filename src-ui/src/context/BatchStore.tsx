@@ -1,6 +1,7 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { useApp } from "@/context/AppContext";
-import { useConversionStore } from "@/context/ConversionStore";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useApp } from "@/context/useApp";
+import { useConversionStore } from "@/context/useConversionStore";
+import { BatchContext, type BatchEntry, type BatchState } from "@/context/useBatch";
 import * as AudiobookApi from "@/api/audiobook";
 import * as ConversionApi from "@/api/conversion";
 import * as FilesApi from "@/api/files";
@@ -10,45 +11,7 @@ import { buildConversionSettings } from "@/lib/conversionSettings";
 import { numberedPath, outputPathForBook } from "@/lib/outputTemplate";
 import { basename } from "@/lib/format";
 
-export type BatchStatus = "loading" | "ready" | "failed";
-
-export interface BatchEntry {
-    key: string;
-    /** The folder name, shown until the book's own title is known. */
-    name: string;
-    files: string[];
-    status: BatchStatus;
-    book?: AudioBook;
-    error?: string;
-    include: boolean;
-}
-
-interface BatchState {
-    entries: BatchEntry[];
-    /** Where every book in the batch is written; settings' default until changed. */
-    outputDir: string | null;
-    setOutputDir: (dir: string) => void;
-    /** Output path per entry key, made unique within the batch. */
-    outputPaths: Map<string, string>;
-    /** Output paths that already exist on disk. */
-    existing: Set<string>;
-    loading: boolean;
-    /** Imports files or folders: one book opens in the workbench, several in the batch. */
-    importPaths: (paths: string[]) => Promise<"single" | "batch">;
-    openEntry: (key: string) => Promise<void>;
-    removeEntry: (key: string) => void;
-    splitEntry: (key: string) => void;
-    setIncluded: (key: string, include: boolean) => void;
-    setAllIncluded: (include: boolean) => void;
-    combineIntoOneBook: () => Promise<void>;
-    /** Rebuilding a book's files gives it a new id; keep the batch pointing at it. */
-    replaceBook: (oldId: string, book: AudioBook) => void;
-    clearBatch: () => void;
-    /** Queues every included, ready book. Returns how many were queued. */
-    convertAll: (options: { replaceExisting: boolean }) => Promise<number>;
-}
-
-const BatchContext = createContext<BatchState | undefined>(undefined);
+const NO_PATHS = new Set<string>();
 
 let nextKey = 1;
 const toEntry = (group: BookGroup): BatchEntry => ({
@@ -58,10 +21,6 @@ const toEntry = (group: BookGroup): BatchEntry => ({
     status: "loading",
     include: true,
 });
-
-export function bookTitle(entry: BatchEntry): string {
-    return entry.book?.output_metadata?.title || entry.book?.title || entry.name;
-}
 
 /**
  * A batch is several books imported together and converted together.
@@ -82,15 +41,26 @@ export function BatchProvider({ children }: { children: ReactNode }) {
     const { refreshJobs, refreshQueueState } = useConversionStore();
     const [entries, setEntries] = useState<BatchEntry[]>([]);
     const [outputDirChoice, setOutputDir] = useState<string | null>(null);
-    const [existing, setExisting] = useState<Set<string>>(new Set());
-    const entriesRef = useRef(entries);
-    entriesRef.current = entries;
+    const [onDisk, setOnDisk] = useState<Set<string>>(NO_PATHS);
+
+    // Callbacks read entries from the ref, so a book loading in the background
+    // sees a removal made a moment ago. changeEntries is the only writer, which
+    // keeps the ref and the rendered state in step.
+    const entriesRef = useRef<BatchEntry[]>([]);
+    const changeEntries = useCallback((change: (prev: BatchEntry[]) => BatchEntry[]) => {
+        entriesRef.current = change(entriesRef.current);
+        setEntries(entriesRef.current);
+    }, []);
 
     const outputDir = outputDirChoice ?? settings?.default_output_directory ?? null;
 
-    const update = (key: string, patch: Partial<BatchEntry>) =>
-        setEntries((prev) => prev.map((e) => (e.key === key ? { ...e, ...patch } : e)));
+    const update = useCallback(
+        (key: string, patch: Partial<BatchEntry>) =>
+            changeEntries((prev) => prev.map((e) => (e.key === key ? { ...e, ...patch } : e))),
+        [changeEntries]
+    );
 
+    const autoDetectArtwork = settings?.auto_detect_artwork !== false;
     const loadEntries = useCallback(
         async (pending: BatchEntry[]) => {
             for (const entry of pending) {
@@ -99,7 +69,7 @@ export function BatchProvider({ children }: { children: ReactNode }) {
                     let book = await AudiobookApi.createAudiobookFromFiles(entry.files, false);
                     // The workbench claims a cover when a book is opened; a batch
                     // book may never be opened, so it claims one here instead.
-                    if (settings?.auto_detect_artwork !== false && !book.output_metadata?.artwork_data) {
+                    if (autoDetectArtwork && !book.output_metadata?.artwork_data) {
                         const found = await MetadataApi.discoverArtwork(book.id).catch(() => []);
                         if (found.length > 0) {
                             book = await MetadataApi.selectDiscoveredArtwork(book.id, found[0].source).catch(() => book);
@@ -111,7 +81,7 @@ export function BatchProvider({ children }: { children: ReactNode }) {
                 }
             }
         },
-        [settings?.auto_detect_artwork]
+        [autoDetectArtwork, update]
     );
 
     const importPaths = useCallback(
@@ -128,13 +98,12 @@ export function BatchProvider({ children }: { children: ReactNode }) {
             }
 
             const fresh = groups.map(toEntry);
-            setEntries((prev) => [...prev, ...fresh]);
-            entriesRef.current = [...entriesRef.current, ...fresh];
+            changeEntries((prev) => [...prev, ...fresh]);
             setView("batch");
             void loadEntries(fresh);
             return "batch";
         },
-        [loadEntries, setActiveAudiobook, setView]
+        [changeEntries, loadEntries, setActiveAudiobook, setView]
     );
 
     const openEntry = useCallback(
@@ -149,9 +118,10 @@ export function BatchProvider({ children }: { children: ReactNode }) {
         [refreshUndoState, setActiveAudiobook, setView]
     );
 
-    const removeEntry = useCallback((key: string) => {
-        setEntries((prev) => prev.filter((e) => e.key !== key));
-    }, []);
+    const removeEntry = useCallback(
+        (key: string) => changeEntries((prev) => prev.filter((e) => e.key !== key)),
+        [changeEntries]
+    );
 
     // A folder of finished single-file books (Author/*.m4b) is one folder, so it
     // arrives as one book; splitting makes each file its own.
@@ -162,25 +132,20 @@ export function BatchProvider({ children }: { children: ReactNode }) {
             const parts = entry.files.map((file) =>
                 toEntry({ name: basename(file).replace(/\.[^.]+$/, ""), files: [file] })
             );
-            const next = entriesRef.current.flatMap((e) => (e.key === key ? parts : [e]));
-            entriesRef.current = next;
-            setEntries(next);
+            changeEntries((prev) => prev.flatMap((e) => (e.key === key ? parts : [e])));
             void loadEntries(parts);
         },
-        [loadEntries]
+        [changeEntries, loadEntries]
     );
 
-    const setIncluded = useCallback((key: string, include: boolean) => update(key, { include }), []);
+    const setIncluded = useCallback((key: string, include: boolean) => update(key, { include }), [update]);
     const setAllIncluded = useCallback(
         (include: boolean) =>
-            setEntries((prev) => prev.map((e) => (e.status === "ready" ? { ...e, include } : e))),
-        []
+            changeEntries((prev) => prev.map((e) => (e.status === "ready" ? { ...e, include } : e))),
+        [changeEntries]
     );
 
-    const clearBatch = useCallback(() => {
-        entriesRef.current = [];
-        setEntries([]);
-    }, []);
+    const clearBatch = useCallback(() => changeEntries(() => []), [changeEntries]);
 
     // When folder shape guesses wrong (a book split into "Part One", "Part Two"
     // folders), the whole drop can still become one book.
@@ -192,22 +157,24 @@ export function BatchProvider({ children }: { children: ReactNode }) {
         setView("book");
     }, [clearBatch, setActiveAudiobook, setView]);
 
-    const replaceBook = useCallback((oldId: string, book: AudioBook) => {
-        setEntries((prev) =>
-            prev.map((e) => (e.book?.id === oldId ? { ...e, book, files: book.files.map((f) => f.path) } : e))
-        );
-    }, []);
+    const replaceBook = useCallback(
+        (oldId: string, book: AudioBook) =>
+            changeEntries((prev) =>
+                prev.map((e) => (e.book?.id === oldId ? { ...e, book, files: book.files.map((f) => f.path) } : e))
+            ),
+        [changeEntries]
+    );
 
     // Edits made in the workbench (tags, cover, chapters) land on the active
     // book; mirror them into the batch so its list and its jobs stay current.
     useEffect(() => {
         if (!activeAudiobook) return;
-        setEntries((prev) =>
+        changeEntries((prev) =>
             prev.some((e) => e.book?.id === activeAudiobook.id && e.book !== activeAudiobook)
                 ? prev.map((e) => (e.book?.id === activeAudiobook.id ? { ...e, book: activeAudiobook } : e))
                 : prev
         );
-    }, [activeAudiobook]);
+    }, [activeAudiobook, changeEntries]);
 
     const outputPaths = useMemo(() => {
         const paths = new Map<string, string>();
@@ -227,18 +194,17 @@ export function BatchProvider({ children }: { children: ReactNode }) {
 
     const pathList = useMemo(() => [...outputPaths.values()].sort().join("\n"), [outputPaths]);
     useEffect(() => {
-        if (!pathList) {
-            setExisting(new Set());
-            return;
-        }
+        if (!pathList) return;
         let cancelled = false;
         FilesApi.existingPaths(pathList.split("\n"))
-            .then((found) => !cancelled && setExisting(new Set(found)))
-            .catch(() => !cancelled && setExisting(new Set()));
+            .then((found) => !cancelled && setOnDisk(new Set(found)))
+            .catch(() => !cancelled && setOnDisk(NO_PATHS));
         return () => {
             cancelled = true;
         };
     }, [pathList]);
+    // With no paths there is nothing to check, so a stale answer never shows.
+    const existing = pathList ? onDisk : NO_PATHS;
 
     const convertAll = useCallback(
         async ({ replaceExisting }: { replaceExisting: boolean }) => {
@@ -257,13 +223,11 @@ export function BatchProvider({ children }: { children: ReactNode }) {
             if (queued.length > 0) {
                 await ConversionApi.startConversionQueue(settings?.concurrent_jobs ?? 1);
                 await Promise.all([refreshJobs(), refreshQueueState()]);
-                const remaining = entriesRef.current.filter((e) => !queued.includes(e.key));
-                entriesRef.current = remaining;
-                setEntries(remaining);
+                changeEntries((prev) => prev.filter((e) => !queued.includes(e.key)));
             }
             return queued.length;
         },
-        [existing, getEffectiveConversionDefaults, outputPaths, refreshJobs, refreshQueueState, settings]
+        [changeEntries, existing, getEffectiveConversionDefaults, outputPaths, refreshJobs, refreshQueueState, settings]
     );
 
     const value: BatchState = {
@@ -286,10 +250,4 @@ export function BatchProvider({ children }: { children: ReactNode }) {
     };
 
     return <BatchContext.Provider value={value}>{children}</BatchContext.Provider>;
-}
-
-export function useBatch(): BatchState {
-    const context = useContext(BatchContext);
-    if (!context) throw new Error("useBatch must be used inside BatchProvider");
-    return context;
 }

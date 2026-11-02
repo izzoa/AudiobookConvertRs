@@ -1,4 +1,4 @@
-import { useConversionStore } from '@/context/ConversionStore';
+import { useConversionStore } from '@/context/useConversionStore';
 import { JobStatus, ConversionStage, ConversionStageLabels } from '@/types/models';
 import type { ConversionJob, ConversionStage as ConversionStageType } from '@/types/models';
 import { Progress } from '@/components/ui/progress';

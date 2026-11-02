@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { useApp } from '@/context/AppContext';
+import { useApp } from '@/context/useApp';
 import { SUPPORTED_FORMATS_TEXT } from '@/lib/formats';
 import { MOD_KEY } from '@/lib/format';
 import { cn } from '@/lib/utils';

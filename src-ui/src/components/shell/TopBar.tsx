@@ -14,7 +14,7 @@ import {
 } from "@heroicons/react/24/outline";
 import { Popover, MenuItem, MenuSeparator, MenuLabel } from "@/components/ui/popover";
 import { QueueStatusPill } from "@/components/QueueStatusPill";
-import { useApp } from "@/context/AppContext";
+import { useApp } from "@/context/useApp";
 import { useProjectActions } from "@/hooks/useProjectActions";
 import * as ProjectApi from "@/api/project";
 import type { RecentProject } from "@/types/models";

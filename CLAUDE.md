@@ -1183,6 +1183,7 @@ single-document layout.
 | `components/queue/QueuePage.tsx` | Jobs as a destination, with queue-level commands |
 | `components/batch/BatchPage.tsx` | Several books from one import, reviewed and converted together |
 | `context/BatchStore.tsx` | Batch state: import routing (one book → workbench, several → batch), background loading, Convert all |
+| `context/useApp.ts`, `useConversionStore.ts`, `useBatch.ts` | Each provider's hook, context object and types (see "Hooks live apart from providers") |
 | `components/ui/popover.tsx` | Anchored panel + menu items (no Radix dependency) |
 | `components/ui/select.tsx` | Native `<select>` in the field style — use it, not a bare select |
 | `components/ui/confirm.tsx` | `useConfirm()`: in-app confirm dialog on `<dialog>`; provider is in `main.tsx` |
@@ -1215,6 +1216,11 @@ single-document layout.
   glyphs). `lucide-react` was removed; do not add a second set.
 - **`nums` on any numeric column** (durations, sizes, counts) so digits do not jitter.
 - **`no-select` on chrome** — toolbars, rails and headers are not documents.
+- **Hooks live apart from providers.** `AppContext.tsx`, `ConversionStore.tsx` and
+  `BatchStore.tsx` export only their provider; the hook, the context object and
+  the types are in `context/useX.ts`. Exporting a hook from the provider file
+  makes Vite reload the whole module on edit, which creates a second context and
+  leaves every consumer throwing "must be used within" until a full refresh.
 - **Metadata commits on blur**, not per keystroke: one undo entry and one backend
   round trip per field edit.
 - **Reordering or removing files rebuilds the audiobook** via

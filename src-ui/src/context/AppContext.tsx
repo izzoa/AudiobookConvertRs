@@ -1,49 +1,9 @@
-import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from 'react';
+import { useState, useEffect, useCallback, type ReactNode } from 'react';
 import type { AudioBook, UserSettings, ConversionJob, UndoState, ConversionDefaults, Project, ConversionSettings } from '../types/models';
 import * as SettingsApi from '../api/settings';
 import * as UndoApi from '../api/undo';
 import * as AudiobookApi from '../api/audiobook';
-
-export type AppView = 'book' | 'batch' | 'queue' | 'settings' | 'help';
-
-interface AppState {
-    // Navigation
-    view: AppView;
-    setView: (view: AppView) => void;
-
-    // Project state
-    activeAudiobook: AudioBook | null;
-    setActiveAudiobook: (audiobook: AudioBook | null) => void;
-    activeProject: Project | null;
-    setActiveProject: (project: Project | null) => void;
-
-    // Settings
-    settings: UserSettings | null;
-    updateSettings: (settings: UserSettings) => Promise<void>;
-    refreshSettings: () => Promise<void>;
-
-    // Effective defaults (project overrides > global)
-    getEffectiveConversionDefaults: () => ConversionDefaults;
-
-    // Pending conversion settings (set by ConversionSettingsDialog, used by DryRunPreview)
-    pendingConversionSettings: ConversionSettings | null;
-    setPendingConversionSettings: (settings: ConversionSettings | null) => void;
-
-    // Conversion queue
-    conversionQueue: ConversionJob[];
-    addToQueue: (job: ConversionJob) => void;
-
-    // Loading state
-    isLoading: boolean;
-
-    // Undo/Redo
-    undoState: UndoState;
-    handleUndo: () => Promise<void>;
-    handleRedo: () => Promise<void>;
-    refreshUndoState: () => Promise<void>;
-}
-
-const AppContext = createContext<AppState | undefined>(undefined);
+import { AppContext, type AppView } from './useApp';
 
 export function AppProvider({ children }: { children: ReactNode }) {
     const [view, setView] = useState<AppView>('book');
@@ -204,12 +164,4 @@ export function AppProvider({ children }: { children: ReactNode }) {
             {children}
         </AppContext.Provider>
     );
-}
-
-export function useApp() {
-    const context = useContext(AppContext);
-    if (context === undefined) {
-        throw new Error('useApp must be used within an AppProvider');
-    }
-    return context;
 }

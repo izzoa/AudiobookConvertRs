@@ -28,7 +28,7 @@ import { Button } from "@/components/ui/button";
 import { Popover, MenuItem, MenuLabel } from "@/components/ui/popover";
 import { PlayButton } from "@/components/AudioPlayer";
 import { useToast } from "@/components/ui/use-toast";
-import { useApp } from "@/context/AppContext";
+import { useApp } from "@/context/useApp";
 import { useRebuildBook } from "@/hooks/useRebuildBook";
 import * as FilesApi from "@/api/files";
 import type { AudioFile } from "@/types/models";

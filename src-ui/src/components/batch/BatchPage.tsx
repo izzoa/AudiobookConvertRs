@@ -12,8 +12,8 @@ import {
 import { Button } from "@/components/ui/button";
 import { Popover, MenuItem, MenuSeparator } from "@/components/ui/popover";
 import { useToast } from "@/components/ui/use-toast";
-import { useApp } from "@/context/AppContext";
-import { useBatch, bookTitle, type BatchEntry } from "@/context/BatchStore";
+import { useApp } from "@/context/useApp";
+import { useBatch, type BatchEntry } from "@/context/useBatch";
 import * as FilesApi from "@/api/files";
 import { formatDuration, shortenPath } from "@/lib/format";
 import { describeTemplate } from "@/lib/outputTemplate";
@@ -256,6 +256,10 @@ export function BatchPage() {
             </footer>
         </div>
     );
+}
+
+function bookTitle(entry: BatchEntry): string {
+    return entry.book?.output_metadata?.title || entry.book?.title || entry.name;
 }
 
 function BatchRow({

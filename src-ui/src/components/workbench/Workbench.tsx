@@ -1,7 +1,7 @@
 import { FilesPanel } from "./FilesPanel";
 import { BookInspector } from "./BookInspector";
 import { ChapterEditor } from "@/components/ChapterEditor";
-import { useApp } from "@/context/AppContext";
+import { useApp } from "@/context/useApp";
 import { cn } from "@/lib/utils";
 
 export type WorkbenchTab = "files" | "chapters";

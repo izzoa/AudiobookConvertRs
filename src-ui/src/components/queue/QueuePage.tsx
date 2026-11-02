@@ -2,8 +2,8 @@ import { PlayIcon, PauseIcon, TrashIcon, BookOpenIcon, QueueListIcon } from "@he
 import { Button } from "@/components/ui/button";
 import { JobList } from "@/components/conversion/JobList";
 import { JobDetails } from "@/components/conversion/JobDetails";
-import { useConversionStore } from "@/context/ConversionStore";
-import { useApp } from "@/context/AppContext";
+import { useConversionStore } from "@/context/useConversionStore";
+import { useApp } from "@/context/useApp";
 import { useToast } from "@/components/ui/use-toast";
 import * as ConversionApi from "@/api/conversion";
 import { JobStatus } from "@/types/models";

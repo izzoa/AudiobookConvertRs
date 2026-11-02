@@ -1,5 +1,5 @@
 import { useEffect, useCallback } from 'react';
-import { useApp } from '@/context/AppContext';
+import { useApp } from '@/context/useApp';
 
 export interface KeyboardShortcutHandlers {
     onOpen?: () => void;

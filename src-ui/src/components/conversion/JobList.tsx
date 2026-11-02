@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { useConversionStore } from '@/context/ConversionStore';
+import { useConversionStore } from '@/context/useConversionStore';
 import { JobStatus, ConversionStageLabels } from '@/types/models';
 import type { ConversionJob, JobStatus as JobStatusType } from '@/types/models';
 import { Progress } from '@/components/ui/progress';

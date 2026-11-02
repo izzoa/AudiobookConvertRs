@@ -1,7 +1,7 @@
 import { useCallback } from "react";
 import { useToast } from "@/components/ui/use-toast";
-import { useApp } from "@/context/AppContext";
-import { useBatch } from "@/context/BatchStore";
+import { useApp } from "@/context/useApp";
+import { useBatch } from "@/context/useBatch";
 import { useRebuildBook } from "@/hooks/useRebuildBook";
 import * as FilesApi from "@/api/files";
 import * as ProjectApi from "@/api/project";

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
-import { useApp } from '@/context/AppContext';
+import { useApp } from '@/context/useApp';
 import * as ConversionApi from '@/api/conversion';
 import type { QueueState, ConversionProgress } from '@/types/models';
 import { PlayIcon, ClockIcon } from '@heroicons/react/24/outline';

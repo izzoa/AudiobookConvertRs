@@ -10,7 +10,7 @@ import {
 import { Popover } from "@/components/ui/popover";
 import { OpenLibraryFetcher } from "@/components/OpenLibraryFetcher";
 import { useToast } from "@/components/ui/use-toast";
-import { useApp } from "@/context/AppContext";
+import { useApp } from "@/context/useApp";
 import * as FilesApi from "@/api/files";
 import * as MetadataApi from "@/api/metadata";
 import type { Metadata } from "@/types/models";

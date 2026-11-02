@@ -1,25 +1,9 @@
-import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from 'react';
+import { useState, useEffect, useCallback, type ReactNode } from 'react';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import type { ConversionJob, ConversionProgress, QueueState } from '../types/models';
 import { JobStatus } from '../types/models';
 import * as ConversionApi from '../api/conversion';
-
-interface ConversionStoreState {
-    jobs: ConversionJob[];
-    queueState: QueueState | null;
-    selectedJobId: string | null;
-    isLoading: boolean;
-    error: string | null;
-    selectJob: (jobId: string | null) => void;
-    refreshJobs: () => Promise<void>;
-    refreshQueueState: () => Promise<void>;
-    cancelJob: (jobId: string) => Promise<void>;
-    retryJob: (jobId: string) => Promise<string>;
-    removeJob: (jobId: string) => Promise<void>;
-    clearCompleted: () => Promise<void>;
-}
-
-const ConversionStoreContext = createContext<ConversionStoreState | undefined>(undefined);
+import { ConversionStoreContext } from './useConversionStore';
 
 const FALLBACK_REFRESH_INTERVAL = 5000;
 
@@ -205,12 +189,4 @@ export function ConversionStoreProvider({ children }: { children: ReactNode }) {
             {children}
         </ConversionStoreContext.Provider>
     );
-}
-
-export function useConversionStore() {
-    const context = useContext(ConversionStoreContext);
-    if (context === undefined) {
-        throw new Error('useConversionStore must be used within a ConversionStoreProvider');
-    }
-    return context;
 }

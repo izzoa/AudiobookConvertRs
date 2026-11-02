@@ -2,7 +2,7 @@ import { useState } from "react";
 import { ArrowDownTrayIcon, FolderOpenIcon, MusicalNoteIcon } from "@heroicons/react/24/outline";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/use-toast";
-import { useApp } from "@/context/AppContext";
+import { useApp } from "@/context/useApp";
 import * as FilesApi from "@/api/files";
 import * as ProjectApi from "@/api/project";
 import { cn } from "@/lib/utils";

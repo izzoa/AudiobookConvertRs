@@ -1,5 +1,5 @@
 import { useState, useEffect, useLayoutEffect, useRef, type ReactNode } from 'react';
-import { useApp } from '@/context/AppContext';
+import { useApp } from '@/context/useApp';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';

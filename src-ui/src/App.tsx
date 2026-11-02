@@ -11,12 +11,12 @@ import { useToast } from "@/components/ui/use-toast";
 import { useFileDrop } from "@/hooks/useFileDrop";
 import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
 import { useProjectActions } from "@/hooks/useProjectActions";
-import { useApp } from "@/context/AppContext";
-import { useBatch } from "@/context/BatchStore";
+import { useApp } from "@/context/useApp";
+import { useBatch } from "@/context/useBatch";
 
 function App() {
     const { view, setView, activeAudiobook } = useApp();
-    const batch = useBatch();
+    const { importPaths: routeImport, entries: batchEntries } = useBatch();
     const { toast } = useToast();
     const [tab, setTab] = useState<WorkbenchTab>("files");
     const { openProject, saveProject } = useProjectActions();
@@ -26,7 +26,7 @@ function App() {
             if (paths.length === 0) return;
             try {
                 // One book opens in the workbench; a library opens as a batch.
-                if ((await batch.importPaths(paths)) === "single") setTab("files");
+                if ((await routeImport(paths)) === "single") setTab("files");
             } catch (error) {
                 toast({
                     title: "Import failed",
@@ -35,13 +35,13 @@ function App() {
                 });
             }
         },
-        [batch.importPaths, toast]
+        [routeImport, toast]
     );
 
     // A batch that was converted or cleared leaves nothing to show.
     useEffect(() => {
-        if (view === "batch" && batch.entries.length === 0) setView("book");
-    }, [view, batch.entries.length, setView]);
+        if (view === "batch" && batchEntries.length === 0) setView("book");
+    }, [view, batchEntries.length, setView]);
 
     // Dropping files is the primary way in, so it works from any view.
     const isDraggingOver = useFileDrop(importPaths);

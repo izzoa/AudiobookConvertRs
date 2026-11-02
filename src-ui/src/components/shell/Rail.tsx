@@ -6,9 +6,9 @@ import {
     RectangleStackIcon,
 } from "@heroicons/react/24/outline";
 import { cn } from "@/lib/utils";
-import { useApp, type AppView } from "@/context/AppContext";
-import { useConversionStore } from "@/context/ConversionStore";
-import { useBatch } from "@/context/BatchStore";
+import { useApp, type AppView } from "@/context/useApp";
+import { useConversionStore } from "@/context/useConversionStore";
+import { useBatch } from "@/context/useBatch";
 import { JobStatus } from "@/types/models";
 
 /**
