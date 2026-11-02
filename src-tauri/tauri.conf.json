@@ -44,7 +44,7 @@
     "copyright": "Copyright © 2025 AudiobookConvertRs Contributors",
     "linux": {
       "deb": {
-        "depends": ["ffmpeg"]
+        "depends": ["ffmpeg", "libasound2"]
       }
     },
     "macOS": {

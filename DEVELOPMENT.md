@@ -30,6 +30,7 @@ sudo apt-get install -y \
   libwebkit2gtk-4.1-dev \
   libayatana-appindicator3-dev \
   librsvg2-dev \
+  libasound2-dev \
   patchelf \
   libxdo-dev \
   libssl-dev
@@ -158,7 +159,7 @@ ffmpeg -version
 ### Build Fails on Linux
 Install missing dependencies:
 ```bash
-sudo apt-get install libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev patchelf
+sudo apt-get install libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev libasound2-dev patchelf
 ```
 
 ### Tests Fail

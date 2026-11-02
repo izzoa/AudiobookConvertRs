@@ -791,7 +791,15 @@ mod tests {
                 let files = g
                     .files
                     .iter()
-                    .map(|f| f.strip_prefix(root).unwrap().to_string())
+                    // Joined with `/` so the expected paths read the same on Windows
+                    .map(|f| {
+                        let relative = f.strip_prefix(root).unwrap();
+                        relative
+                            .components()
+                            .map(|c| c.as_str())
+                            .collect::<Vec<_>>()
+                            .join("/")
+                    })
                     .collect();
                 (g.name.clone(), files)
             })

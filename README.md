@@ -220,9 +220,9 @@ You need:
 - [Rust](https://rustup.rs/) 1.85 or later
 - [Node.js](https://nodejs.org/) 22 or later
 - FFmpeg, installed or downloaded from the app's Settings
-- On Linux, the WebKitGTK build dependencies:
+- On Linux, the WebKitGTK and ALSA build dependencies:
   ```bash
-  sudo apt install libwebkit2gtk-4.1-dev build-essential curl wget file libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev
+  sudo apt install libwebkit2gtk-4.1-dev build-essential curl wget file libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev libasound2-dev
   ```
 
 ```bash
