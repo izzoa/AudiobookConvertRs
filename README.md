@@ -13,7 +13,7 @@
   <a href="https://github.com/izzoa/AudiobookConvertRs/releases/latest"><img src="https://img.shields.io/github/v/release/izzoa/AudiobookConvertRs?include_prereleases&label=release" alt="Latest release"></a>
   <a href="https://github.com/izzoa/AudiobookConvertRs/actions/workflows/ci.yml"><img src="https://github.com/izzoa/AudiobookConvertRs/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
   <img src="https://img.shields.io/badge/platform-macOS%20%7C%20Windows%20%7C%20Linux-blue.svg" alt="macOS, Windows and Linux">
-  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green.svg" alt="MIT license"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0-blue.svg" alt="AGPL-3.0 license"></a>
 </p>
 
 <p align="center">
@@ -294,7 +294,7 @@ This project is a Rust rewrite inspired by [AudioBookConverter](https://github.c
 | Audible and Open Library lookup | Yes | No |
 | Project save and undo | Yes | No |
 | Distribution | GitHub Releases | GitHub Releases and Steam |
-| License | MIT | GPL-2.0 |
+| License | AGPL-3.0 | GPL-2.0 |
 
 ## Roadmap
 
@@ -316,7 +316,7 @@ Contributions are welcome. Read [CONTRIBUTING.md](CONTRIBUTING.md), then:
 
 ## License
 
-MIT. See [LICENSE](LICENSE).
+GNU Affero General Public License, version 3 or (at your option) any later version. See [LICENSE](LICENSE).
 
 FFmpeg is a separate program under its own license (LGPL or GPL, depending on the build). The app runs it; it does not include it.
 
