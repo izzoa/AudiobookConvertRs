@@ -10,7 +10,9 @@ use once_cell::sync::Lazy;
 use parking_lot::RwLock;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
-use std::process::Command;
+use std::io::ErrorKind;
+use std::process::{Command, Output};
+use std::time::Duration;
 use tracing::{debug, info, warn};
 
 /// Minimum required FFmpeg version
@@ -149,9 +151,7 @@ pub fn verify_ffmpeg_at_path(path: &Utf8Path, source: FFmpegSource) -> AppResult
         return Err(AppError::FileNotFound(path.as_std_path().to_path_buf()));
     }
 
-    let output = Command::new(path.as_str())
-        .arg("-version")
-        .output()
+    let output = run(path, &["-version"])
         .map_err(|e| AppError::ffmpeg_error(format!("could not run {}: {}", path, e)))?;
 
     if !output.status.success() {
@@ -188,6 +188,24 @@ pub fn verify_ffmpeg_at_path(path: &Utf8Path, source: FFmpegSource) -> AppResult
         supports_libfdk_aac,
         source,
     })
+}
+
+/// Run FFmpeg and wait for it. Linux refuses to start a file that any process
+/// still has open for writing (ETXTBSY). A child forked by another thread can
+/// hold a just-written file open for a moment, as after Get FFmpeg installs a
+/// copy, so a busy file is retried briefly before it counts as broken.
+fn run(path: &Utf8Path, args: &[&str]) -> std::io::Result<Output> {
+    const BUSY_RETRIES: u64 = 5;
+    let mut attempt = 0;
+    loop {
+        match Command::new(path.as_str()).args(args).output() {
+            Err(e) if e.kind() == ErrorKind::ExecutableFileBusy && attempt < BUSY_RETRIES => {
+                attempt += 1;
+                std::thread::sleep(Duration::from_millis(20 * attempt));
+            }
+            result => return result,
+        }
+    }
 }
 
 /// One place FFmpeg might be
@@ -374,9 +392,7 @@ fn version_meets_minimum(version: &str) -> bool {
 
 /// Get list of available audio encoders
 fn get_available_encoders(ffmpeg_path: &Utf8Path) -> AppResult<Vec<String>> {
-    let output = Command::new(ffmpeg_path.as_str())
-        .args(["-encoders", "-hide_banner"])
-        .output()
+    let output = run(ffmpeg_path, &["-encoders", "-hide_banner"])
         .map_err(|e| AppError::ffmpeg_error(e.to_string()))?;
 
     let stdout = String::from_utf8_lossy(&output.stdout);
