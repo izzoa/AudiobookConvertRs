@@ -1,13 +1,13 @@
+use crate::config::{self, UserSettings};
+use crate::error::AppResult;
+use crate::ffmpeg::detection::{self, FFmpegInfo, FFmpegSource};
+use crate::ffmpeg::download::{self, DownloadError, DownloadOffer, FixedBuild};
+use crate::state::AppState;
 use camino::Utf8PathBuf;
 use serde::{Deserialize, Serialize};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant};
 use tauri::{AppHandle, Emitter, State};
-use crate::config::{self, UserSettings};
-use crate::error::AppResult;
-use crate::state::AppState;
-use crate::ffmpeg::detection::{self, FFmpegInfo, FFmpegSource};
-use crate::ffmpeg::download::{self, DownloadError, DownloadOffer, FixedBuild};
 
 fn to_string_err<E: ToString>(err: E) -> String {
     err.to_string()
@@ -93,16 +93,14 @@ fn current_ffmpeg_status(state: &AppState) -> FFmpegStatus {
 }
 
 #[tauri::command]
-pub async fn get_settings(
-    _state: State<'_, AppState>
-) -> Result<UserSettings, String> {
+pub async fn get_settings(_state: State<'_, AppState>) -> Result<UserSettings, String> {
     Ok(config::get_settings())
 }
 
 #[tauri::command]
 pub async fn update_settings(
     mut settings: UserSettings,
-    _state: State<'_, AppState>
+    _state: State<'_, AppState>,
 ) -> Result<(), String> {
     // The FFmpeg path changes only through `set_ffmpeg_path`, which checks it
     // first; a Settings draft loaded before that must not undo the choice.
@@ -118,20 +116,18 @@ pub async fn get_default_settings() -> Result<UserSettings, String> {
 }
 
 #[tauri::command]
-pub async fn check_ffmpeg_available(
-    state: State<'_, AppState>
-) -> Result<bool, String> {
+pub async fn check_ffmpeg_available(state: State<'_, AppState>) -> Result<bool, String> {
     // Check cache in state first
     if state.is_ffmpeg_available() {
         return Ok(true);
     }
-    
+
     // Check system
     match detection::detect_ffmpeg() {
         Ok(info) => {
             state.set_ffmpeg_status(true, Some(info.version));
             Ok(true)
-        },
+        }
         Err(_) => {
             state.set_ffmpeg_status(false, None);
             Ok(false)
@@ -140,9 +136,7 @@ pub async fn check_ffmpeg_available(
 }
 
 #[tauri::command]
-pub async fn reset_settings(
-    _state: State<'_, AppState>
-) -> Result<(), String> {
+pub async fn reset_settings(_state: State<'_, AppState>) -> Result<(), String> {
     let defaults = UserSettings::default();
     config::update_settings(defaults).map_err(to_string_err)?;
     // Defaults have no chosen FFmpeg path
@@ -151,9 +145,7 @@ pub async fn reset_settings(
 }
 
 #[tauri::command]
-pub async fn get_ffmpeg_version(
-    state: State<'_, AppState>
-) -> Result<String, String> {
+pub async fn get_ffmpeg_version(state: State<'_, AppState>) -> Result<String, String> {
     // Check state first
     if let Some(v) = state.get_ffmpeg_version() {
         return Ok(v);
@@ -172,7 +164,7 @@ pub async fn get_ffmpeg_version(
 #[tauri::command]
 pub async fn get_ffmpeg_info(
     refresh: Option<bool>,
-    state: State<'_, AppState>
+    state: State<'_, AppState>,
 ) -> Result<FFmpegStatus, String> {
     // "Check again" must search anew, not return the cached result
     if refresh.unwrap_or(false) {
@@ -199,7 +191,7 @@ fn apply_chosen_path(
 #[tauri::command]
 pub async fn set_ffmpeg_path(
     path: Option<String>,
-    state: State<'_, AppState>
+    state: State<'_, AppState>,
 ) -> Result<FFmpegStatus, String> {
     let path = path
         .map(|p| p.trim().to_string())
@@ -235,7 +227,7 @@ pub struct FFmpegDownloadProgress {
 #[tauri::command]
 pub async fn download_ffmpeg(
     app: AppHandle,
-    state: State<'_, AppState>
+    state: State<'_, AppState>,
 ) -> Result<FFmpegStatus, String> {
     let build = download::current_build().ok_or_else(|| DownloadError::NoBuild.to_string())?;
     let root = detection::downloaded_root()
@@ -253,7 +245,10 @@ pub async fn download_ffmpeg(
             return;
         }
         last_sent = Some(Instant::now());
-        let _ = app.emit("ffmpeg_download_progress", FFmpegDownloadProgress { received, total });
+        let _ = app.emit(
+            "ffmpeg_download_progress",
+            FFmpegDownloadProgress { received, total },
+        );
     };
 
     download::download_and_install(build, &root, &DOWNLOAD_CANCEL, progress)
@@ -271,9 +266,7 @@ pub async fn cancel_ffmpeg_download() -> Result<(), String> {
 
 /// Delete the downloaded FFmpeg and search again. Returns the new status.
 #[tauri::command]
-pub async fn remove_downloaded_ffmpeg(
-    state: State<'_, AppState>
-) -> Result<FFmpegStatus, String> {
+pub async fn remove_downloaded_ffmpeg(state: State<'_, AppState>) -> Result<FFmpegStatus, String> {
     if DOWNLOAD_RUNNING.load(Ordering::SeqCst) {
         return Err(DownloadError::Busy.to_string());
     }
@@ -349,11 +342,16 @@ mod tests {
         assert!(found.available && found.offer.is_none());
         assert_eq!(found.source, Some(FFmpegSource::System));
 
-        let missing = FFmpegStatus::from_detection(Err(AppError::FFmpegNotFound), None, None, None, build);
+        let missing =
+            FFmpegStatus::from_detection(Err(AppError::FFmpegNotFound), None, None, None, build);
         let offer = missing.offer.expect("offer while missing");
-        assert_eq!((offer.version.as_str(), offer.size_bytes), ("9.0.2", 28_395_699));
+        assert_eq!(
+            (offer.version.as_str(), offer.size_bytes),
+            ("9.0.2", 28_395_699)
+        );
 
-        let no_build = FFmpegStatus::from_detection(Err(AppError::FFmpegNotFound), None, None, None, None);
+        let no_build =
+            FFmpegStatus::from_detection(Err(AppError::FFmpegNotFound), None, None, None, None);
         assert!(no_build.offer.is_none());
     }
 
@@ -370,7 +368,14 @@ mod tests {
         assert!(json.contains("\"chosen_path_error\":\"File not found"));
         assert_eq!(serde_json::from_str::<FFmpegStatus>(&json).unwrap(), status);
 
-        let found = serde_json::to_value(FFmpegStatus::from_detection(Ok(info()), None, None, None, None)).unwrap();
+        let found = serde_json::to_value(FFmpegStatus::from_detection(
+            Ok(info()),
+            None,
+            None,
+            None,
+            None,
+        ))
+        .unwrap();
         assert_eq!(found["source"], "system");
     }
 }

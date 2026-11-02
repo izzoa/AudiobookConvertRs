@@ -86,12 +86,34 @@ fn pipeline_output_carries_all_metadata_fields() {
         "the publisher",
         "a description",
     ] {
-        assert!(tags.contains(expected), "ffprobe tags missing {:?}:\n{}", expected, tags);
+        assert!(
+            tags.contains(expected),
+            "ffprobe tags missing {:?}:\n{}",
+            expected,
+            tags
+        );
     }
-    for expected_key in ["narrator", "series", "series-part", "language", "description"] {
-        assert!(tags.contains(expected_key), "ffprobe tags missing key {:?}:\n{}", expected_key, tags);
+    for expected_key in [
+        "narrator",
+        "series",
+        "series-part",
+        "language",
+        "description",
+    ] {
+        assert!(
+            tags.contains(expected_key),
+            "ffprobe tags missing key {:?}:\n{}",
+            expected_key,
+            tags
+        );
     }
     // series index 1 is written to SERIES-PART
-    assert!(tags.contains("\"1\"") || tags.contains("=1") || tags.contains(": 1") || tags.contains("part\":\"1"),
-        "ffprobe tags missing series index 1:\n{}", tags);
+    assert!(
+        tags.contains("\"1\"")
+            || tags.contains("=1")
+            || tags.contains(": 1")
+            || tags.contains("part\":\"1"),
+        "ffprobe tags missing series index 1:\n{}",
+        tags
+    );
 }

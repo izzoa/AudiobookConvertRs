@@ -365,7 +365,15 @@ pub fn build_concat_command(
     encoder: &str,
 ) -> FFmpegCommand {
     let mut cmd = FFmpegCommand::with_ffmpeg_path(ffmpeg_path)
-        .input_with_options(concat_file, vec!["-f".to_string(), "concat".to_string(), "-safe".to_string(), "0".to_string()])
+        .input_with_options(
+            concat_file,
+            vec![
+                "-f".to_string(),
+                "concat".to_string(),
+                "-safe".to_string(),
+                "0".to_string(),
+            ],
+        )
         .output(output)
         .audio_codec(encoder)
         .bitrate(settings.bitrate_kbps)
@@ -384,10 +392,7 @@ pub fn build_concat_command(
     cmd = cmd.output_option("-f".to_string());
     cmd = cmd.output_option("ipod".to_string());
 
-    debug!(
-        "Built concat command: {} files -> {}",
-        concat_file, output
-    );
+    debug!("Built concat command: {} files -> {}", concat_file, output);
     cmd
 }
 
@@ -419,7 +424,10 @@ pub fn build_chapters_command(
 ) -> FFmpegCommand {
     FFmpegCommand::with_ffmpeg_path(ffmpeg_path)
         .input(input)
-        .input_with_options(chapters_file, vec!["-f".to_string(), "ffmetadata".to_string()])
+        .input_with_options(
+            chapters_file,
+            vec!["-f".to_string(), "ffmetadata".to_string()],
+        )
         .output(output)
         .output_option("-map_metadata".to_string())
         .output_option("1".to_string())

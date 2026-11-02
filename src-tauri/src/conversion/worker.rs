@@ -21,15 +21,9 @@ pub enum WorkerMessage {
     /// Progress update
     Progress(ConversionProgress),
     /// Job completed successfully
-    JobCompleted {
-        job_id: String,
-        output_path: String,
-    },
+    JobCompleted { job_id: String, output_path: String },
     /// Job failed
-    JobFailed {
-        job_id: String,
-        error: String,
-    },
+    JobFailed { job_id: String, error: String },
     /// Worker is idle and ready for more work
     Idle,
     /// Worker is shutting down
@@ -100,7 +94,14 @@ impl ConversionWorker {
         let cancel_flag_clone = cancel_flag.clone();
 
         let handle = thread::spawn(move || {
-            worker_loop(id, command_rx, message_tx, cancel_flag_clone, ffmpeg_info, config);
+            worker_loop(
+                id,
+                command_rx,
+                message_tx,
+                cancel_flag_clone,
+                ffmpeg_info,
+                config,
+            );
         });
 
         Self {
@@ -173,7 +174,7 @@ fn worker_loop(
 
                 // Run the conversion pipeline
                 let pipeline = ConversionPipeline::new(ffmpeg_info.clone(), config.clone());
-                
+
                 match pipeline.run(&job, progress_callback, cancel_check) {
                     Ok(output_path) => {
                         info!("Worker {} completed job {}", id, job.id);
@@ -271,8 +272,8 @@ impl WorkerPool {
                             if let Some(job) = self.queue.get_next_job() {
                                 // Find an idle worker to assign the job
                                 if let Some(worker_idx) = idle_workers.pop() {
-                                    if let Err(e) = self.workers[worker_idx]
-                                        .send(WorkerCommand::Process(job))
+                                    if let Err(e) =
+                                        self.workers[worker_idx].send(WorkerCommand::Process(job))
                                     {
                                         error!("Failed to send job to worker: {}", e);
                                     }
@@ -283,7 +284,10 @@ impl WorkerPool {
                                 // Don't stop automatically, wait for more jobs
                             }
                         }
-                        WorkerMessage::JobCompleted { job_id, output_path } => {
+                        WorkerMessage::JobCompleted {
+                            job_id,
+                            output_path,
+                        } => {
                             info!("Job {} completed: {}", job_id, output_path);
                             if let Err(e) = self.queue.complete_job(job_id) {
                                 error!("Failed to mark job complete: {}", e);
@@ -348,7 +352,10 @@ impl WorkerPool {
             match self.message_rx.recv() {
                 Ok(message) => {
                     match &message {
-                        WorkerMessage::JobCompleted { job_id, output_path } => {
+                        WorkerMessage::JobCompleted {
+                            job_id,
+                            output_path,
+                        } => {
                             info!("Job {} completed: {}", job_id, output_path);
                             if let Err(e) = self.queue.complete_job(job_id) {
                                 error!("Failed to mark job complete: {}", e);
@@ -423,8 +430,8 @@ impl WorkerPool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::models::{AudioBook, ConversionSettings};
     use crate::conversion::queue::create_shared_queue;
+    use crate::models::{AudioBook, ConversionSettings};
 
     #[test]
     fn test_worker_pool_config_default() {

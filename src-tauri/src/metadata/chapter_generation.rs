@@ -5,9 +5,9 @@
 //! - Regex-based title cleanup
 
 use crate::error::{AppError, AppResult};
-use crate::models::{AudioFile, Chapter};
-use crate::metadata::format_specific::auto_extract_chapters;
 use crate::metadata::chapters::fix_last_chapter_end_time;
+use crate::metadata::format_specific::auto_extract_chapters;
+use crate::models::{AudioFile, Chapter};
 use regex::Regex;
 use tracing::{debug, info, warn};
 
@@ -20,7 +20,10 @@ use tracing::{debug, info, warn};
 ///
 /// Returns chapters if found, otherwise returns empty vec
 pub fn extract_chapters_from_sources(files: &[AudioFile]) -> AppResult<Vec<Chapter>> {
-    debug!("Attempting to extract chapters from {} source files", files.len());
+    debug!(
+        "Attempting to extract chapters from {} source files",
+        files.len()
+    );
 
     let mut all_chapters = Vec::new();
     let mut current_offset_ms: u64 = 0;
@@ -31,18 +34,18 @@ pub fn extract_chapters_from_sources(files: &[AudioFile]) -> AppResult<Vec<Chapt
             Ok(mut chapters) => {
                 if !chapters.is_empty() {
                     info!("Found {} chapters in {}", chapters.len(), file.filename());
-                    
+
                     // Adjust chapter times to account for previous files
                     for chapter in &mut chapters {
                         chapter.start_time_ms += current_offset_ms;
                         chapter.end_time_ms += current_offset_ms;
                     }
-                    
+
                     // Re-index chapters
                     for (idx, chapter) in chapters.iter_mut().enumerate() {
                         chapter.index = all_chapters.len() + idx;
                     }
-                    
+
                     all_chapters.extend(chapters);
                 }
             }
@@ -63,7 +66,10 @@ pub fn extract_chapters_from_sources(files: &[AudioFile]) -> AppResult<Vec<Chapt
     if all_chapters.is_empty() {
         info!("No chapters found in source files");
     } else {
-        info!("Extracted total of {} chapters from sources", all_chapters.len());
+        info!(
+            "Extracted total of {} chapters from sources",
+            all_chapters.len()
+        );
     }
 
     Ok(all_chapters)
@@ -83,7 +89,10 @@ pub fn rename_chapters_regex(
     pattern: &str,
     replacement: &str,
 ) -> AppResult<()> {
-    debug!("Applying regex rename: pattern='{}', replacement='{}'", pattern, replacement);
+    debug!(
+        "Applying regex rename: pattern='{}', replacement='{}'",
+        pattern, replacement
+    );
 
     let re = Regex::new(pattern)
         .map_err(|e| AppError::ValidationError(format!("Invalid regex pattern: {}", e)))?;
@@ -155,7 +164,8 @@ pub fn get_regex_presets() -> Vec<RegexPreset> {
 /// Apply a preset to chapter titles
 pub fn apply_preset(chapters: &mut [Chapter], preset_name: &str) -> AppResult<()> {
     let presets = get_regex_presets();
-    let preset = presets.iter()
+    let preset = presets
+        .iter()
         .find(|p| p.name == preset_name)
         .ok_or_else(|| AppError::ValidationError(format!("Unknown preset: {}", preset_name)))?;
 
@@ -177,9 +187,9 @@ mod tests {
     #[test]
     fn test_rename_chapters_remove_prefix() {
         let mut chapters = create_test_chapters();
-        
+
         rename_chapters_regex(&mut chapters, r"^\d+\s*-\s*", "").unwrap();
-        
+
         assert_eq!(chapters[0].title, "Introduction");
         assert_eq!(chapters[1].title, "Chapter One");
         assert_eq!(chapters[2].title, "Track 03 - Chapter Two"); // Not affected
@@ -188,30 +198,28 @@ mod tests {
     #[test]
     fn test_rename_chapters_remove_track() {
         let mut chapters = create_test_chapters();
-        
+
         rename_chapters_regex(&mut chapters, r"^Track\s+\d+\s*-\s*", "").unwrap();
-        
+
         assert_eq!(chapters[2].title, "Chapter Two");
         assert_eq!(chapters[0].title, "01 - Introduction"); // Not affected
     }
 
     #[test]
     fn test_rename_chapters_replace_underscores() {
-        let mut chapters = vec![
-            Chapter::new(0, "Chapter_One_Part_A".to_string(), 0, 60000),
-        ];
-        
+        let mut chapters = vec![Chapter::new(0, "Chapter_One_Part_A".to_string(), 0, 60000)];
+
         rename_chapters_regex(&mut chapters, r"_", " ").unwrap();
-        
+
         assert_eq!(chapters[0].title, "Chapter One Part A");
     }
 
     #[test]
     fn test_apply_preset() {
         let mut chapters = create_test_chapters();
-        
+
         apply_preset(&mut chapters, "Remove numbered prefix").unwrap();
-        
+
         assert_eq!(chapters[0].title, "Introduction");
         assert_eq!(chapters[1].title, "Chapter One");
     }
@@ -219,7 +227,7 @@ mod tests {
     #[test]
     fn test_invalid_regex() {
         let mut chapters = create_test_chapters();
-        
+
         let result = rename_chapters_regex(&mut chapters, r"[invalid(", "");
         assert!(result.is_err());
     }
@@ -231,4 +239,3 @@ mod tests {
         assert!(presets.iter().any(|p| p.name == "Remove numbered prefix"));
     }
 }
-

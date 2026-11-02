@@ -21,7 +21,11 @@ pub const MIN_FFMPEG_VERSION: &str = "4.0";
 pub const SEARCH_OVERRIDE_ENV: &str = "AUDIOBOOKCONVERT_FFMPEG_SEARCH";
 
 /// File name of the FFmpeg executable on this platform
-pub const FFMPEG_EXE: &str = if cfg!(windows) { "ffmpeg.exe" } else { "ffmpeg" };
+pub const FFMPEG_EXE: &str = if cfg!(windows) {
+    "ffmpeg.exe"
+} else {
+    "ffmpeg"
+};
 
 /// Cached FFmpeg detection result
 static FFMPEG_CACHE: Lazy<RwLock<Option<FFmpegInfo>>> = Lazy::new(|| RwLock::new(None));
@@ -84,13 +88,20 @@ pub fn detect_ffmpeg() -> AppResult<FFmpegInfo> {
         std::env::var(SEARCH_OVERRIDE_ENV).ok().as_deref(),
         cfg!(debug_assertions),
     );
-    let candidates = search_candidates(get_ffmpeg_path(), include_system, downloaded_root().as_deref());
+    let candidates = search_candidates(
+        get_ffmpeg_path(),
+        include_system,
+        downloaded_root().as_deref(),
+    );
     let resolution = resolve(&candidates);
     *CHOSEN_PATH_ERROR.write() = resolution.chosen_error;
 
     match resolution.info {
         Some(info) => {
-            info!("Found FFmpeg {} at {} ({:?})", info.version, info.path, info.source);
+            info!(
+                "Found FFmpeg {} at {} ({:?})",
+                info.version, info.path, info.source
+            );
             cache_ffmpeg_info(info.clone());
             Ok(info)
         }
@@ -105,7 +116,9 @@ pub fn chosen_path_error() -> Option<String> {
 
 /// Folder holding downloaded FFmpeg builds, one subfolder per version
 pub fn downloaded_root() -> Option<Utf8PathBuf> {
-    let dir = dirs::data_local_dir()?.join("AudiobookConvertRs").join("ffmpeg");
+    let dir = dirs::data_local_dir()?
+        .join("AudiobookConvertRs")
+        .join("ffmpeg");
     Utf8PathBuf::from_path_buf(dir).ok()
 }
 
@@ -162,7 +175,9 @@ pub fn verify_ffmpeg_at_path(path: &Utf8Path, source: FFmpegSource) -> AppResult
     let supports_libfdk_aac = encoders.iter().any(|e| e == "libfdk_aac");
 
     if !supports_aac {
-        return Err(AppError::ffmpeg_error("FFmpeg does not support AAC encoding"));
+        return Err(AppError::ffmpeg_error(
+            "FFmpeg does not support AAC encoding",
+        ));
     }
 
     Ok(FFmpegInfo {
@@ -225,7 +240,12 @@ fn resolve(candidates: &[Candidate]) -> Resolution {
     let mut chosen_error = None;
     for candidate in candidates {
         match verify_ffmpeg_at_path(&candidate.path, candidate.source) {
-            Ok(info) => return Resolution { info: Some(info), chosen_error },
+            Ok(info) => {
+                return Resolution {
+                    info: Some(info),
+                    chosen_error,
+                }
+            }
             Err(e) => {
                 if candidate.source == FFmpegSource::Chosen {
                     warn!("Chosen FFmpeg path not working: {}: {}", candidate.path, e);
@@ -236,7 +256,10 @@ fn resolve(candidates: &[Candidate]) -> Resolution {
             }
         }
     }
-    Resolution { info: None, chosen_error }
+    Resolution {
+        info: None,
+        chosen_error,
+    }
 }
 
 /// Get common FFmpeg installation paths by OS
@@ -246,8 +269,12 @@ fn get_ffmpeg_search_paths() -> Vec<Utf8PathBuf> {
     #[cfg(target_os = "windows")]
     {
         paths.push(Utf8PathBuf::from("C:\\ffmpeg\\bin\\ffmpeg.exe"));
-        paths.push(Utf8PathBuf::from("C:\\Program Files\\ffmpeg\\bin\\ffmpeg.exe"));
-        paths.push(Utf8PathBuf::from("C:\\Program Files (x86)\\ffmpeg\\bin\\ffmpeg.exe"));
+        paths.push(Utf8PathBuf::from(
+            "C:\\Program Files\\ffmpeg\\bin\\ffmpeg.exe",
+        ));
+        paths.push(Utf8PathBuf::from(
+            "C:\\Program Files (x86)\\ffmpeg\\bin\\ffmpeg.exe",
+        ));
 
         // Check common Windows package managers
         if let Some(local_app_data) = dirs::data_local_dir() {
@@ -288,7 +315,10 @@ fn path_entries() -> Vec<Utf8PathBuf> {
 
 /// Dotted version as numbers, for ordering ("9.0.2" > "9.0")
 fn version_key(version: &str) -> Vec<u32> {
-    version.split('.').filter_map(|part| part.parse().ok()).collect()
+    version
+        .split('.')
+        .filter_map(|part| part.parse().ok())
+        .collect()
 }
 
 /// Parse FFmpeg version from version output
@@ -298,7 +328,10 @@ fn parse_ffmpeg_version(output: &str) -> AppResult<String> {
         .map_err(|e| AppError::InternalError(e.to_string()))?;
 
     if let Some(caps) = re.captures(output) {
-        return Ok(caps.get(1).map(|m| m.as_str().to_string()).unwrap_or_default());
+        return Ok(caps
+            .get(1)
+            .map(|m| m.as_str().to_string())
+            .unwrap_or_default());
     }
 
     // Try alternative pattern for git builds
@@ -317,10 +350,7 @@ fn parse_ffmpeg_version(output: &str) -> AppResult<String> {
 
 /// Check if version meets minimum requirement
 fn version_meets_minimum(version: &str) -> bool {
-    let parts: Vec<u32> = version
-        .split('.')
-        .filter_map(|s| s.parse().ok())
-        .collect();
+    let parts: Vec<u32> = version.split('.').filter_map(|s| s.parse().ok()).collect();
 
     let min_parts: Vec<u32> = MIN_FFMPEG_VERSION
         .split('.')
@@ -354,11 +384,7 @@ fn get_available_encoders(ffmpeg_path: &Utf8Path) -> AppResult<Vec<String>> {
     let encoders: Vec<String> = stdout
         .lines()
         .filter(|line| line.starts_with(" A")) // Audio encoders start with " A"
-        .filter_map(|line| {
-            line.split_whitespace()
-                .nth(1)
-                .map(|s| s.to_string())
-        })
+        .filter_map(|line| line.split_whitespace().nth(1).map(|s| s.to_string()))
         .collect();
 
     Ok(encoders)
@@ -455,11 +481,22 @@ mod tests {
 
         let list = search_candidates(Some("/chosen/ffmpeg".into()), true, Some(root));
         assert_eq!(list.first().map(|c| c.source), Some(FFmpegSource::Chosen));
-        assert_eq!(list.last().map(|c| c.source), Some(FFmpegSource::Downloaded));
-        assert!(list[1..list.len() - 1].iter().all(|c| c.source == FFmpegSource::System));
+        assert_eq!(
+            list.last().map(|c| c.source),
+            Some(FFmpegSource::Downloaded)
+        );
+        assert!(list[1..list.len() - 1]
+            .iter()
+            .all(|c| c.source == FFmpegSource::System));
 
         let without_system = search_candidates(None, false, Some(root));
-        assert_eq!(without_system, vec![Candidate { path: installed.join(FFMPEG_EXE), source: FFmpegSource::Downloaded }]);
+        assert_eq!(
+            without_system,
+            vec![Candidate {
+                path: installed.join(FFMPEG_EXE),
+                source: FFmpegSource::Downloaded
+            }]
+        );
     }
 
     #[test]
@@ -480,11 +517,14 @@ mod tests {
 
     #[cfg(unix)]
     mod resolve {
-        use super::super::*;
         use super::super::test_support::fake_ffmpeg;
+        use super::super::*;
 
         fn at(path: &Utf8Path, source: FFmpegSource) -> Candidate {
-            Candidate { path: path.to_owned(), source }
+            Candidate {
+                path: path.to_owned(),
+                source,
+            }
         }
 
         #[test]
@@ -494,7 +534,10 @@ mod tests {
             let chosen = fake_ffmpeg(&dir.join("chosen"), "9.0.2", "aac");
             let system = fake_ffmpeg(&dir.join("system"), "9.0.2", "aac");
 
-            let found = resolve(&[at(&chosen, FFmpegSource::Chosen), at(&system, FFmpegSource::System)]);
+            let found = resolve(&[
+                at(&chosen, FFmpegSource::Chosen),
+                at(&system, FFmpegSource::System),
+            ]);
             let info = found.info.unwrap();
             assert_eq!((info.path, info.source), (chosen, FFmpegSource::Chosen));
             assert!(found.chosen_error.is_none());
@@ -507,11 +550,17 @@ mod tests {
             let system = fake_ffmpeg(&dir.join("system"), "9.0.2", "aac");
             let too_old = fake_ffmpeg(&dir.join("old"), "3.4", "aac");
 
-            let missing = resolve(&[at(&dir.join("gone/ffmpeg"), FFmpegSource::Chosen), at(&system, FFmpegSource::System)]);
+            let missing = resolve(&[
+                at(&dir.join("gone/ffmpeg"), FFmpegSource::Chosen),
+                at(&system, FFmpegSource::System),
+            ]);
             assert_eq!(missing.info.map(|i| i.source), Some(FFmpegSource::System));
             assert!(missing.chosen_error.unwrap().contains("not found"));
 
-            let old = resolve(&[at(&too_old, FFmpegSource::Chosen), at(&system, FFmpegSource::System)]);
+            let old = resolve(&[
+                at(&too_old, FFmpegSource::Chosen),
+                at(&system, FFmpegSource::System),
+            ]);
             assert_eq!(old.info.map(|i| i.source), Some(FFmpegSource::System));
             assert!(old.chosen_error.unwrap().contains("too old"));
         }
@@ -524,10 +573,16 @@ mod tests {
             let no_aac = fake_ffmpeg(&dir.join("no-aac"), "9.0.2", "mp3");
             let downloaded = fake_ffmpeg(&dir.join("downloaded"), "9.0.2", "aac");
 
-            let both = resolve(&[at(&system, FFmpegSource::System), at(&downloaded, FFmpegSource::Downloaded)]);
+            let both = resolve(&[
+                at(&system, FFmpegSource::System),
+                at(&downloaded, FFmpegSource::Downloaded),
+            ]);
             assert_eq!(both.info.map(|i| i.source), Some(FFmpegSource::System));
 
-            let fallback = resolve(&[at(&no_aac, FFmpegSource::System), at(&downloaded, FFmpegSource::Downloaded)]);
+            let fallback = resolve(&[
+                at(&no_aac, FFmpegSource::System),
+                at(&downloaded, FFmpegSource::Downloaded),
+            ]);
             assert_eq!(fallback.info.map(|i| i.path), Some(downloaded));
 
             assert!(resolve(&[at(&no_aac, FFmpegSource::System)]).info.is_none());
@@ -554,4 +609,3 @@ pub(crate) mod test_support {
         path
     }
 }
-

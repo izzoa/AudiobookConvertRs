@@ -43,10 +43,7 @@ pub fn init_logging() -> AppResult<()> {
         .with(console_layer)
         .init();
 
-    tracing::info!(
-        "Logging initialized at {} level",
-        log_level.as_str()
-    );
+    tracing::info!("Logging initialized at {} level", log_level.as_str());
 
     Ok(())
 }
@@ -100,4 +97,3 @@ mod tests {
         assert!(filter.max_level_hint().is_some());
     }
 }
-

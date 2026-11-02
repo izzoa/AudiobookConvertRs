@@ -7,7 +7,7 @@ use crate::error::{AppError, AppResult};
 use camino::Utf8Path;
 use parking_lot::Mutex;
 use serde::{Deserialize, Serialize};
-use std::sync::mpsc::{self, Sender, Receiver};
+use std::sync::mpsc::{self, Receiver, Sender};
 use std::sync::Arc;
 use std::thread::{self, JoinHandle};
 use std::time::Duration;
@@ -271,7 +271,9 @@ impl AudioPlayer {
                 start_ms: position_ms,
             })
         } else {
-            Err(AppError::AudioPlayback("No audio is currently playing".to_string()))
+            Err(AppError::AudioPlayback(
+                "No audio is currently playing".to_string(),
+            ))
         }
     }
 

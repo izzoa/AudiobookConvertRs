@@ -4,9 +4,11 @@
 //! to M4B audiobook format using Symphonia for reading and FFmpeg for encoding.
 
 pub mod audio;
+pub mod commands;
 pub mod config;
 pub mod conversion;
 pub mod error;
+pub mod events;
 pub mod ffmpeg;
 pub mod logging;
 pub mod metadata;
@@ -15,8 +17,6 @@ pub mod perf;
 pub mod project;
 pub mod state;
 pub mod undo;
-pub mod commands;
-pub mod events;
 
 pub use audio::*;
 pub use config::*;

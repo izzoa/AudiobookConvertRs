@@ -3,9 +3,7 @@
 use camino::Utf8PathBuf;
 use tauri::{AppHandle, State};
 
-use crate::audio::quality::{
-    self, AudioLevels, NormalizationSettings, NormalizationSuggestion,
-};
+use crate::audio::quality::{self, AudioLevels, NormalizationSettings, NormalizationSuggestion};
 use crate::models::{estimate_file_size_bytes, FileSizeEstimate, QualityPreset, QualityPresetInfo};
 use crate::state::AppState;
 
@@ -55,8 +53,14 @@ pub async fn apply_audio_normalization_with_progress(
 ) -> Result<(), String> {
     let input_path = Utf8PathBuf::from(&input);
     let output_path = Utf8PathBuf::from(&output);
-    quality::apply_normalization_with_progress(&input_path, &output_path, &settings, total_duration_ms, &app)
-        .map_err(|e| e.to_string())
+    quality::apply_normalization_with_progress(
+        &input_path,
+        &output_path,
+        &settings,
+        total_duration_ms,
+        &app,
+    )
+    .map_err(|e| e.to_string())
 }
 
 /// Estimate output file size based on duration and bitrate

@@ -137,10 +137,7 @@ pub fn retry_failed_conversion(
     max_retries: usize,
 ) -> bool {
     if *retry_count >= max_retries {
-        error!(
-            "Max retries ({}) exhausted for job {}",
-            max_retries, job.id
-        );
+        error!("Max retries ({}) exhausted for job {}", max_retries, job.id);
         return false;
     }
 

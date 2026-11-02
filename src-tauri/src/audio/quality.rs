@@ -110,7 +110,9 @@ impl Default for NormalizationSettings {
 /// - True peak (dBTP)
 pub fn analyze_audio_levels(file_path: &Utf8Path) -> AppResult<AudioLevels> {
     if !file_path.exists() {
-        return Err(AppError::FileNotFound(file_path.as_std_path().to_path_buf()));
+        return Err(AppError::FileNotFound(
+            file_path.as_std_path().to_path_buf(),
+        ));
     }
 
     info!("Analyzing audio levels: {}", file_path);
@@ -118,10 +120,13 @@ pub fn analyze_audio_levels(file_path: &Utf8Path) -> AppResult<AudioLevels> {
     let ffmpeg_bin = resolve_ffmpeg_executable();
     let output = Command::new(ffmpeg_bin.as_str())
         .args([
-            "-i", file_path.as_str(),
-            "-af", "loudnorm=I=-16:TP=-1.5:LRA=11:print_format=json",
-            "-f", "null",
-            "-"
+            "-i",
+            file_path.as_str(),
+            "-af",
+            "loudnorm=I=-16:TP=-1.5:LRA=11:print_format=json",
+            "-f",
+            "null",
+            "-",
         ])
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
@@ -284,9 +289,12 @@ fn apply_single_pass_normalization(
     let ffmpeg_bin = resolve_ffmpeg_executable();
     let result = Command::new(ffmpeg_bin.as_str())
         .args([
-            "-i", input.as_str(),
-            "-af", &filter,
-            "-ar", "44100",
+            "-i",
+            input.as_str(),
+            "-af",
+            &filter,
+            "-ar",
+            "44100",
             "-y",
             output.as_str(),
         ])
@@ -336,9 +344,12 @@ fn apply_two_pass_normalization(
     let ffmpeg_bin = resolve_ffmpeg_executable();
     let result = Command::new(ffmpeg_bin.as_str())
         .args([
-            "-i", input.as_str(),
-            "-af", &filter,
-            "-ar", "44100",
+            "-i",
+            input.as_str(),
+            "-af",
+            &filter,
+            "-ar",
+            "44100",
             "-y",
             output.as_str(),
         ])
@@ -373,19 +384,28 @@ pub fn apply_normalization_with_progress(
         return Err(AppError::FileNotFound(input.as_std_path().to_path_buf()));
     }
 
-    info!("Applying normalization with progress: {} -> {}", input, output);
+    info!(
+        "Applying normalization with progress: {} -> {}",
+        input, output
+    );
 
-    let _ = handle.emit("normalization_progress", NormalizationProgress {
-        percent: 0.0,
-        stage: "analyzing".to_string(),
-    });
+    let _ = handle.emit(
+        "normalization_progress",
+        NormalizationProgress {
+            percent: 0.0,
+            stage: "analyzing".to_string(),
+        },
+    );
 
     let levels = analyze_audio_levels(input)?;
 
-    let _ = handle.emit("normalization_progress", NormalizationProgress {
-        percent: 10.0,
-        stage: "normalizing".to_string(),
-    });
+    let _ = handle.emit(
+        "normalization_progress",
+        NormalizationProgress {
+            percent: 10.0,
+            stage: "normalizing".to_string(),
+        },
+    );
 
     let filter = format!(
         "loudnorm=I={}:TP={}:LRA={}:measured_I={}:measured_LRA={}:measured_TP={}:measured_thresh={}:offset={}:linear=true",
@@ -402,9 +422,12 @@ pub fn apply_normalization_with_progress(
     let ffmpeg_bin = resolve_ffmpeg_executable();
     let mut child = Command::new(ffmpeg_bin.as_str())
         .args([
-            "-i", input.as_str(),
-            "-af", &filter,
-            "-ar", "44100",
+            "-i",
+            input.as_str(),
+            "-af",
+            &filter,
+            "-ar",
+            "44100",
             "-y",
             output.as_str(),
         ])
@@ -434,10 +457,13 @@ pub fn apply_normalization_with_progress(
                     50.0
                 };
 
-                let _ = handle.emit("normalization_progress", NormalizationProgress {
-                    percent: percent.min(99.0),
-                    stage: "normalizing".to_string(),
-                });
+                let _ = handle.emit(
+                    "normalization_progress",
+                    NormalizationProgress {
+                        percent: percent.min(99.0),
+                        stage: "normalizing".to_string(),
+                    },
+                );
             }
         }
     }
@@ -452,10 +478,13 @@ pub fn apply_normalization_with_progress(
         });
     }
 
-    let _ = handle.emit("normalization_progress", NormalizationProgress {
-        percent: 100.0,
-        stage: "complete".to_string(),
-    });
+    let _ = handle.emit(
+        "normalization_progress",
+        NormalizationProgress {
+            percent: 100.0,
+            stage: "complete".to_string(),
+        },
+    );
 
     info!("Normalization with progress complete: {}", output);
     Ok(())
@@ -489,7 +518,9 @@ pub fn analyze_batch_levels(file_paths: &[Utf8PathBuf]) -> AppResult<AudioLevels
     }
 
     if count == 0 {
-        return Err(AppError::ValidationError("No files could be analyzed".to_string()));
+        return Err(AppError::ValidationError(
+            "No files could be analyzed".to_string(),
+        ));
     }
 
     Ok(AudioLevels {

@@ -253,7 +253,11 @@ impl ConversionManager {
     }
 
     /// Process a single conversion job
-    fn process_job(job: ConversionJob, queue: &SharedQueue, app_handle: &Arc<RwLock<Option<AppHandle>>>) {
+    fn process_job(
+        job: ConversionJob,
+        queue: &SharedQueue,
+        app_handle: &Arc<RwLock<Option<AppHandle>>>,
+    ) {
         let job_id = job.id.clone();
 
         // Create progress callback
@@ -381,7 +385,9 @@ mod tests {
         assert_eq!(workers, 2);
 
         // Starting again while running is idempotent
-        manager.start_queue(Some(2)).expect("Starting running queue should succeed idempotently");
+        manager
+            .start_queue(Some(2))
+            .expect("Starting running queue should succeed idempotently");
         let (state, _, _, _) = manager.get_queue_state();
         assert_eq!(state, ManagerState::Running);
 

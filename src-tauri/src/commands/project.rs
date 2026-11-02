@@ -5,7 +5,7 @@ use tauri::State;
 
 use crate::models::ConversionDefaults;
 use crate::project::{
-    Project, ProjectExport, RecentProject, RecentProjectsManager, export_project_metadata,
+    export_project_metadata, Project, ProjectExport, RecentProject, RecentProjectsManager,
 };
 use crate::state::AppState;
 
@@ -47,10 +47,7 @@ pub async fn save_project(
 
 /// Load a project file
 #[tauri::command]
-pub async fn load_project(
-    path: String,
-    state: State<'_, AppState>,
-) -> Result<Project, String> {
+pub async fn load_project(path: String, state: State<'_, AppState>) -> Result<Project, String> {
     let project_path = Utf8PathBuf::from(&path);
     let project = Project::load(&project_path).map_err(|e| e.to_string())?;
 
@@ -89,9 +86,7 @@ pub async fn clear_recent_projects(_state: State<'_, AppState>) -> Result<(), St
 
 /// Export project metadata summary (for display or export)
 #[tauri::command]
-pub async fn export_project_summary(
-    state: State<'_, AppState>,
-) -> Result<ProjectExport, String> {
+pub async fn export_project_summary(state: State<'_, AppState>) -> Result<ProjectExport, String> {
     let audiobook = state
         .get_active_audiobook()
         .ok_or("No active audiobook loaded")?;

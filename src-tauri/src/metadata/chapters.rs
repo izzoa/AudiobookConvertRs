@@ -7,8 +7,8 @@
 use crate::error::{AppError, AppResult};
 use crate::models::{AudioFile, Chapter};
 use camino::Utf8Path;
-use tracing::{debug, info, warn};
 use serde::{Deserialize, Serialize};
+use tracing::{debug, info, warn};
 
 /// Update for partial chapter editing
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -87,7 +87,10 @@ pub fn create_chapters_auto_split(total_duration_ms: u64, count: usize) -> Vec<C
         return Vec::new();
     }
 
-    debug!("Auto-splitting {} ms into {} chapters", total_duration_ms, count);
+    debug!(
+        "Auto-splitting {} ms into {} chapters",
+        total_duration_ms, count
+    );
 
     let chapter_duration = total_duration_ms / count as u64;
     let remainder = total_duration_ms % count as u64;
@@ -112,7 +115,11 @@ pub fn create_chapters_auto_split(total_duration_ms: u64, count: usize) -> Vec<C
         current_start_ms = end_time_ms;
     }
 
-    info!("Auto-split into {} chapters of ~{} ms each", chapters.len(), chapter_duration);
+    info!(
+        "Auto-split into {} chapters of ~{} ms each",
+        chapters.len(),
+        chapter_duration
+    );
     chapters
 }
 
@@ -254,7 +261,11 @@ pub fn update_chapter(
 ) -> AppResult<()> {
     if index >= chapters.len() {
         return Err(AppError::InvalidChapter {
-            reason: format!("Chapter index {} out of range (max: {})", index, chapters.len()),
+            reason: format!(
+                "Chapter index {} out of range (max: {})",
+                index,
+                chapters.len()
+            ),
         });
     }
 
@@ -431,8 +442,8 @@ pub fn split_chapter(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use camino::Utf8PathBuf;
     use crate::models::{AudioFormat, Metadata};
+    use camino::Utf8PathBuf;
 
     fn tagged_file(name: &str, title: Option<&str>, album: Option<&str>) -> AudioFile {
         let mut file = create_test_audio_file(name, 60000);
@@ -448,7 +459,10 @@ mod tests {
             tagged_file("02", Some("  The Long Road "), Some("The Book")),
             tagged_file("03", None, Some("The Book")),
         ];
-        assert_eq!(chapter_titles_for_files(&files), ["Opening", "The Long Road", "03"]);
+        assert_eq!(
+            chapter_titles_for_files(&files),
+            ["Opening", "The Long Road", "03"]
+        );
     }
 
     #[test]
@@ -457,7 +471,10 @@ mod tests {
             tagged_file("01 - Opening", Some("The Book"), None),
             tagged_file("02 - Arrival", Some("The Book"), None),
         ];
-        assert_eq!(chapter_titles_for_files(&files), ["01 - Opening", "02 - Arrival"]);
+        assert_eq!(
+            chapter_titles_for_files(&files),
+            ["01 - Opening", "02 - Arrival"]
+        );
     }
 
     #[test]
@@ -612,9 +629,7 @@ mod tests {
 
     #[test]
     fn test_split_chapter() {
-        let mut chapters = vec![
-            Chapter::new(0, "Chapter 1".to_string(), 0, 120000),
-        ];
+        let mut chapters = vec![Chapter::new(0, "Chapter 1".to_string(), 0, 120000)];
 
         split_chapter(&mut chapters, 0, 60000, "Chapter 1b".to_string()).unwrap();
 

@@ -130,15 +130,17 @@ fn apply_metadata_to_tag(tag: &mut Tag, metadata: &Metadata) {
 /// Uses mp4ameta to write standard MP4 metadata atoms.
 /// Existing metadata is preserved unless explicitly overwritten.
 pub fn write_metadata_to_m4b(path: &Utf8Path, metadata: &Metadata) -> AppResult<()> {
-    info!("Writing metadata to: {} - title={:?}, artist={:?}, album={:?}", 
-        path, metadata.title, metadata.artist, metadata.album);
+    info!(
+        "Writing metadata to: {} - title={:?}, artist={:?}, album={:?}",
+        path, metadata.title, metadata.artist, metadata.album
+    );
 
     if !path.exists() {
         return Err(AppError::FileNotFound(path.as_std_path().to_path_buf()));
     }
 
-    let mut tag = Tag::read_from_path(path.as_std_path())
-        .map_err(|e| AppError::MetadataWriteError {
+    let mut tag =
+        Tag::read_from_path(path.as_std_path()).map_err(|e| AppError::MetadataWriteError {
             path: path.as_std_path().to_path_buf(),
             reason: e.to_string(),
         })?;
@@ -171,8 +173,8 @@ pub fn embed_artwork_in_m4b(path: &Utf8Path, artwork: &[u8]) -> AppResult<()> {
         return Err(AppError::ArtworkError("Artwork data is empty".to_string()));
     }
 
-    let mut tag = Tag::read_from_path(path.as_std_path())
-        .map_err(|e| AppError::MetadataWriteError {
+    let mut tag =
+        Tag::read_from_path(path.as_std_path()).map_err(|e| AppError::MetadataWriteError {
             path: path.as_std_path().to_path_buf(),
             reason: e.to_string(),
         })?;
@@ -277,8 +279,8 @@ pub fn write_all_to_m4b(
         return Err(AppError::FileNotFound(path.as_std_path().to_path_buf()));
     }
 
-    let mut tag = Tag::read_from_path(path.as_std_path())
-        .map_err(|e| AppError::MetadataWriteError {
+    let mut tag =
+        Tag::read_from_path(path.as_std_path()).map_err(|e| AppError::MetadataWriteError {
             path: path.as_std_path().to_path_buf(),
             reason: e.to_string(),
         })?;
@@ -331,8 +333,8 @@ pub fn clear_metadata(path: &Utf8Path) -> AppResult<()> {
         return Err(AppError::FileNotFound(path.as_std_path().to_path_buf()));
     }
 
-    let mut tag = Tag::read_from_path(path.as_std_path())
-        .map_err(|e| AppError::MetadataWriteError {
+    let mut tag =
+        Tag::read_from_path(path.as_std_path()).map_err(|e| AppError::MetadataWriteError {
             path: path.as_std_path().to_path_buf(),
             reason: e.to_string(),
         })?;
@@ -382,7 +384,11 @@ mod tests {
     #[test]
     fn test_fixture_opens_with_mp4ameta() {
         let tag = Tag::read_from_path(fixture_path().as_std_path());
-        assert!(tag.is_ok(), "mp4ameta must open the fixture: {:?}", tag.err());
+        assert!(
+            tag.is_ok(),
+            "mp4ameta must open the fixture: {:?}",
+            tag.err()
+        );
     }
 
     /// Every text field of `Metadata` with a configured value must survive
@@ -435,8 +441,14 @@ mod tests {
         assert_eq!(tag.description(), Some("A description"));
         assert_eq!(tag.copyright(), Some("The Copyright"));
         assert_eq!(tag.strings_of(&NARRATOR_IDENT).next(), Some("The Narrator"));
-        assert_eq!(tag.strings_of(&PUBLISHER_IDENT).next(), Some("The Publisher"));
-        assert_eq!(tag.strings_of(&SERIES_IDENT).next(), Some("Pimsleur Italian"));
+        assert_eq!(
+            tag.strings_of(&PUBLISHER_IDENT).next(),
+            Some("The Publisher")
+        );
+        assert_eq!(
+            tag.strings_of(&SERIES_IDENT).next(),
+            Some("Pimsleur Italian")
+        );
         assert_eq!(tag.strings_of(&SERIES_PART_IDENT).next(), Some("1"));
         assert_eq!(tag.strings_of(&LANGUAGE_IDENT).next(), Some("it"));
         assert_eq!(tag.strings_of(&ASIN_IDENT).next(), Some("B002V8H660"));
@@ -492,8 +504,14 @@ mod tests {
         assert_eq!(tag.description(), Some("A description"));
         assert_eq!(tag.copyright(), Some("The Copyright"));
         assert_eq!(tag.strings_of(&NARRATOR_IDENT).next(), Some("The Narrator"));
-        assert_eq!(tag.strings_of(&PUBLISHER_IDENT).next(), Some("The Publisher"));
-        assert_eq!(tag.strings_of(&SERIES_IDENT).next(), Some("Pimsleur Italian"));
+        assert_eq!(
+            tag.strings_of(&PUBLISHER_IDENT).next(),
+            Some("The Publisher")
+        );
+        assert_eq!(
+            tag.strings_of(&SERIES_IDENT).next(),
+            Some("Pimsleur Italian")
+        );
         assert_eq!(tag.strings_of(&SERIES_PART_IDENT).next(), Some("1"));
         assert_eq!(tag.strings_of(&LANGUAGE_IDENT).next(), Some("it"));
         assert_eq!(tag.strings_of(&ASIN_IDENT).next(), Some("B002V8H660"));

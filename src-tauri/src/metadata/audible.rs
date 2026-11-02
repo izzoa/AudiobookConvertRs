@@ -65,8 +65,13 @@ pub struct AudibleRecord {
 }
 
 /// Searches the region's catalog by title and, optionally, author.
-pub async fn search(title: &str, author: Option<&str>, region: &str) -> AppResult<Vec<LookupCandidate>> {
-    let base = catalog_base_url(region).ok_or_else(|| lookup_error(CATALOG, format!("unknown region \"{}\"", region)))?;
+pub async fn search(
+    title: &str,
+    author: Option<&str>,
+    region: &str,
+) -> AppResult<Vec<LookupCandidate>> {
+    let base = catalog_base_url(region)
+        .ok_or_else(|| lookup_error(CATALOG, format!("unknown region \"{}\"", region)))?;
     let mut url = Url::parse(&format!("{}/1.0/catalog/products", base)).expect("catalog url");
     url.query_pairs_mut()
         .append_pair("title", title.trim())
@@ -77,33 +82,51 @@ pub async fn search(title: &str, author: Option<&str>, region: &str) -> AppResul
         url.query_pairs_mut().append_pair("author", author);
     }
 
-    debug!("Searching Audible ({}): title={:?} author={:?}", region, title, author);
+    debug!(
+        "Searching Audible ({}): title={:?} author={:?}",
+        region, title, author
+    );
     let found: CatalogSearch = get_json(&client()?, CATALOG, url.as_str()).await?;
-    Ok(found.products.iter().filter_map(CatalogProduct::candidate).collect())
+    Ok(found
+        .products
+        .iter()
+        .filter_map(CatalogProduct::candidate)
+        .collect())
 }
 
 /// The full record for one ASIN: Audnexus when it answers, otherwise the
 /// catalog's own product data with chapters marked unavailable.
 pub async fn fetch_record(asin: &str, region: &str) -> AppResult<AudibleRecord> {
-    let asin = normalize_asin(asin).ok_or_else(|| lookup_error(AUDNEXUS, "no ASIN given".to_string()))?;
+    let asin =
+        normalize_asin(asin).ok_or_else(|| lookup_error(AUDNEXUS, "no ASIN given".to_string()))?;
     let region = region.to_lowercase();
     let client = client()?;
 
     let book_url = format!("{}/books/{}?region={}", AUDNEXUS_URL, asin, region);
     match get_json::<AudnexusBook>(&client, AUDNEXUS, &book_url).await {
         Ok(book) => {
-            let chapters_url = format!("{}/books/{}/chapters?region={}", AUDNEXUS_URL, asin, region);
-            let chapters = match get_json_or_missing::<AudnexusChapters>(&client, AUDNEXUS, &chapters_url).await {
-                Ok(Some(chapters)) => Ok(chapters.into_found()),
-                Ok(None) => Err(NO_CHAPTERS.to_string()),
-                Err(e) => Err(format!("Chapters could not be fetched ({}).", e)),
-            };
+            let chapters_url =
+                format!("{}/books/{}/chapters?region={}", AUDNEXUS_URL, asin, region);
+            let chapters =
+                match get_json_or_missing::<AudnexusChapters>(&client, AUDNEXUS, &chapters_url)
+                    .await
+                {
+                    Ok(Some(chapters)) => Ok(chapters.into_found()),
+                    Ok(None) => Err(NO_CHAPTERS.to_string()),
+                    Err(e) => Err(format!("Chapters could not be fetched ({}).", e)),
+                };
             Ok(record_from_book(&book, chapters))
         }
         Err(audnexus_error) => {
-            warn!("Audnexus lookup failed for {}: {}; falling back to the catalog", asin, audnexus_error);
+            warn!(
+                "Audnexus lookup failed for {}: {}; falling back to the catalog",
+                asin, audnexus_error
+            );
             let base = catalog_base_url(&region).ok_or(audnexus_error)?;
-            let url = format!("{}/1.0/catalog/products/{}?response_groups={}", base, asin, RESPONSE_GROUPS);
+            let url = format!(
+                "{}/1.0/catalog/products/{}?response_groups={}",
+                base, asin, RESPONSE_GROUPS
+            );
             let item: CatalogItem = get_json(&client, CATALOG, &url).await?;
             Ok(record_from_catalog(&item.product))
         }
@@ -120,9 +143,15 @@ fn record_from_book(book: &AudnexusBook, chapters: Result<FoundChapters, String>
             artist: join_names(&names(&book.authors)),
             narrator: join_names(&names(&book.narrators)),
             series: series.map(|s| s.name.clone()),
-            series_index: series.and_then(|s| s.position.as_deref()).and_then(series_position),
+            series_index: series
+                .and_then(|s| s.position.as_deref())
+                .and_then(series_position),
             year: book.release_date.as_deref().and_then(year_of),
-            genre: book.genres.iter().find(|g| g.kind == "genre").map(|g| g.name.clone()),
+            genre: book
+                .genres
+                .iter()
+                .find(|g| g.kind == "genre")
+                .map(|g| g.name.clone()),
             publisher: book.publisher_name.clone(),
             copyright: book.copyright.map(|year| format!("© {}", year)),
             description: book.summary.as_deref().and_then(html_to_text),
@@ -144,17 +173,24 @@ fn record_from_catalog(product: &CatalogProduct) -> AudibleRecord {
             artist: join_names(&names(&product.authors)),
             narrator: join_names(&names(&product.narrators)),
             series: series.and_then(|s| s.title.clone()),
-            series_index: series.and_then(|s| s.sequence.as_deref()).and_then(series_position),
+            series_index: series
+                .and_then(|s| s.sequence.as_deref())
+                .and_then(series_position),
             year: product.release_date.as_deref().and_then(year_of),
             publisher: product.publisher_name.clone(),
-            description: product.merchandising_summary.as_deref().and_then(html_to_text),
+            description: product
+                .merchandising_summary
+                .as_deref()
+                .and_then(html_to_text),
             language: product.language.as_deref().and_then(language_name),
             asin: normalize_asin(&product.asin),
             ..Default::default()
         },
         cover_url: product.cover_url(),
         runtime_ms: product.runtime_length_min.map(|min| min * 60_000),
-        chapters: Err("Chapter details could not be fetched; showing catalog details only.".to_string()),
+        chapters: Err(
+            "Chapter details could not be fetched; showing catalog details only.".to_string(),
+        ),
     }
 }
 
@@ -185,7 +221,11 @@ async fn get_json<T: DeserializeOwned>(client: &Client, provider: &str, url: &st
 
 /// Like `get_json`, but a 404 is `Ok(None)`: Audnexus answers 404 for books
 /// that simply have no chapter list.
-async fn get_json_or_missing<T: DeserializeOwned>(client: &Client, provider: &str, url: &str) -> AppResult<Option<T>> {
+async fn get_json_or_missing<T: DeserializeOwned>(
+    client: &Client,
+    provider: &str,
+    url: &str,
+) -> AppResult<Option<T>> {
     let response = client
         .get(url)
         .send()
@@ -225,7 +265,10 @@ fn error_for_status(provider: &str, status: StatusCode, ratelimit_reset: Option<
 }
 
 fn lookup_error(provider: &str, reason: String) -> AppError {
-    AppError::MetadataLookupError { provider: provider.to_string(), reason }
+    AppError::MetadataLookupError {
+        provider: provider.to_string(),
+        reason,
+    }
 }
 
 // ---- Response shapes -------------------------------------------------------
@@ -281,9 +324,14 @@ impl CatalogProduct {
             title: self.title.clone()?,
             subtitle: self.subtitle.clone(),
             authors: names(&self.authors).into_iter().map(String::from).collect(),
-            narrators: names(&self.narrators).into_iter().map(String::from).collect(),
+            narrators: names(&self.narrators)
+                .into_iter()
+                .map(String::from)
+                .collect(),
             series: series.and_then(|s| s.title.clone()),
-            series_index: series.and_then(|s| s.sequence.as_deref()).and_then(series_position),
+            series_index: series
+                .and_then(|s| s.sequence.as_deref())
+                .and_then(series_position),
             runtime_ms: self.runtime_length_min.map(|min| min * 60_000),
             year: self.release_date.as_deref().and_then(year_of),
             cover_url: self.cover_url(),
@@ -370,7 +418,10 @@ impl AudnexusChapters {
             chapters: self
                 .chapters
                 .into_iter()
-                .map(|c| FoundChapter { title: c.title, start_ms: c.start_offset_ms })
+                .map(|c| FoundChapter {
+                    title: c.title,
+                    start_ms: c.start_offset_ms,
+                })
                 .collect(),
             runtime_ms: self.runtime_length_ms,
             intro_ms: self.brand_intro_duration_ms,
@@ -384,12 +435,20 @@ mod tests {
     use super::*;
 
     fn fixture(name: &str) -> String {
-        std::fs::read_to_string(format!("{}/tests/fixtures/audible/{}", env!("CARGO_MANIFEST_DIR"), name)).unwrap()
+        std::fs::read_to_string(format!(
+            "{}/tests/fixtures/audible/{}",
+            env!("CARGO_MANIFEST_DIR"),
+            name
+        ))
+        .unwrap()
     }
 
     #[test]
     fn every_region_has_a_catalog_host() {
-        let hosts: Vec<String> = REGIONS.iter().map(|(code, _)| catalog_base_url(code).unwrap()).collect();
+        let hosts: Vec<String> = REGIONS
+            .iter()
+            .map(|(code, _)| catalog_base_url(code).unwrap())
+            .collect();
         assert_eq!(
             hosts,
             [
@@ -405,53 +464,90 @@ mod tests {
                 "https://api.audible.in",
             ]
         );
-        assert_eq!(catalog_base_url("UK").as_deref(), Some("https://api.audible.co.uk"));
+        assert_eq!(
+            catalog_base_url("UK").as_deref(),
+            Some("https://api.audible.co.uk")
+        );
         assert!(!is_region("nz"));
     }
 
     #[test]
     fn catalog_search_becomes_candidates() {
-        let found: CatalogSearch = serde_json::from_str(&fixture("catalog_dune_messiah.json")).unwrap();
-        let candidates: Vec<LookupCandidate> = found.products.iter().filter_map(CatalogProduct::candidate).collect();
+        let found: CatalogSearch =
+            serde_json::from_str(&fixture("catalog_dune_messiah.json")).unwrap();
+        let candidates: Vec<LookupCandidate> = found
+            .products
+            .iter()
+            .filter_map(CatalogProduct::candidate)
+            .collect();
 
         let messiah = &candidates[0];
         assert_eq!(messiah.id, "B002V8H660");
         assert_eq!(messiah.title, "Dune Messiah");
         assert_eq!(messiah.authors, ["Frank Herbert"]);
-        assert_eq!(messiah.narrators, ["Scott Brick", "Euan Morton", "Simon Vance", "Katherine Kellgren"]);
+        assert_eq!(
+            messiah.narrators,
+            [
+                "Scott Brick",
+                "Euan Morton",
+                "Simon Vance",
+                "Katherine Kellgren"
+            ]
+        );
         assert_eq!(messiah.series.as_deref(), Some("Dune"));
         assert_eq!(messiah.series_index.as_deref(), Some("2"));
         assert_eq!(messiah.runtime_ms, Some(537 * 60_000));
         assert_eq!(messiah.year, Some(2007));
-        assert!(messiah.cover_url.as_deref().is_some_and(|u| u.starts_with("https://")));
+        assert!(messiah
+            .cover_url
+            .as_deref()
+            .is_some_and(|u| u.starts_with("https://")));
     }
 
     #[test]
     fn main_series_is_the_lowest_position_whatever_the_order() {
         // The single-product response lists "The Dune Sequence" #13 before "Dune" #2.
-        let item: CatalogItem = serde_json::from_str(&fixture("product_dune_messiah.json")).unwrap();
-        assert_eq!(item.product.series[0].title.as_deref(), Some("The Dune Sequence"));
+        let item: CatalogItem =
+            serde_json::from_str(&fixture("product_dune_messiah.json")).unwrap();
+        assert_eq!(
+            item.product.series[0].title.as_deref(),
+            Some("The Dune Sequence")
+        );
         let series = item.product.main_series().unwrap();
-        assert_eq!((series.title.as_deref(), series.sequence.as_deref()), (Some("Dune"), Some("2")));
+        assert_eq!(
+            (series.title.as_deref(), series.sequence.as_deref()),
+            (Some("Dune"), Some("2"))
+        );
     }
 
     #[test]
     fn audnexus_book_and_chapters_become_a_record() {
-        let book: AudnexusBook = serde_json::from_str(&fixture("audnexus_book_dune_messiah.json")).unwrap();
-        let chapters: AudnexusChapters = serde_json::from_str(&fixture("audnexus_chapters_dune_messiah.json")).unwrap();
+        let book: AudnexusBook =
+            serde_json::from_str(&fixture("audnexus_book_dune_messiah.json")).unwrap();
+        let chapters: AudnexusChapters =
+            serde_json::from_str(&fixture("audnexus_chapters_dune_messiah.json")).unwrap();
         let record = record_from_book(&book, Ok(chapters.into_found()));
 
         let f = &record.fields;
         assert_eq!(f.title.as_deref(), Some("Dune Messiah"));
         assert_eq!(f.artist.as_deref(), Some("Frank Herbert"));
-        assert_eq!(f.narrator.as_deref(), Some("Scott Brick, Euan Morton, Simon Vance, Katherine Kellgren"));
-        assert_eq!((f.series.as_deref(), f.series_index.as_deref()), (Some("Dune"), Some("2")));
+        assert_eq!(
+            f.narrator.as_deref(),
+            Some("Scott Brick, Euan Morton, Simon Vance, Katherine Kellgren")
+        );
+        assert_eq!(
+            (f.series.as_deref(), f.series_index.as_deref()),
+            (Some("Dune"), Some("2"))
+        );
         assert_eq!(f.year, Some(2007));
         assert_eq!(f.genre.as_deref(), Some("Literature & Fiction"));
         assert_eq!(f.publisher.as_deref(), Some("Macmillan Audio"));
         assert_eq!(f.copyright.as_deref(), Some("© 1969"));
         assert_eq!(f.language.as_deref(), Some("English"));
-        assert_eq!(f.description.as_deref(), Some("A sample summary.\n\nSecond paragraph."));
+        assert_eq!(
+            f.description.as_deref(),
+            Some("A sample summary.\n\nSecond paragraph.")
+        );
         assert_eq!(f.asin.as_deref(), Some("B002V8H660"));
 
         let found = record.chapters.unwrap();
@@ -463,14 +559,21 @@ mod tests {
 
     #[test]
     fn catalog_only_record_keeps_the_details_and_explains_the_chapters() {
-        let item: CatalogItem = serde_json::from_str(&fixture("product_dune_messiah.json")).unwrap();
+        let item: CatalogItem =
+            serde_json::from_str(&fixture("product_dune_messiah.json")).unwrap();
         let record = record_from_catalog(&item.product);
 
         let f = &record.fields;
         assert_eq!(f.title.as_deref(), Some("Dune Messiah"));
         assert_eq!(f.artist.as_deref(), Some("Frank Herbert"));
-        assert!(f.narrator.as_deref().is_some_and(|n| n.starts_with("Scott Brick")));
-        assert_eq!((f.series.as_deref(), f.series_index.as_deref()), (Some("Dune"), Some("2")));
+        assert!(f
+            .narrator
+            .as_deref()
+            .is_some_and(|n| n.starts_with("Scott Brick")));
+        assert_eq!(
+            (f.series.as_deref(), f.series_index.as_deref()),
+            (Some("Dune"), Some("2"))
+        );
         assert_eq!(f.year, Some(2007));
         assert_eq!(f.language.as_deref(), Some("English"));
         assert!(record.cover_url.is_some());
@@ -479,7 +582,8 @@ mod tests {
 
     #[test]
     fn rate_limit_names_when_to_retry() {
-        let busy = error_for_status(AUDNEXUS, StatusCode::TOO_MANY_REQUESTS, Some("42")).to_string();
+        let busy =
+            error_for_status(AUDNEXUS, StatusCode::TOO_MANY_REQUESTS, Some("42")).to_string();
         assert!(busy.contains("try again in 42 s"), "{busy}");
         let busy = error_for_status(AUDNEXUS, StatusCode::TOO_MANY_REQUESTS, None).to_string();
         assert!(busy.contains("try again in a minute"), "{busy}");

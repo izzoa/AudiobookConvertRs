@@ -80,18 +80,24 @@ impl ConversionPreset {
     }
 
     /// Create a preset from ConversionSettings
-    pub fn from_conversion_settings(name: impl Into<String>, settings: &ConversionSettings) -> Self {
-        Self::new(name, PresetSettings {
-            bitrate_kbps: settings.bitrate_kbps,
-            sample_rate: settings.sample_rate_hz,
-            concurrent_jobs: settings.concurrent_jobs,
-            overwrite_existing: settings.overwrite_existing,
-            embed_chapters: settings.embed_chapters,
-            embed_artwork: settings.embed_artwork,
-            copy_metadata: settings.copy_metadata,
-            normalize: false,
-            target_lufs: None,
-        })
+    pub fn from_conversion_settings(
+        name: impl Into<String>,
+        settings: &ConversionSettings,
+    ) -> Self {
+        Self::new(
+            name,
+            PresetSettings {
+                bitrate_kbps: settings.bitrate_kbps,
+                sample_rate: settings.sample_rate_hz,
+                concurrent_jobs: settings.concurrent_jobs,
+                overwrite_existing: settings.overwrite_existing,
+                embed_chapters: settings.embed_chapters,
+                embed_artwork: settings.embed_artwork,
+                copy_metadata: settings.copy_metadata,
+                normalize: false,
+                target_lufs: None,
+            },
+        )
     }
 
     /// Apply this preset to create ConversionSettings
@@ -136,34 +142,31 @@ impl PresetManager {
             return Ok(Self::new());
         }
 
-        let content = fs::read_to_string(path.as_std_path())
-            .map_err(|e| AppError::FileReadError {
+        let content =
+            fs::read_to_string(path.as_std_path()).map_err(|e| AppError::FileReadError {
                 path: path.as_std_path().to_path_buf(),
                 reason: e.to_string(),
             })?;
 
-        serde_json::from_str(&content)
-            .map_err(|e| AppError::ConfigError(e.to_string()))
+        serde_json::from_str(&content).map_err(|e| AppError::ConfigError(e.to_string()))
     }
 
     /// Save presets to a file
     pub fn save(&self, path: &Utf8Path) -> AppResult<()> {
-        let content = serde_json::to_string_pretty(self)
-            .map_err(|e| AppError::ConfigError(e.to_string()))?;
+        let content =
+            serde_json::to_string_pretty(self).map_err(|e| AppError::ConfigError(e.to_string()))?;
 
         if let Some(parent) = path.parent() {
-            fs::create_dir_all(parent.as_std_path())
-                .map_err(|e| AppError::FileWriteError {
-                    path: path.as_std_path().to_path_buf(),
-                    reason: e.to_string(),
-                })?;
-        }
-
-        fs::write(path.as_std_path(), content)
-            .map_err(|e| AppError::FileWriteError {
+            fs::create_dir_all(parent.as_std_path()).map_err(|e| AppError::FileWriteError {
                 path: path.as_std_path().to_path_buf(),
                 reason: e.to_string(),
             })?;
+        }
+
+        fs::write(path.as_std_path(), content).map_err(|e| AppError::FileWriteError {
+            path: path.as_std_path().to_path_buf(),
+            reason: e.to_string(),
+        })?;
 
         info!("Saved {} presets to {}", self.presets.len(), path);
         Ok(())
@@ -242,7 +245,8 @@ pub fn dry_run_analysis(audiobook: &AudioBook, settings: &ConversionSettings) ->
     // Estimate output size based on bitrate
     // Formula: (bitrate_kbps * 1000 / 8) * (duration_ms / 1000) = bytes
     let duration_secs = input_duration_ms as f64 / 1000.0;
-    let estimated_output_size_bytes = (settings.bitrate_kbps as f64 * 1000.0 / 8.0 * duration_secs) as u64;
+    let estimated_output_size_bytes =
+        (settings.bitrate_kbps as f64 * 1000.0 / 8.0 * duration_secs) as u64;
 
     // Estimate conversion time (rough: assume 10x realtime for most systems)
     let estimated_time_seconds = (duration_secs / 10.0) as u32;
@@ -251,7 +255,7 @@ pub fn dry_run_analysis(audiobook: &AudioBook, settings: &ConversionSettings) ->
     let output_exists = settings.output_path.exists();
 
     let chapter_count = audiobook.chapters.len();
-    let has_artwork = audiobook.output_metadata.artwork_data.is_some() 
+    let has_artwork = audiobook.output_metadata.artwork_data.is_some()
         || audiobook.output_metadata.artwork_path.is_some();
 
     let mut warnings = Vec::new();
@@ -298,12 +302,15 @@ pub fn batch_dry_run(
     settings: &ConversionSettings,
     output_dir: &Utf8Path,
 ) -> Vec<DryRunResult> {
-    audiobooks.iter().map(|ab| {
-        let output_path: Utf8PathBuf = output_dir.join(format!("{}.m4b", ab.title));
-        let mut settings = settings.clone();
-        settings.output_path = output_path;
-        dry_run_analysis(ab, &settings)
-    }).collect()
+    audiobooks
+        .iter()
+        .map(|ab| {
+            let output_path: Utf8PathBuf = output_dir.join(format!("{}.m4b", ab.title));
+            let mut settings = settings.clone();
+            settings.output_path = output_path;
+            dry_run_analysis(ab, &settings)
+        })
+        .collect()
 }
 
 /// Summary of batch dry-run analysis
@@ -330,10 +337,12 @@ pub fn summarize_batch_dry_run(results: &[DryRunResult]) -> BatchDryRunSummary {
     let total_audiobooks = results.len();
     let total_input_duration_ms: u64 = results.iter().map(|r| r.input_duration_ms).sum();
     let total_input_size_bytes: u64 = results.iter().map(|r| r.input_size_bytes).sum();
-    let total_estimated_output_bytes: u64 = results.iter().map(|r| r.estimated_output_size_bytes).sum();
+    let total_estimated_output_bytes: u64 =
+        results.iter().map(|r| r.estimated_output_size_bytes).sum();
     let total_estimated_time_seconds: u32 = results.iter().map(|r| r.estimated_time_seconds).sum();
     let audiobooks_with_warnings = results.iter().filter(|r| !r.warnings.is_empty()).count();
-    let all_warnings: Vec<String> = results.iter()
+    let all_warnings: Vec<String> = results
+        .iter()
         .flat_map(|r| r.warnings.iter().map(|w| format!("{}: {}", r.title, w)))
         .collect();
 
@@ -354,10 +363,13 @@ mod tests {
 
     #[test]
     fn test_preset_creation() {
-        let preset = ConversionPreset::new("High Quality", PresetSettings {
-            bitrate_kbps: 192,
-            ..Default::default()
-        });
+        let preset = ConversionPreset::new(
+            "High Quality",
+            PresetSettings {
+                bitrate_kbps: 192,
+                ..Default::default()
+            },
+        );
 
         assert_eq!(preset.name, "High Quality");
         assert_eq!(preset.settings.bitrate_kbps, 192);
@@ -366,7 +378,7 @@ mod tests {
     #[test]
     fn test_preset_manager() {
         let mut manager = PresetManager::new();
-        
+
         let preset = ConversionPreset::new("Test", PresetSettings::default());
         manager.save_preset(preset);
 
@@ -378,11 +390,14 @@ mod tests {
 
     #[test]
     fn test_preset_apply() {
-        let preset = ConversionPreset::new("Test", PresetSettings {
-            bitrate_kbps: 128,
-            embed_chapters: false,
-            ..Default::default()
-        });
+        let preset = ConversionPreset::new(
+            "Test",
+            PresetSettings {
+                bitrate_kbps: 128,
+                embed_chapters: false,
+                ..Default::default()
+            },
+        );
 
         let settings = preset.apply("/output/test.m4b".into());
         assert_eq!(settings.bitrate_kbps, 128);

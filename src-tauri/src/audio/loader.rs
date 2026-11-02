@@ -33,8 +33,8 @@ pub fn load_audio_file(path: &Utf8Path) -> AppResult<AudioFile> {
         .len();
 
     // Open file for reading
-    let file = File::open(path.as_std_path())
-        .map_err(|e| AppError::file_read(path, e.to_string()))?;
+    let file =
+        File::open(path.as_std_path()).map_err(|e| AppError::file_read(path, e.to_string()))?;
 
     let mss = MediaSourceStream::new(Box::new(file), Default::default());
 
@@ -69,7 +69,13 @@ pub fn load_audio_file(path: &Utf8Path) -> AppResult<AudioFile> {
     let has_artwork = metadata.artwork_data.is_some() || metadata.artwork_path.is_some();
 
     // Calculate duration
-    let duration_ms = calculate_duration_from_track(&codec_params, track_id, &mut format_reader, path, file_size)?;
+    let duration_ms = calculate_duration_from_track(
+        &codec_params,
+        track_id,
+        &mut format_reader,
+        path,
+        file_size,
+    )?;
 
     // Detect format
     let format = detect_format_from_extension(path)?;
@@ -133,15 +139,23 @@ fn calculate_duration_from_track(
     // Fallback 1: Probe duration via FFmpeg header output
     if let Some(ffmpeg_duration_ms) = probe_duration_with_ffmpeg(path) {
         if ffmpeg_duration_ms > 0 {
-            debug!("Resolved duration via FFmpeg probe for {}: {} ms", path, ffmpeg_duration_ms);
+            debug!(
+                "Resolved duration via FFmpeg probe for {}: {} ms",
+                path, ffmpeg_duration_ms
+            );
             return Ok(ffmpeg_duration_ms);
         }
     }
 
     // Fallback 2: Scan packet durations from Symphonia FormatReader
-    if let Some(packet_duration_ms) = scan_packets_duration_ms(format_reader, track_id, codec_params) {
+    if let Some(packet_duration_ms) =
+        scan_packets_duration_ms(format_reader, track_id, codec_params)
+    {
         if packet_duration_ms > 0 {
-            debug!("Resolved duration via packet scan for {}: {} ms", path, packet_duration_ms);
+            debug!(
+                "Resolved duration via packet scan for {}: {} ms",
+                path, packet_duration_ms
+            );
             return Ok(packet_duration_ms);
         }
     }
@@ -183,14 +197,22 @@ pub fn parse_ffmpeg_duration_ms(stderr: &str) -> Option<u64> {
     let seconds: u64 = caps.get(3)?.as_str().parse().ok()?;
     let millis: u64 = if let Some(frac_match) = caps.get(4) {
         let frac_str = frac_match.as_str();
-        let truncated = if frac_str.len() > 3 { &frac_str[..3] } else { frac_str };
+        let truncated = if frac_str.len() > 3 {
+            &frac_str[..3]
+        } else {
+            frac_str
+        };
         let padding = 3 - truncated.len();
         truncated.parse::<u64>().ok()? * 10u64.pow(padding as u32)
     } else {
         0
     };
     let total_ms = hours * 3_600_000 + minutes * 60_000 + seconds * 1_000 + millis;
-    if total_ms > 0 { Some(total_ms) } else { None }
+    if total_ms > 0 {
+        Some(total_ms)
+    } else {
+        None
+    }
 }
 
 /// Scan packets in the format reader to sum track duration
@@ -249,8 +271,7 @@ fn detect_format_from_extension(path: &Utf8Path) -> AppResult<AudioFormat> {
         .extension()
         .ok_or_else(|| AppError::FormatDetectionFailed(path.as_std_path().to_path_buf()))?;
 
-    AudioFormat::from_extension(ext)
-        .ok_or_else(|| AppError::UnsupportedFormat(ext.to_string()))
+    AudioFormat::from_extension(ext).ok_or_else(|| AppError::UnsupportedFormat(ext.to_string()))
 }
 
 /// Estimate bitrate from file size and duration
@@ -359,4 +380,3 @@ mod tests {
         assert_eq!(estimate_duration_from_file_size(100, 128), Some(6));
     }
 }
-

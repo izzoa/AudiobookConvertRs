@@ -8,7 +8,9 @@ use audiobookconvert_rs::audio::batch::load_audiobook_from_files;
 use audiobookconvert_rs::audio::loader::load_audio_file;
 use audiobookconvert_rs::conversion::pipeline::{ConversionPipeline, PipelineConfig};
 use audiobookconvert_rs::ffmpeg::detection::detect_ffmpeg;
-use audiobookconvert_rs::metadata::{extract_chapters_from_flac_cuesheet, extract_chapters_from_mp3};
+use audiobookconvert_rs::metadata::{
+    extract_chapters_from_flac_cuesheet, extract_chapters_from_mp3,
+};
 use audiobookconvert_rs::models::{ConversionJob, ConversionSettings};
 use camino::{Utf8Path, Utf8PathBuf};
 use std::process::Command;
@@ -18,7 +20,15 @@ use std::process::Command;
 fn write_tagged_mp3(path: &Utf8Path, title: &str, track: u32) {
     let ffmpeg = detect_ffmpeg().expect("FFmpeg must be available for this test");
     let status = Command::new(ffmpeg.path.as_str())
-        .args(["-y", "-loglevel", "error", "-f", "lavfi", "-i", "sine=frequency=440:duration=2"])
+        .args([
+            "-y",
+            "-loglevel",
+            "error",
+            "-f",
+            "lavfi",
+            "-i",
+            "sine=frequency=440:duration=2",
+        ])
         .args(["-metadata", &format!("title={title}")])
         .args(["-metadata", "artist=Ada Wrenfield"])
         .args(["-metadata", "album=The Clockwork Chronicle"])
@@ -101,11 +111,24 @@ fn folder_import_expands_discs_in_order_and_carries_tags() {
     // Merged book metadata comes from the tags, not the first filename. The
     // book is named by the album tag; each file's title tag names a chapter.
     assert_eq!(audiobook.title, "The Clockwork Chronicle");
-    assert_eq!(audiobook.output_metadata.title.as_deref(), Some("The Clockwork Chronicle"));
-    let chapter_titles: Vec<_> = audiobook.chapters.iter().map(|c| c.title.as_str()).collect();
+    assert_eq!(
+        audiobook.output_metadata.title.as_deref(),
+        Some("The Clockwork Chronicle")
+    );
+    let chapter_titles: Vec<_> = audiobook
+        .chapters
+        .iter()
+        .map(|c| c.title.as_str())
+        .collect();
     assert_eq!(chapter_titles, ["Part 1", "Part 2", "Part 3", "Part 4"]);
-    assert_eq!(audiobook.output_metadata.artist.as_deref(), Some("Ada Wrenfield"));
-    assert_eq!(audiobook.output_metadata.album.as_deref(), Some("The Clockwork Chronicle"));
+    assert_eq!(
+        audiobook.output_metadata.artist.as_deref(),
+        Some("Ada Wrenfield")
+    );
+    assert_eq!(
+        audiobook.output_metadata.album.as_deref(),
+        Some("The Clockwork Chronicle")
+    );
 }
 
 /// The whole import path: a tagged folder must come out of the real pipeline
@@ -119,7 +142,11 @@ fn tagged_folder_converts_to_m4b_with_source_tags() {
     let book = root.join("book");
     std::fs::create_dir_all(&book).unwrap();
     for part in 1..=3 {
-        write_tagged_mp3(&book.join(format!("{part:02}.mp3")), &format!("Part {part}"), part);
+        write_tagged_mp3(
+            &book.join(format!("{part:02}.mp3")),
+            &format!("Part {part}"),
+            part,
+        );
     }
 
     let audiobook = load_audiobook_from_files(&[book]).expect("import folder");
@@ -134,15 +161,31 @@ fn tagged_folder_converts_to_m4b_with_source_tags() {
         .expect("pipeline run");
 
     let probe = Command::new("ffprobe")
-        .args(["-v", "error", "-show_entries", "format_tags:chapter_tags", "-of", "json", output.as_str()])
+        .args([
+            "-v",
+            "error",
+            "-show_entries",
+            "format_tags:chapter_tags",
+            "-of",
+            "json",
+            output.as_str(),
+        ])
         .output()
         .expect("run ffprobe");
     assert!(probe.status.success(), "ffprobe failed: {:?}", probe.stderr);
     let report: serde_json::Value = serde_json::from_slice(&probe.stdout).expect("ffprobe json");
 
     let tags = report["format"]["tags"].to_string().to_ascii_lowercase();
-    for expected in ["ada wrenfield", "the clockwork chronicle", "steampunk", "2024"] {
-        assert!(tags.contains(expected), "M4B missing source tag {expected:?}:\n{tags}");
+    for expected in [
+        "ada wrenfield",
+        "the clockwork chronicle",
+        "steampunk",
+        "2024",
+    ] {
+        assert!(
+            tags.contains(expected),
+            "M4B missing source tag {expected:?}:\n{tags}"
+        );
     }
 
     // One chapter per file, named by each file's title tag.
@@ -159,7 +202,15 @@ fn tagged_folder_converts_to_m4b_with_source_tags() {
 fn write_tone(output: &Utf8Path, args: &[&str]) {
     let ffmpeg = detect_ffmpeg().expect("FFmpeg must be available for this test");
     let status = Command::new(ffmpeg.path.as_str())
-        .args(["-y", "-loglevel", "error", "-f", "lavfi", "-i", "sine=frequency=440:duration=4"])
+        .args([
+            "-y",
+            "-loglevel",
+            "error",
+            "-f",
+            "lavfi",
+            "-i",
+            "sine=frequency=440:duration=4",
+        ])
         .args(args)
         .arg(output.as_str())
         .status()
@@ -183,14 +234,29 @@ fn mp3_chapter_markers_are_read() {
     )
     .unwrap();
     let mp3 = dir.join("book.mp3");
-    write_tone(&mp3, &["-i", meta.as_str(), "-map", "0:a", "-map_chapters", "1", "-b:a", "64k"]);
+    write_tone(
+        &mp3,
+        &[
+            "-i",
+            meta.as_str(),
+            "-map",
+            "0:a",
+            "-map_chapters",
+            "1",
+            "-b:a",
+            "64k",
+        ],
+    );
 
     let chapters = extract_chapters_from_mp3(&mp3).expect("read chapters");
     let titles: Vec<_> = chapters.iter().map(|c| c.title.as_str()).collect();
     assert_eq!(titles, ["Opening", "Second Part"]);
     // FFmpeg shifts chapter times by the encoder delay (about 25 ms at 44.1 kHz)
     let starts: Vec<_> = chapters.iter().map(|c| c.start_time_ms).collect();
-    assert!(starts[0] == 0 && starts[1].abs_diff(2000) <= 50, "starts {starts:?}");
+    assert!(
+        starts[0] == 0 && starts[1].abs_diff(2000) <= 50,
+        "starts {starts:?}"
+    );
 }
 
 /// A FLAC's CUESHEET tag is read through Symphonia, with no FFmpeg tool.
@@ -203,6 +269,9 @@ fn flac_cue_sheet_becomes_chapters() {
     write_tone(&flac, &["-metadata", &format!("CUESHEET={cuesheet}")]);
 
     let chapters = extract_chapters_from_flac_cuesheet(&flac).expect("read cue sheet");
-    let found: Vec<_> = chapters.iter().map(|c| (c.title.as_str(), c.start_time_ms)).collect();
+    let found: Vec<_> = chapters
+        .iter()
+        .map(|c| (c.title.as_str(), c.start_time_ms))
+        .collect();
     assert_eq!(found, [("Opening", 0), ("Second Part", 2000)]);
 }

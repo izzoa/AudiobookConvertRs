@@ -70,7 +70,11 @@ pub fn add_chapter(audiobook: &mut AudioBook, chapter: Chapter) -> AppResult<()>
 /// Converts/resizes the image bytes to JPEG format and stores as base64.
 /// This function runs CPU-intensive work via spawn_blocking.
 pub fn set_artwork_bytes(audiobook: &mut AudioBook, bytes: &[u8]) -> AppResult<()> {
-    debug!("Setting artwork from bytes for audiobook {}: {} bytes", audiobook.id, bytes.len());
+    debug!(
+        "Setting artwork from bytes for audiobook {}: {} bytes",
+        audiobook.id,
+        bytes.len()
+    );
 
     if bytes.is_empty() {
         return Err(AppError::ArtworkError("Artwork data is empty".to_string()));
@@ -78,12 +82,12 @@ pub fn set_artwork_bytes(audiobook: &mut AudioBook, bytes: &[u8]) -> AppResult<(
 
     // Convert/resize the artwork using the artwork module
     let processed_bytes = crate::metadata::artwork::resize_artwork_if_needed(
-        bytes, 
-        crate::metadata::artwork::DEFAULT_MAX_ARTWORK_DIMENSION
+        bytes,
+        crate::metadata::artwork::DEFAULT_MAX_ARTWORK_DIMENSION,
     )?;
 
     // Encode as base64
-    use base64::{Engine as _, engine::general_purpose::STANDARD};
+    use base64::{engine::general_purpose::STANDARD, Engine as _};
     let base64_data = STANDARD.encode(&processed_bytes);
 
     // Clear the path since we're setting from bytes, not a file
@@ -96,20 +100,26 @@ pub fn set_artwork_bytes(audiobook: &mut AudioBook, bytes: &[u8]) -> AppResult<(
 }
 
 /// Set audiobook artwork from a file path
-pub fn set_artwork(audiobook: &mut AudioBook, path: impl Into<std::path::PathBuf>) -> AppResult<()> {
+pub fn set_artwork(
+    audiobook: &mut AudioBook,
+    path: impl Into<std::path::PathBuf>,
+) -> AppResult<()> {
     let path_buf = path.into();
     let utf8_path = camino::Utf8PathBuf::from_path_buf(path_buf.clone())
         .map_err(|_| AppError::InvalidPath(path_buf.to_string_lossy().to_string()))?;
 
-    debug!("Setting artwork for audiobook {}: {}", audiobook.id, utf8_path);
+    debug!(
+        "Setting artwork for audiobook {}: {}",
+        audiobook.id, utf8_path
+    );
 
     // Read image data
-    let image_data = std::fs::read(&utf8_path)
-        .map_err(|e| AppError::file_read(&utf8_path, e.to_string()))?;
-    
+    let image_data =
+        std::fs::read(&utf8_path).map_err(|e| AppError::file_read(&utf8_path, e.to_string()))?;
+
     // Convert/resize using set_artwork_bytes
     set_artwork_bytes(audiobook, &image_data)?;
-    
+
     // Also store the path for reference
     audiobook.output_metadata.artwork_path = Some(utf8_path);
 
@@ -130,7 +140,10 @@ pub fn clear_artwork(audiobook: &mut AudioBook) -> AppResult<()> {
 
 /// Delete a chapter from the audiobook
 pub fn delete_chapter(audiobook: &mut AudioBook, index: usize) -> AppResult<()> {
-    debug!("Deleting chapter {} from audiobook: {}", index, audiobook.id);
+    debug!(
+        "Deleting chapter {} from audiobook: {}",
+        index, audiobook.id
+    );
 
     crate::metadata::chapters::delete_chapter(&mut audiobook.chapters, index)?;
 
@@ -179,7 +192,10 @@ pub fn validate_metadata_fields(metadata: &Metadata) -> AppResult<()> {
         if title.len() > MAX_TITLE_LEN {
             return Err(AppError::InvalidMetadataField {
                 field: "title".to_string(),
-                reason: format!("Title exceeds maximum length of {} characters", MAX_TITLE_LEN),
+                reason: format!(
+                    "Title exceeds maximum length of {} characters",
+                    MAX_TITLE_LEN
+                ),
             });
         }
     }
@@ -188,7 +204,10 @@ pub fn validate_metadata_fields(metadata: &Metadata) -> AppResult<()> {
         if artist.len() > MAX_ARTIST_LEN {
             return Err(AppError::InvalidMetadataField {
                 field: "artist".to_string(),
-                reason: format!("Artist exceeds maximum length of {} characters", MAX_ARTIST_LEN),
+                reason: format!(
+                    "Artist exceeds maximum length of {} characters",
+                    MAX_ARTIST_LEN
+                ),
             });
         }
     }
@@ -197,7 +216,10 @@ pub fn validate_metadata_fields(metadata: &Metadata) -> AppResult<()> {
         if album.len() > MAX_ALBUM_LEN {
             return Err(AppError::InvalidMetadataField {
                 field: "album".to_string(),
-                reason: format!("Album exceeds maximum length of {} characters", MAX_ALBUM_LEN),
+                reason: format!(
+                    "Album exceeds maximum length of {} characters",
+                    MAX_ALBUM_LEN
+                ),
             });
         }
     }
@@ -240,7 +262,10 @@ pub fn validate_metadata_fields(metadata: &Metadata) -> AppResult<()> {
         if series.len() > MAX_SERIES_LEN {
             return Err(AppError::InvalidMetadataField {
                 field: "series".to_string(),
-                reason: format!("Series exceeds maximum length of {} characters", MAX_SERIES_LEN),
+                reason: format!(
+                    "Series exceeds maximum length of {} characters",
+                    MAX_SERIES_LEN
+                ),
             });
         }
     }
@@ -252,7 +277,10 @@ pub fn validate_metadata_fields(metadata: &Metadata) -> AppResult<()> {
 ///
 /// Convenience function that creates chapters based on file boundaries.
 pub fn create_chapters_from_files(audiobook: &mut AudioBook) -> AppResult<()> {
-    debug!("Creating chapters from files for audiobook: {}", audiobook.id);
+    debug!(
+        "Creating chapters from files for audiobook: {}",
+        audiobook.id
+    );
 
     audiobook.chapters = crate::metadata::chapters::create_chapters_from_files(&audiobook.files);
 
@@ -288,7 +316,10 @@ pub fn auto_split_chapters(audiobook: &mut AudioBook, count: usize) -> AppResult
 ///
 /// Takes metadata from the first file and uses it as the base for output metadata.
 pub fn merge_metadata_from_files(audiobook: &mut AudioBook) -> AppResult<()> {
-    debug!("Merging metadata from files for audiobook: {}", audiobook.id);
+    debug!(
+        "Merging metadata from files for audiobook: {}",
+        audiobook.id
+    );
 
     // Start with the first file's metadata
     if let Some(first_file) = audiobook.files.first() {
@@ -408,13 +439,9 @@ mod tests {
         // Real 1x1 red JPEG produced by the image crate (hand-truncated
         // byte stubs are not decodable and are rightly rejected).
         let mut cursor = std::io::Cursor::new(Vec::new());
-        image::DynamicImage::ImageRgb8(image::RgbImage::from_pixel(
-            1,
-            1,
-            image::Rgb([255, 0, 0]),
-        ))
-        .write_to(&mut cursor, image::ImageFormat::Jpeg)
-        .expect("encode test JPEG");
+        image::DynamicImage::ImageRgb8(image::RgbImage::from_pixel(1, 1, image::Rgb([255, 0, 0])))
+            .write_to(&mut cursor, image::ImageFormat::Jpeg)
+            .expect("encode test JPEG");
         let jpeg_bytes = cursor.into_inner();
 
         let result = set_artwork_bytes(&mut audiobook, &jpeg_bytes);
@@ -445,7 +472,7 @@ mod tests {
     #[test]
     fn test_clear_artwork() {
         let mut audiobook = create_test_audiobook();
-        
+
         // Set some artwork first
         audiobook.output_metadata.artwork_data = Some("base64data".to_string());
         audiobook.output_metadata.artwork_path = Some("path.jpg".into());

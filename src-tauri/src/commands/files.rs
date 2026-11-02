@@ -1,9 +1,9 @@
+use crate::audio::{format, loader};
+use crate::metadata::cue_parser::{detect_cue_for_files, find_cue_file, CueDetectionResult};
+use crate::models::{AudioFile, AudioFormat};
+use camino::Utf8PathBuf;
 use tauri::AppHandle;
 use tauri_plugin_dialog::DialogExt;
-use camino::Utf8PathBuf;
-use crate::models::{AudioFile, AudioFormat};
-use crate::audio::{loader, format};
-use crate::metadata::cue_parser::{CueDetectionResult, detect_cue_for_files, find_cue_file};
 
 // Helper to convert Result to String for IPC
 fn to_string_err<E: ToString>(err: E) -> String {
@@ -12,33 +12,39 @@ fn to_string_err<E: ToString>(err: E) -> String {
 
 #[tauri::command]
 pub async fn pick_files(app: AppHandle) -> Result<Vec<String>, String> {
-    let file_paths = app.dialog()
+    let file_paths = app
+        .dialog()
         .file()
         .add_filter("Audio Files", &["mp3", "flac", "m4a", "wav", "ogg"])
         .blocking_pick_files();
 
     match file_paths {
         Some(paths) => {
-             let strings = paths.iter()
-                .map(|p| p.as_path().map(|path| path.to_string_lossy().to_string()).unwrap_or_default())
+            let strings = paths
+                .iter()
+                .map(|p| {
+                    p.as_path()
+                        .map(|path| path.to_string_lossy().to_string())
+                        .unwrap_or_default()
+                })
                 .collect();
-             Ok(strings)
-        },
-        None => Ok(vec![]) // User cancelled
+            Ok(strings)
+        }
+        None => Ok(vec![]), // User cancelled
     }
 }
 
 #[tauri::command]
 pub async fn pick_directory(app: AppHandle) -> Result<Option<String>, String> {
-    let dir_path = app.dialog()
-        .file()
-        .blocking_pick_folder();
-        
+    let dir_path = app.dialog().file().blocking_pick_folder();
+
     match dir_path {
-        Some(path) => {
-            Ok(Some(path.as_path().map(|p| p.to_string_lossy().to_string()).unwrap_or_default()))
-        },
-        None => Ok(None)
+        Some(path) => Ok(Some(
+            path.as_path()
+                .map(|p| p.to_string_lossy().to_string())
+                .unwrap_or_default(),
+        )),
+        None => Ok(None),
     }
 }
 
@@ -52,33 +58,33 @@ pub struct FileValidation {
 
 #[tauri::command]
 pub async fn validate_files(paths: Vec<String>) -> Result<Vec<FileValidation>, String> {
-    let validations = paths.into_iter().map(|path_str| {
-        let path = Utf8PathBuf::from(&path_str);
-        
-        match format::is_supported_format(&path) {
-            true => {
-                // Try to detect specific format
-                let format = path.extension()
-                    .and_then(AudioFormat::from_extension);
-                    
-                FileValidation {
-                    path: path_str,
-                    is_valid: true,
-                    format,
-                    error: None,
+    let validations = paths
+        .into_iter()
+        .map(|path_str| {
+            let path = Utf8PathBuf::from(&path_str);
+
+            match format::is_supported_format(&path) {
+                true => {
+                    // Try to detect specific format
+                    let format = path.extension().and_then(AudioFormat::from_extension);
+
+                    FileValidation {
+                        path: path_str,
+                        is_valid: true,
+                        format,
+                        error: None,
+                    }
                 }
-            },
-            false => {
-                 FileValidation {
+                false => FileValidation {
                     path: path_str,
                     is_valid: false,
                     format: None,
                     error: Some("Unsupported format or file not found".to_string()),
-                }
+                },
             }
-        }
-    }).collect();
-    
+        })
+        .collect();
+
     Ok(validations)
 }
 
@@ -90,48 +96,60 @@ pub async fn get_file_info(path: String) -> Result<AudioFile, String> {
 
 #[tauri::command]
 pub async fn pick_save_project_file(app: AppHandle) -> Result<Option<String>, String> {
-    let file_path = app.dialog()
+    let file_path = app
+        .dialog()
         .file()
         .add_filter("Audiobook Project", &["abcproj"])
         .set_file_name("project.abcproj")
         .blocking_save_file();
 
     match file_path {
-        Some(path) => {
-            Ok(Some(path.as_path().map(|p| p.to_string_lossy().to_string()).unwrap_or_default()))
-        },
-        None => Ok(None)
+        Some(path) => Ok(Some(
+            path.as_path()
+                .map(|p| p.to_string_lossy().to_string())
+                .unwrap_or_default(),
+        )),
+        None => Ok(None),
     }
 }
 
 #[tauri::command]
 pub async fn pick_open_project_file(app: AppHandle) -> Result<Option<String>, String> {
-    let file_path = app.dialog()
+    let file_path = app
+        .dialog()
         .file()
         .add_filter("Audiobook Project", &["abcproj"])
         .blocking_pick_file();
 
     match file_path {
-        Some(path) => {
-            Ok(Some(path.as_path().map(|p| p.to_string_lossy().to_string()).unwrap_or_default()))
-        },
-        None => Ok(None)
+        Some(path) => Ok(Some(
+            path.as_path()
+                .map(|p| p.to_string_lossy().to_string())
+                .unwrap_or_default(),
+        )),
+        None => Ok(None),
     }
 }
 
 #[tauri::command]
-pub async fn pick_export_summary_file(app: AppHandle, default_name: String) -> Result<Option<String>, String> {
-    let file_path = app.dialog()
+pub async fn pick_export_summary_file(
+    app: AppHandle,
+    default_name: String,
+) -> Result<Option<String>, String> {
+    let file_path = app
+        .dialog()
         .file()
         .add_filter("Text File", &["txt", "json"])
         .set_file_name(&format!("{}.txt", default_name))
         .blocking_save_file();
 
     match file_path {
-        Some(path) => {
-            Ok(Some(path.as_path().map(|p| p.to_string_lossy().to_string()).unwrap_or_default()))
-        },
-        None => Ok(None)
+        Some(path) => Ok(Some(
+            path.as_path()
+                .map(|p| p.to_string_lossy().to_string())
+                .unwrap_or_default(),
+        )),
+        None => Ok(None),
     }
 }
 
@@ -154,31 +172,37 @@ pub async fn pick_ffmpeg_file(app: AppHandle) -> Result<Option<String>, String> 
 
 #[tauri::command]
 pub async fn pick_artwork_file(app: AppHandle) -> Result<Option<String>, String> {
-    let file_path = app.dialog()
+    let file_path = app
+        .dialog()
         .file()
         .add_filter("Image Files", &["jpg", "jpeg", "png", "webp", "gif", "bmp"])
         .blocking_pick_file();
 
     match file_path {
-        Some(path) => {
-            Ok(Some(path.as_path().map(|p| p.to_string_lossy().to_string()).unwrap_or_default()))
-        },
-        None => Ok(None)
+        Some(path) => Ok(Some(
+            path.as_path()
+                .map(|p| p.to_string_lossy().to_string())
+                .unwrap_or_default(),
+        )),
+        None => Ok(None),
     }
 }
 
 #[tauri::command]
 pub async fn pick_chapters_file(app: AppHandle) -> Result<Option<String>, String> {
-    let file_path = app.dialog()
+    let file_path = app
+        .dialog()
         .file()
         .add_filter("Chapter Files", &["txt", "csv", "ffmeta"])
         .blocking_pick_file();
 
     match file_path {
-        Some(path) => {
-            Ok(Some(path.as_path().map(|p| p.to_string_lossy().to_string()).unwrap_or_default()))
-        },
-        None => Ok(None)
+        Some(path) => Ok(Some(
+            path.as_path()
+                .map(|p| p.to_string_lossy().to_string())
+                .unwrap_or_default(),
+        )),
+        None => Ok(None),
     }
 }
 
@@ -188,10 +212,11 @@ pub async fn read_text_file(path: String) -> Result<String, String> {
 }
 
 #[tauri::command]
-pub async fn pick_output_file(app: AppHandle, default_name: Option<String>) -> Result<Option<String>, String> {
-    let mut dialog = app.dialog()
-        .file()
-        .add_filter("M4B Audiobook", &["m4b"]);
+pub async fn pick_output_file(
+    app: AppHandle,
+    default_name: Option<String>,
+) -> Result<Option<String>, String> {
+    let mut dialog = app.dialog().file().add_filter("M4B Audiobook", &["m4b"]);
 
     if let Some(name) = default_name {
         dialog = dialog.set_file_name(&name);
@@ -200,10 +225,12 @@ pub async fn pick_output_file(app: AppHandle, default_name: Option<String>) -> R
     let file_path = dialog.blocking_save_file();
 
     match file_path {
-        Some(path) => {
-            Ok(Some(path.as_path().map(|p| p.to_string_lossy().to_string()).unwrap_or_default()))
-        },
-        None => Ok(None)
+        Some(path) => Ok(Some(
+            path.as_path()
+                .map(|p| p.to_string_lossy().to_string())
+                .unwrap_or_default(),
+        )),
+        None => Ok(None),
     }
 }
 
@@ -221,22 +248,29 @@ pub async fn find_cue_for_audio(path: String) -> Result<Option<String>, String> 
 
 #[tauri::command]
 pub async fn pick_cue_file(app: AppHandle) -> Result<Option<String>, String> {
-    let file_path = app.dialog()
+    let file_path = app
+        .dialog()
         .file()
         .add_filter("CUE Sheet", &["cue"])
         .blocking_pick_file();
 
     match file_path {
-        Some(path) => {
-            Ok(Some(path.as_path().map(|p| p.to_string_lossy().to_string()).unwrap_or_default()))
-        },
-        None => Ok(None)
+        Some(path) => Ok(Some(
+            path.as_path()
+                .map(|p| p.to_string_lossy().to_string())
+                .unwrap_or_default(),
+        )),
+        None => Ok(None),
     }
 }
 
 #[tauri::command]
-pub async fn pick_normalized_output_file(app: AppHandle, default_name: Option<String>) -> Result<Option<String>, String> {
-    let mut dialog = app.dialog()
+pub async fn pick_normalized_output_file(
+    app: AppHandle,
+    default_name: Option<String>,
+) -> Result<Option<String>, String> {
+    let mut dialog = app
+        .dialog()
         .file()
         .add_filter("Audio Files", &["m4a", "mp3", "wav", "flac", "aac"]);
 
@@ -247,10 +281,12 @@ pub async fn pick_normalized_output_file(app: AppHandle, default_name: Option<St
     let file_path = dialog.blocking_save_file();
 
     match file_path {
-        Some(path) => {
-            Ok(Some(path.as_path().map(|p| p.to_string_lossy().to_string()).unwrap_or_default()))
-        },
-        None => Ok(None)
+        Some(path) => Ok(Some(
+            path.as_path()
+                .map(|p| p.to_string_lossy().to_string())
+                .unwrap_or_default(),
+        )),
+        None => Ok(None),
     }
 }
 
@@ -258,7 +294,10 @@ pub async fn pick_normalized_output_file(app: AppHandle, default_name: Option<St
 /// overwrites finished books.
 #[tauri::command]
 pub async fn existing_paths(paths: Vec<String>) -> Result<Vec<String>, String> {
-    Ok(paths.into_iter().filter(|p| std::path::Path::new(p).exists()).collect())
+    Ok(paths
+        .into_iter()
+        .filter(|p| std::path::Path::new(p).exists())
+        .collect())
 }
 
 #[tauri::command]

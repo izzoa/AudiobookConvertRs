@@ -90,7 +90,9 @@ pub enum AppError {
     // ============================================
     // FFmpeg Errors
     // ============================================
-    #[error("FFmpeg not found. Get it under FFmpeg in Settings, or install it and press Check again.")]
+    #[error(
+        "FFmpeg not found. Get it under FFmpeg in Settings, or install it and press Check again."
+    )]
     FFmpegNotFound,
 
     #[error("FFmpeg version {version} is too old. Minimum required: {minimum}")]
@@ -212,12 +214,8 @@ impl AppError {
     pub fn recovery_suggestion(&self) -> Option<&'static str> {
         match self {
             AppError::FileNotFound(_) => Some("Please check if the file exists and try again."),
-            AppError::PermissionDenied(_) => {
-                Some("Please check file permissions and try again.")
-            }
-            AppError::InsufficientDiskSpace { .. } => {
-                Some("Free up disk space and try again.")
-            }
+            AppError::PermissionDenied(_) => Some("Please check file permissions and try again."),
+            AppError::InsufficientDiskSpace { .. } => Some("Free up disk space and try again."),
             AppError::FFmpegNotFound => {
                 Some("Open Settings and press Get FFmpeg, or choose an FFmpeg you already have.")
             }
@@ -302,4 +300,3 @@ mod tests {
         assert!(s.contains("Unsupported audio format"));
     }
 }
-

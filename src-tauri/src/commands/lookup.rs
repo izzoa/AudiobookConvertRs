@@ -44,10 +44,14 @@ pub async fn lookup_record(
     match source {
         LookupSource::Audible => {
             let region = region.unwrap_or_else(|| config::get_settings().audible_region);
-            let found = audible::fetch_record(&id, &region).await.map_err(to_string_err)?;
+            let found = audible::fetch_record(&id, &region)
+                .await
+                .map_err(to_string_err)?;
             let chapters = match &found.chapters {
                 Ok(list) => offer_chapters(list, book.total_duration_ms, &book.chapters),
-                Err(reason) => ChapterOffer::Unavailable { reason: reason.clone() },
+                Err(reason) => ChapterOffer::Unavailable {
+                    reason: reason.clone(),
+                },
             };
             Ok(LookupRecord {
                 source,
@@ -59,7 +63,9 @@ pub async fn lookup_record(
             })
         }
         LookupSource::OpenLibrary => {
-            let (fields, cover_url) = open_library::fetch_record(&id).await.map_err(to_string_err)?;
+            let (fields, cover_url) = open_library::fetch_record(&id)
+                .await
+                .map_err(to_string_err)?;
             Ok(LookupRecord {
                 source,
                 id,
@@ -95,8 +101,11 @@ pub async fn apply_lookup(
     let mut book = state
         .get_audiobook(&audiobook_id)
         .ok_or_else(|| format!("Audiobook not found: {}", audiobook_id))?;
-    let edit = lookup::apply_edit(&book, source, &fields, cover, chapters).map_err(to_string_err)?;
+    let edit =
+        lookup::apply_edit(&book, source, &fields, cover, chapters).map_err(to_string_err)?;
     undo_state.execute(&mut book, edit).map_err(to_string_err)?;
-    state.update_audiobook(book.clone()).map_err(to_string_err)?;
+    state
+        .update_audiobook(book.clone())
+        .map_err(to_string_err)?;
     Ok(book)
 }

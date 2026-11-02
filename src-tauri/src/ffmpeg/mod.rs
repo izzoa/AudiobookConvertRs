@@ -6,12 +6,11 @@
 //! - Executing FFmpeg processes
 //! - Parsing FFmpeg output for progress
 
-pub mod detection;
 pub mod command_builder;
+pub mod detection;
 pub mod download;
 pub mod executor;
 
-pub use detection::*;
 pub use command_builder::*;
+pub use detection::*;
 pub use executor::*;
-

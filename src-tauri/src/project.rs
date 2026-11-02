@@ -88,22 +88,20 @@ impl Project {
     pub fn save(&mut self, path: &Utf8Path) -> AppResult<()> {
         self.saved_at = Utc::now();
 
-        let json = serde_json::to_string_pretty(self)
-            .map_err(|e| AppError::ConfigError(e.to_string()))?;
+        let json =
+            serde_json::to_string_pretty(self).map_err(|e| AppError::ConfigError(e.to_string()))?;
 
         if let Some(parent) = path.parent() {
-            fs::create_dir_all(parent.as_std_path())
-                .map_err(|e| AppError::FileWriteError {
-                    path: path.as_std_path().to_path_buf(),
-                    reason: e.to_string(),
-                })?;
-        }
-
-        fs::write(path.as_std_path(), json)
-            .map_err(|e| AppError::FileWriteError {
+            fs::create_dir_all(parent.as_std_path()).map_err(|e| AppError::FileWriteError {
                 path: path.as_std_path().to_path_buf(),
                 reason: e.to_string(),
             })?;
+        }
+
+        fs::write(path.as_std_path(), json).map_err(|e| AppError::FileWriteError {
+            path: path.as_std_path().to_path_buf(),
+            reason: e.to_string(),
+        })?;
 
         info!("Saved project to: {}", path);
         Ok(())
@@ -115,14 +113,14 @@ impl Project {
             return Err(AppError::FileNotFound(path.as_std_path().to_path_buf()));
         }
 
-        let content = fs::read_to_string(path.as_std_path())
-            .map_err(|e| AppError::FileReadError {
+        let content =
+            fs::read_to_string(path.as_std_path()).map_err(|e| AppError::FileReadError {
                 path: path.as_std_path().to_path_buf(),
                 reason: e.to_string(),
             })?;
 
-        let project: Project = serde_json::from_str(&content)
-            .map_err(|e| AppError::ConfigError(e.to_string()))?;
+        let project: Project =
+            serde_json::from_str(&content).map_err(|e| AppError::ConfigError(e.to_string()))?;
 
         // Check version compatibility
         if project.version > PROJECT_VERSION {
@@ -214,14 +212,14 @@ impl RecentProjectsManager {
             return Ok(Self::new());
         }
 
-        let content = fs::read_to_string(path.as_std_path())
-            .map_err(|e| AppError::FileReadError {
+        let content =
+            fs::read_to_string(path.as_std_path()).map_err(|e| AppError::FileReadError {
                 path: path.as_std_path().to_path_buf(),
                 reason: e.to_string(),
             })?;
 
-        let mut manager: RecentProjectsManager = serde_json::from_str(&content)
-            .map_err(|e| AppError::ConfigError(e.to_string()))?;
+        let mut manager: RecentProjectsManager =
+            serde_json::from_str(&content).map_err(|e| AppError::ConfigError(e.to_string()))?;
 
         // Refresh exists status for all entries
         manager.refresh_all();
@@ -231,22 +229,20 @@ impl RecentProjectsManager {
 
     /// Save recent projects to config file
     pub fn save(&self, path: &Utf8Path) -> AppResult<()> {
-        let json = serde_json::to_string_pretty(self)
-            .map_err(|e| AppError::ConfigError(e.to_string()))?;
+        let json =
+            serde_json::to_string_pretty(self).map_err(|e| AppError::ConfigError(e.to_string()))?;
 
         if let Some(parent) = path.parent() {
-            fs::create_dir_all(parent.as_std_path())
-                .map_err(|e| AppError::FileWriteError {
-                    path: path.as_std_path().to_path_buf(),
-                    reason: e.to_string(),
-                })?;
-        }
-
-        fs::write(path.as_std_path(), json)
-            .map_err(|e| AppError::FileWriteError {
+            fs::create_dir_all(parent.as_std_path()).map_err(|e| AppError::FileWriteError {
                 path: path.as_std_path().to_path_buf(),
                 reason: e.to_string(),
             })?;
+        }
+
+        fs::write(path.as_std_path(), json).map_err(|e| AppError::FileWriteError {
+            path: path.as_std_path().to_path_buf(),
+            reason: e.to_string(),
+        })?;
 
         Ok(())
     }
@@ -330,15 +326,17 @@ pub fn export_project_metadata(project: &Project) -> ProjectExport {
     use crate::models::format_duration_ms;
 
     let ab = &project.audiobook;
-    let chapters: Vec<ChapterExport> = ab.chapters.iter().map(|ch| {
-        ChapterExport {
+    let chapters: Vec<ChapterExport> = ab
+        .chapters
+        .iter()
+        .map(|ch| ChapterExport {
             index: ch.index,
             title: ch.title.clone(),
             start_time: format_duration_ms(ch.start_time_ms),
             end_time: format_duration_ms(ch.end_time_ms),
             duration: format_duration_ms(ch.end_time_ms.saturating_sub(ch.start_time_ms)),
-        }
-    }).collect();
+        })
+        .collect();
 
     ProjectExport {
         title: ab.title.clone(),
@@ -369,7 +367,8 @@ mod tests {
     #[test]
     fn project_saved_with_numeric_series_index_still_loads() {
         // A version-1 project file from before the series position became text.
-        let mut json = serde_json::to_value(Project::new(AudioBook::new("Dune".to_string()))).unwrap();
+        let mut json =
+            serde_json::to_value(Project::new(AudioBook::new("Dune".to_string()))).unwrap();
         json["audiobook"]["output_metadata"]["series_index"] = serde_json::json!(2);
 
         let dir = tempfile::tempdir().unwrap();
@@ -378,21 +377,27 @@ mod tests {
 
         let project = Project::load(&path).unwrap();
         assert_eq!(project.version, 1);
-        assert_eq!(project.audiobook.output_metadata.series_index.as_deref(), Some("2"));
+        assert_eq!(
+            project.audiobook.output_metadata.series_index.as_deref(),
+            Some("2")
+        );
     }
 
     #[test]
     fn test_recent_projects_manager() {
         let mut manager = RecentProjectsManager::new();
-        
+
         manager.add_project("/path/to/project1.abcproj".into(), "Book 1".to_string());
         manager.add_project("/path/to/project2.abcproj".into(), "Book 2".to_string());
-        
+
         assert_eq!(manager.list().len(), 2);
         assert_eq!(manager.list()[0].title, "Book 2"); // Most recent first
-        
+
         // Adding same path updates and moves to front
-        manager.add_project("/path/to/project1.abcproj".into(), "Book 1 Updated".to_string());
+        manager.add_project(
+            "/path/to/project1.abcproj".into(),
+            "Book 1 Updated".to_string(),
+        );
         assert_eq!(manager.list().len(), 2);
         assert_eq!(manager.list()[0].title, "Book 1 Updated");
     }
@@ -401,11 +406,14 @@ mod tests {
     fn test_recent_projects_max() {
         let mut manager = RecentProjectsManager::new();
         manager.max_recent = 3;
-        
+
         for i in 0..5 {
-            manager.add_project(format!("/path/to/project{}.abcproj", i).into(), format!("Book {}", i));
+            manager.add_project(
+                format!("/path/to/project{}.abcproj", i).into(),
+                format!("Book {}", i),
+            );
         }
-        
+
         assert_eq!(manager.list().len(), 3);
         assert_eq!(manager.list()[0].title, "Book 4"); // Most recent
     }

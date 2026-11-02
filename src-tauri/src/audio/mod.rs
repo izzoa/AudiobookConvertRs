@@ -8,17 +8,16 @@
 //! - Batch file processing
 //! - Audio playback preview
 
-pub mod loader;
-pub mod format;
-pub mod timing;
 pub mod batch;
-pub mod quality;
+pub mod format;
+pub mod loader;
 pub mod player;
+pub mod quality;
+pub mod timing;
 
-pub use loader::*;
-pub use format::*;
-pub use timing::*;
 pub use batch::*;
-pub use quality::*;
+pub use format::*;
+pub use loader::*;
 pub use player::*;
-
+pub use quality::*;
+pub use timing::*;

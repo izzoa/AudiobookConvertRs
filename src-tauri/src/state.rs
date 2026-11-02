@@ -320,9 +320,7 @@ impl AppState {
     pub fn cleanup_completed_jobs(&self) {
         let mut state = self.inner.write();
         let before_count = state.conversion_queue.len();
-        state
-            .conversion_queue
-            .retain(|j| !j.status.is_terminal());
+        state.conversion_queue.retain(|j| !j.status.is_terminal());
         let removed = before_count - state.conversion_queue.len();
         if removed > 0 {
             debug!("Cleaned up {} completed jobs", removed);
@@ -508,4 +506,3 @@ mod tests {
         assert_eq!(state.get_ffmpeg_version(), Some("5.0".to_string()));
     }
 }
-

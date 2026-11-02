@@ -5,9 +5,9 @@
 //! - Collecting performance metrics
 //! - Profiling conversion pipeline stages
 
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::time::{Duration, Instant};
-use serde::{Deserialize, Serialize};
 use tracing::{debug, info};
 
 /// A simple timer for measuring operation duration
@@ -78,20 +78,19 @@ impl ConversionMetrics {
     /// Calculate encoding speed based on input duration and encode time
     pub fn calculate_speed(&mut self) {
         if self.encode_time_ms > 0 && self.input_duration_ms > 0 {
-            self.encoding_speed = Some(
-                self.input_duration_ms as f32 / self.encode_time_ms as f32
-            );
+            self.encoding_speed = Some(self.input_duration_ms as f32 / self.encode_time_ms as f32);
         }
     }
 
     /// Get a summary of the metrics
     pub fn summary(&self) -> String {
-        let mut parts = vec![
-            format!("Total: {:.2}s", self.total_time_ms as f64 / 1000.0),
-        ];
+        let mut parts = vec![format!("Total: {:.2}s", self.total_time_ms as f64 / 1000.0)];
 
         if self.encode_time_ms > 0 {
-            parts.push(format!("Encode: {:.2}s", self.encode_time_ms as f64 / 1000.0));
+            parts.push(format!(
+                "Encode: {:.2}s",
+                self.encode_time_ms as f64 / 1000.0
+            ));
         }
 
         if let Some(speed) = self.encoding_speed {
@@ -151,9 +150,8 @@ impl MetricsCollector {
 
     /// Convert to ConversionMetrics
     pub fn to_metrics(&self) -> ConversionMetrics {
-        let get_ms = |name: &str| -> u64 {
-            self.get(name).map(|d| d.as_millis() as u64).unwrap_or(0)
-        };
+        let get_ms =
+            |name: &str| -> u64 { self.get(name).map(|d| d.as_millis() as u64).unwrap_or(0) };
 
         ConversionMetrics {
             total_time_ms: self.total().as_millis() as u64,
@@ -204,15 +202,15 @@ mod tests {
     #[test]
     fn test_metrics_collector() {
         let mut collector = MetricsCollector::new();
-        
+
         collector.start("op1");
         sleep(Duration::from_millis(5));
         collector.stop();
-        
+
         collector.start("op2");
         sleep(Duration::from_millis(5));
         collector.stop();
-        
+
         assert!(collector.get("op1").is_some());
         assert!(collector.get("op2").is_some());
         assert!(collector.total().as_millis() >= 10);
@@ -225,7 +223,7 @@ mod tests {
             encode_time_ms: 30000,    // 30 seconds
             ..Default::default()
         };
-        
+
         metrics.calculate_speed();
         assert!((metrics.encoding_speed.unwrap() - 2.0).abs() < 0.01);
     }

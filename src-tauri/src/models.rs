@@ -10,11 +10,11 @@
 //! - ConversionJob: A queued or running conversion task
 //! - ConversionProgress: Progress information for IPC events
 
+pub use crate::conversion::progress::ConversionProgress;
 use camino::Utf8PathBuf;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
-pub use crate::conversion::progress::ConversionProgress;
 
 /// Quality presets for audio encoding
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
@@ -364,10 +364,12 @@ where
         Number(serde_json::Number),
     }
 
-    Ok(Option::<TextOrNumber>::deserialize(deserializer)?.map(|value| match value {
-        TextOrNumber::Text(text) => text,
-        TextOrNumber::Number(number) => number.to_string(),
-    }))
+    Ok(
+        Option::<TextOrNumber>::deserialize(deserializer)?.map(|value| match value {
+            TextOrNumber::Text(text) => text,
+            TextOrNumber::Number(number) => number.to_string(),
+        }),
+    )
 }
 
 /// Audiobook chapter information
@@ -449,16 +451,12 @@ pub struct AudioFile {
 impl AudioFile {
     /// Get the filename without extension
     pub fn stem(&self) -> &str {
-        self.path
-            .file_stem()
-            .unwrap_or(self.path.as_str())
+        self.path.file_stem().unwrap_or(self.path.as_str())
     }
 
     /// Get the filename with extension
     pub fn filename(&self) -> &str {
-        self.path
-            .file_name()
-            .unwrap_or(self.path.as_str())
+        self.path.file_name().unwrap_or(self.path.as_str())
     }
 
     /// Format duration as HH:MM:SS
@@ -618,7 +616,11 @@ impl ConversionDefaults {
     }
 
     /// Convert to full ConversionSettings by adding output path
-    pub fn to_settings(&self, output_path: camino::Utf8PathBuf, concurrent_jobs: u8) -> ConversionSettings {
+    pub fn to_settings(
+        &self,
+        output_path: camino::Utf8PathBuf,
+        concurrent_jobs: u8,
+    ) -> ConversionSettings {
         ConversionSettings {
             bitrate_kbps: self.bitrate_kbps,
             sample_rate_hz: self.sample_rate_hz,
@@ -753,7 +755,10 @@ pub enum JobStatus {
 
 impl JobStatus {
     pub fn is_terminal(&self) -> bool {
-        matches!(self, JobStatus::Complete | JobStatus::Error | JobStatus::Cancelled)
+        matches!(
+            self,
+            JobStatus::Complete | JobStatus::Error | JobStatus::Cancelled
+        )
     }
 
     pub fn is_active(&self) -> bool {
@@ -966,7 +971,10 @@ mod tests {
 
     #[test]
     fn asin_is_stored_trimmed_and_uppercase() {
-        assert_eq!(normalize_asin(" b002v8h660 ").as_deref(), Some("B002V8H660"));
+        assert_eq!(
+            normalize_asin(" b002v8h660 ").as_deref(),
+            Some("B002V8H660")
+        );
         assert_eq!(normalize_asin("   "), None);
     }
 
@@ -1166,4 +1174,3 @@ mod tests {
         assert_eq!(estimate.formatted, "54.93 MB");
     }
 }
-

@@ -6,7 +6,7 @@
 //! - CSV format (.csv)
 
 use crate::error::{AppError, AppResult};
-use crate::models::{Chapter, parse_time_string, format_duration_ms};
+use crate::models::{format_duration_ms, parse_time_string, Chapter};
 use tracing::{debug, info, warn};
 
 /// Supported chapter file formats
@@ -93,10 +93,16 @@ fn parse_audacity_labels(content: &str) -> AppResult<Vec<Chapter>> {
             continue;
         }
 
-        let start_sec: f64 = parts[0].trim().parse()
-            .map_err(|e| AppError::ValidationError(format!("Invalid start time on line {}: {}", line_num + 1, e)))?;
-        let end_sec: f64 = parts[1].trim().parse()
-            .map_err(|e| AppError::ValidationError(format!("Invalid end time on line {}: {}", line_num + 1, e)))?;
+        let start_sec: f64 = parts[0].trim().parse().map_err(|e| {
+            AppError::ValidationError(format!(
+                "Invalid start time on line {}: {}",
+                line_num + 1,
+                e
+            ))
+        })?;
+        let end_sec: f64 = parts[1].trim().parse().map_err(|e| {
+            AppError::ValidationError(format!("Invalid end time on line {}: {}", line_num + 1, e))
+        })?;
         let title = parts[2..].join("\t").trim().to_string();
 
         if title.is_empty() {
@@ -149,12 +155,15 @@ fn parse_ffmetadata(content: &str) -> AppResult<Vec<Chapter>> {
             current_chapter = Some((0, 0, String::new()));
         } else if line.starts_with("START=") {
             if let Some((ref mut start, _, _)) = current_chapter {
-                *start = line[6..].trim().parse()
-                    .map_err(|e| AppError::ValidationError(format!("Invalid START value: {}", e)))?;
+                *start = line[6..].trim().parse().map_err(|e| {
+                    AppError::ValidationError(format!("Invalid START value: {}", e))
+                })?;
             }
         } else if line.starts_with("END=") {
             if let Some((_, ref mut end, _)) = current_chapter {
-                *end = line[4..].trim().parse()
+                *end = line[4..]
+                    .trim()
+                    .parse()
                     .map_err(|e| AppError::ValidationError(format!("Invalid END value: {}", e)))?;
             }
         } else if line.starts_with("title=") {
@@ -318,7 +327,10 @@ fn render_audacity_labels(chapters: &[Chapter]) -> String {
     for chapter in chapters {
         let start_sec = chapter.start_time_ms as f64 / 1000.0;
         let end_sec = chapter.end_time_ms as f64 / 1000.0;
-        output.push_str(&format!("{:.6}\t{:.6}\t{}\n", start_sec, end_sec, chapter.title));
+        output.push_str(&format!(
+            "{:.6}\t{:.6}\t{}\n",
+            start_sec, end_sec, chapter.title
+        ));
     }
 
     output
@@ -346,7 +358,7 @@ fn render_csv(chapters: &[Chapter]) -> String {
     for chapter in chapters {
         let start = format_duration_ms(chapter.start_time_ms);
         let end = format_duration_ms(chapter.end_time_ms);
-        
+
         // Escape title if it contains commas or quotes
         let title = if chapter.title.contains(',') || chapter.title.contains('"') {
             format!("\"{}\"", chapter.title.replace('"', "\"\""))
@@ -425,9 +437,7 @@ mod tests {
 
     #[test]
     fn test_render_csv() {
-        let chapters = vec![
-            Chapter::new(0, "Test, with comma".to_string(), 0, 60000),
-        ];
+        let chapters = vec![Chapter::new(0, "Test, with comma".to_string(), 0, 60000)];
 
         let output = render_csv(&chapters);
         assert!(output.contains("\"Test, with comma\""));
@@ -441,4 +451,3 @@ mod tests {
         assert_eq!(original, unescaped);
     }
 }
-

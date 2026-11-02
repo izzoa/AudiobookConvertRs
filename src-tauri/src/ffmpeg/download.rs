@@ -4,7 +4,9 @@
 //! compiled in, so a file that changes on the host is refused rather than
 //! installed. `tests/ffmpeg_sources_live.rs` downloads every row weekly in CI.
 
-use crate::ffmpeg::detection::{clear_ffmpeg_cache, verify_ffmpeg_at_path, FFmpegSource, FFMPEG_EXE};
+use crate::ffmpeg::detection::{
+    clear_ffmpeg_cache, verify_ffmpeg_at_path, FFmpegSource, FFMPEG_EXE,
+};
 use camino::{Utf8Path, Utf8PathBuf};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -146,7 +148,9 @@ pub enum DownloadError {
     TooLarge { expected: u64 },
     #[error("the download ended early: {received} of {expected} bytes")]
     Incomplete { received: u64, expected: u64 },
-    #[error("the download failed its integrity check (SHA-256 mismatch), so nothing was installed")]
+    #[error(
+        "the download failed its integrity check (SHA-256 mismatch), so nothing was installed"
+    )]
     ChecksumMismatch,
     #[error("the download does not contain {0}")]
     EntryMissing(&'static str),
@@ -203,7 +207,9 @@ impl<'a> VerifiedWriter<'a> {
         }
         self.received += chunk.len() as u64;
         if self.received > self.expected_size {
-            return Err(DownloadError::TooLarge { expected: self.expected_size });
+            return Err(DownloadError::TooLarge {
+                expected: self.expected_size,
+            });
         }
         self.hasher.update(chunk);
         if let Some(file) = self.file.as_mut() {
@@ -218,7 +224,10 @@ impl<'a> VerifiedWriter<'a> {
             file.flush()?;
         }
         if self.received != self.expected_size {
-            return Err(DownloadError::Incomplete { received: self.received, expected: self.expected_size });
+            return Err(DownloadError::Incomplete {
+                received: self.received,
+                expected: self.expected_size,
+            });
         }
         let actual = format!("{:x}", std::mem::take(&mut self.hasher).finalize());
         if actual != self.expected_sha256 {
@@ -260,7 +269,11 @@ pub fn clean_leftovers(root: &Utf8Path) -> io::Result<()> {
 /// the same check detection uses before the folder is renamed into place, so a
 /// broken copy is never visible. The archive, older versions and leftovers are
 /// then deleted and the detection cache cleared.
-pub fn install(archive: &Utf8Path, build: &FixedBuild, root: &Utf8Path) -> Result<Utf8PathBuf, DownloadError> {
+pub fn install(
+    archive: &Utf8Path,
+    build: &FixedBuild,
+    root: &Utf8Path,
+) -> Result<Utf8PathBuf, DownloadError> {
     let staging = root.join(format!("{}.tmp", build.version));
     let target = root.join(build.version);
     if staging.exists() {
@@ -295,7 +308,11 @@ pub fn install(archive: &Utf8Path, build: &FixedBuild, root: &Utf8Path) -> Resul
     for entry in fs::read_dir(root)?.flatten() {
         if entry.path() != target.as_std_path() {
             let path = entry.path();
-            let removed = if path.is_dir() { fs::remove_dir_all(&path) } else { fs::remove_file(&path) };
+            let removed = if path.is_dir() {
+                fs::remove_dir_all(&path)
+            } else {
+                fs::remove_file(&path)
+            };
             if let Err(e) = removed {
                 warn!("Could not remove {}: {}", path.display(), e);
             }
@@ -308,7 +325,11 @@ pub fn install(archive: &Utf8Path, build: &FixedBuild, root: &Utf8Path) -> Resul
 }
 
 /// Copy the build's entry out of `archive` to `dest`
-pub fn extract_entry(archive: &Utf8Path, build: &FixedBuild, dest: &Utf8Path) -> Result<(), DownloadError> {
+pub fn extract_entry(
+    archive: &Utf8Path,
+    build: &FixedBuild,
+    dest: &Utf8Path,
+) -> Result<(), DownloadError> {
     let unpack = |e: &dyn std::fmt::Display| DownloadError::Unpack(e.to_string());
     match build.archive {
         ArchiveKind::Zip => {
@@ -323,8 +344,9 @@ pub fn extract_entry(archive: &Utf8Path, build: &FixedBuild, dest: &Utf8Path) ->
             Err(DownloadError::EntryMissing(build.entry))
         }
         ArchiveKind::SevenZ => {
-            let mut reader = sevenz_rust2::ArchiveReader::open(archive, sevenz_rust2::Password::empty())
-                .map_err(|e| unpack(&e))?;
+            let mut reader =
+                sevenz_rust2::ArchiveReader::open(archive, sevenz_rust2::Password::empty())
+                    .map_err(|e| unpack(&e))?;
             let mut found = false;
             reader
                 .for_each_entries(|entry, data| {
@@ -338,7 +360,9 @@ pub fn extract_entry(archive: &Utf8Path, build: &FixedBuild, dest: &Utf8Path) ->
                     Ok(true)
                 })
                 .map_err(|e| unpack(&e))?;
-            found.then_some(()).ok_or(DownloadError::EntryMissing(build.entry))
+            found
+                .then_some(())
+                .ok_or(DownloadError::EntryMissing(build.entry))
         }
     }
 }
@@ -378,7 +402,10 @@ pub async fn fetch_verified(
     cancel: &AtomicBool,
     mut progress: impl FnMut(u64, u64),
 ) -> Result<Utf8PathBuf, DownloadError> {
-    let network = |e: reqwest::Error| DownloadError::Network { host: build.host, reason: e.to_string() };
+    let network = |e: reqwest::Error| DownloadError::Network {
+        host: build.host,
+        reason: e.to_string(),
+    };
     let client = reqwest::Client::builder()
         .user_agent(concat!("AudiobookConvertRs/", env!("CARGO_PKG_VERSION")))
         .connect_timeout(Duration::from_secs(20))
@@ -388,7 +415,10 @@ pub async fn fetch_verified(
     info!("Downloading FFmpeg {} from {}", build.version, build.url);
     let mut response = client.get(build.url).send().await.map_err(network)?;
     if !response.status().is_success() {
-        return Err(DownloadError::HttpStatus { host: build.host, status: response.status().as_u16() });
+        return Err(DownloadError::HttpStatus {
+            host: build.host,
+            status: response.status().as_u16(),
+        });
     }
 
     let partial = dir.join(format!("{}.partial", build.version));
@@ -397,7 +427,10 @@ pub async fn fetch_verified(
         // A stalled connection must not outlive a cancel for long
         let next = tokio::time::timeout(Duration::from_secs(30), response.chunk())
             .await
-            .map_err(|_| DownloadError::Network { host: build.host, reason: "no data for 30 seconds".into() })?
+            .map_err(|_| DownloadError::Network {
+                host: build.host,
+                reason: "no data for 30 seconds".into(),
+            })?
             .map_err(network)?;
         let Some(chunk) = next else { break };
         writer.push(&chunk)?;
@@ -416,7 +449,14 @@ mod tests {
             assert!(build.url.starts_with("https://"), "{}", build.target);
             assert!(build.size_bytes > 0, "{}", build.target);
             assert_eq!(build.sha256.len(), 64, "{}", build.target);
-            assert!(build.sha256.chars().all(|c| c.is_ascii_hexdigit() && !c.is_ascii_uppercase()), "{}", build.target);
+            assert!(
+                build
+                    .sha256
+                    .chars()
+                    .all(|c| c.is_ascii_hexdigit() && !c.is_ascii_uppercase()),
+                "{}",
+                build.target
+            );
             assert!(build.page_url.starts_with("https://"), "{}", build.target);
         }
     }
@@ -441,7 +481,13 @@ mod tests {
     }
 
     /// Feeds `data` in two chunks to a writer expecting `size` bytes and `sha`
-    fn write(path: &Utf8Path, data: &[u8], size: u64, sha: &str, cancel: &AtomicBool) -> Result<Utf8PathBuf, DownloadError> {
+    fn write(
+        path: &Utf8Path,
+        data: &[u8],
+        size: u64,
+        sha: &str,
+        cancel: &AtomicBool,
+    ) -> Result<Utf8PathBuf, DownloadError> {
         let mut writer = VerifiedWriter::create(path, size, sha, cancel)?;
         let (a, b) = data.split_at(data.len() / 2);
         writer.push(a)?;
@@ -462,17 +508,29 @@ mod tests {
         fs::remove_file(&path).unwrap();
 
         let wrong = sha256_hex(b"something else");
-        assert!(matches!(write(&path, data, size, &wrong, &go), Err(DownloadError::ChecksumMismatch)));
+        assert!(matches!(
+            write(&path, data, size, &wrong, &go),
+            Err(DownloadError::ChecksumMismatch)
+        ));
         assert!(!path.exists(), "checksum mismatch must leave no file");
 
-        assert!(matches!(write(&path, data, size - 1, &sha, &go), Err(DownloadError::TooLarge { .. })));
+        assert!(matches!(
+            write(&path, data, size - 1, &sha, &go),
+            Err(DownloadError::TooLarge { .. })
+        ));
         assert!(!path.exists(), "oversize data must leave no file");
 
-        assert!(matches!(write(&path, data, size + 1, &sha, &go), Err(DownloadError::Incomplete { .. })));
+        assert!(matches!(
+            write(&path, data, size + 1, &sha, &go),
+            Err(DownloadError::Incomplete { .. })
+        ));
         assert!(!path.exists(), "a short download must leave no file");
 
         let stop = AtomicBool::new(true);
-        assert!(matches!(write(&path, data, size, &sha, &stop), Err(DownloadError::Cancelled)));
+        assert!(matches!(
+            write(&path, data, size, &sha, &stop),
+            Err(DownloadError::Cancelled)
+        ));
         assert!(!path.exists(), "cancel must leave no file");
     }
 
@@ -484,7 +542,10 @@ mod tests {
         fs::create_dir(root.join("9.0.2.tmp")).unwrap();
         fs::create_dir(root.join("9.0.2")).unwrap();
         clean_leftovers(root).unwrap();
-        let left: Vec<_> = fs::read_dir(root).unwrap().map(|e| e.unwrap().file_name()).collect();
+        let left: Vec<_> = fs::read_dir(root)
+            .unwrap()
+            .map(|e| e.unwrap().file_name())
+            .collect();
         assert_eq!(left, ["9.0.2"]);
         clean_leftovers(&root.join("missing")).unwrap();
     }
@@ -511,18 +572,28 @@ mod tests {
         use std::os::unix::fs::PermissionsExt;
 
         fn build(archive: ArchiveKind, entry: &'static str) -> FixedBuild {
-            FixedBuild { archive, entry, ..FIXED_BUILDS[0] }
+            FixedBuild {
+                archive,
+                entry,
+                ..FIXED_BUILDS[0]
+            }
         }
 
         /// Bytes of a fake `ffmpeg` that reports `version`
         fn fake_bytes(dir: &Utf8Path, version: &str) -> Vec<u8> {
-            fs::read(fake_ffmpeg(&dir.join(format!("fake-{version}")), version, "aac")).unwrap()
+            fs::read(fake_ffmpeg(
+                &dir.join(format!("fake-{version}")),
+                version,
+                "aac",
+            ))
+            .unwrap()
         }
 
         fn zip_with(path: &Utf8Path, entries: &[(&str, &[u8])]) {
             let mut zip = zip::ZipWriter::new(File::create(path).unwrap());
             for (name, data) in entries {
-                zip.start_file(*name, zip::write::SimpleFileOptions::default()).unwrap();
+                zip.start_file(*name, zip::write::SimpleFileOptions::default())
+                    .unwrap();
                 zip.write_all(data).unwrap();
             }
             zip.finish().unwrap();
@@ -531,13 +602,18 @@ mod tests {
         fn seven_z_with(path: &Utf8Path, entries: &[(&str, &[u8])]) {
             let mut writer = sevenz_rust2::ArchiveWriter::new(File::create(path).unwrap()).unwrap();
             for (name, data) in entries {
-                writer.push_archive_entry(sevenz_rust2::ArchiveEntry::new_file(name), Some(*data)).unwrap();
+                writer
+                    .push_archive_entry(sevenz_rust2::ArchiveEntry::new_file(name), Some(*data))
+                    .unwrap();
             }
             writer.finish().unwrap();
         }
 
         fn names(root: &Utf8Path) -> Vec<String> {
-            let mut names: Vec<_> = fs::read_dir(root).unwrap().map(|e| e.unwrap().file_name().into_string().unwrap()).collect();
+            let mut names: Vec<_> = fs::read_dir(root)
+                .unwrap()
+                .map(|e| e.unwrap().file_name().into_string().unwrap())
+                .collect();
             names.sort();
             names
         }
@@ -550,11 +626,20 @@ mod tests {
             fs::create_dir_all(root.join("8.1")).unwrap();
             fs::create_dir_all(root.join("9.0.2.tmp")).unwrap();
             let archive = root.join("9.0.2.partial");
-            zip_with(&archive, &[("README.txt", b"read me"), ("ffmpeg", &fake_bytes(work, "9.0.2"))]);
+            zip_with(
+                &archive,
+                &[
+                    ("README.txt", b"read me"),
+                    ("ffmpeg", &fake_bytes(work, "9.0.2")),
+                ],
+            );
 
             let installed = install(&archive, &build(ArchiveKind::Zip, "ffmpeg"), &root).unwrap();
             assert_eq!(installed, root.join("9.0.2").join(FFMPEG_EXE));
-            assert_eq!(fs::metadata(&installed).unwrap().permissions().mode() & 0o777, 0o755);
+            assert_eq!(
+                fs::metadata(&installed).unwrap().permissions().mode() & 0o777,
+                0o755
+            );
             assert_eq!(names(&root), ["9.0.2"]);
             assert_eq!(names(&root.join("9.0.2")), [FFMPEG_EXE]);
         }
@@ -566,13 +651,27 @@ mod tests {
             let root = work.join("ffmpeg");
             fs::create_dir_all(&root).unwrap();
             let archive = root.join("9.0.2.partial");
-            seven_z_with(&archive, &[
-                ("ffmpeg-9.0.2-essentials_build/bin/ffprobe.exe", b"not this one"),
-                ("ffmpeg-9.0.2-essentials_build/bin/ffmpeg.exe", &fake_bytes(work, "9.0.2")),
-                ("ffmpeg-9.0.2-essentials_build/LICENSE", b"GPL"),
-            ]);
+            seven_z_with(
+                &archive,
+                &[
+                    (
+                        "ffmpeg-9.0.2-essentials_build/bin/ffprobe.exe",
+                        b"not this one",
+                    ),
+                    (
+                        "ffmpeg-9.0.2-essentials_build/bin/ffmpeg.exe",
+                        &fake_bytes(work, "9.0.2"),
+                    ),
+                    ("ffmpeg-9.0.2-essentials_build/LICENSE", b"GPL"),
+                ],
+            );
 
-            let installed = install(&archive, &build(ArchiveKind::SevenZ, "*/bin/ffmpeg.exe"), &root).unwrap();
+            let installed = install(
+                &archive,
+                &build(ArchiveKind::SevenZ, "*/bin/ffmpeg.exe"),
+                &root,
+            )
+            .unwrap();
             assert_eq!(fs::read(&installed).unwrap(), fake_bytes(work, "9.0.2"));
             assert_eq!(names(&root), ["9.0.2"]);
         }
@@ -587,12 +686,18 @@ mod tests {
             zip_with(&archive, &[("ffmpeg", &fake_bytes(work, "3.0"))]);
 
             let result = install(&archive, &build(ArchiveKind::Zip, "ffmpeg"), &root);
-            assert!(matches!(result, Err(DownloadError::CheckFailed(_))), "{result:?}");
+            assert!(
+                matches!(result, Err(DownloadError::CheckFailed(_))),
+                "{result:?}"
+            );
             assert!(names(&root).is_empty(), "left behind: {:?}", names(&root));
 
             zip_with(&archive, &[("other", b"x")]);
             let result = install(&archive, &build(ArchiveKind::Zip, "ffmpeg"), &root);
-            assert!(matches!(result, Err(DownloadError::EntryMissing(_))), "{result:?}");
+            assert!(
+                matches!(result, Err(DownloadError::EntryMissing(_))),
+                "{result:?}"
+            );
             assert!(names(&root).is_empty());
         }
     }
@@ -601,8 +706,17 @@ mod tests {
     fn entry_patterns() {
         assert!(entry_matches("ffmpeg", "ffmpeg"));
         assert!(!entry_matches("ffmpeg", "bin/ffmpeg"));
-        assert!(entry_matches("*/bin/ffmpeg.exe", "ffmpeg-9.0.2-essentials_build/bin/ffmpeg.exe"));
-        assert!(entry_matches("*/bin/ffmpeg.exe", "ffmpeg-9.0.2-essentials_build\\bin\\ffmpeg.exe"));
-        assert!(!entry_matches("*/bin/ffmpeg.exe", "ffmpeg-9.0.2-essentials_build/bin/ffprobe.exe"));
+        assert!(entry_matches(
+            "*/bin/ffmpeg.exe",
+            "ffmpeg-9.0.2-essentials_build/bin/ffmpeg.exe"
+        ));
+        assert!(entry_matches(
+            "*/bin/ffmpeg.exe",
+            "ffmpeg-9.0.2-essentials_build\\bin\\ffmpeg.exe"
+        ));
+        assert!(!entry_matches(
+            "*/bin/ffmpeg.exe",
+            "ffmpeg-9.0.2-essentials_build/bin/ffprobe.exe"
+        ));
     }
 }

@@ -139,7 +139,7 @@ impl ProgressTracker {
         self.stage = ConversionStage::Encoding;
         debug!("Progress tracker started for job {}", self.job_id);
     }
-    
+
     /// Get total duration in milliseconds
     pub fn total_duration_ms(&self) -> u64 {
         self.total_duration_ms
@@ -237,7 +237,8 @@ impl ProgressTracker {
         // Use speed-based estimation if available
         if let Some(speed) = self.smoothed_speed() {
             if speed > 0.0 {
-                let remaining_duration_ms = self.total_duration_ms
+                let remaining_duration_ms = self
+                    .total_duration_ms
                     .saturating_sub(self.processed_duration_ms + self.current_position_ms);
                 let remaining_secs = (remaining_duration_ms as f64 / 1000.0) / speed as f64;
                 return Duration::from_secs_f64(remaining_secs.max(0.0));
@@ -297,7 +298,8 @@ impl ProgressTracker {
         }
 
         let time_remaining = self.time_remaining();
-        let estimated_finish = Utc::now() + chrono::Duration::from_std(time_remaining).unwrap_or_default();
+        let estimated_finish =
+            Utc::now() + chrono::Duration::from_std(time_remaining).unwrap_or_default();
 
         Some(ConversionProgress {
             job_id: self.job_id.clone(),
@@ -324,7 +326,8 @@ impl ProgressTracker {
         }
 
         let time_remaining = self.time_remaining();
-        let estimated_finish = Utc::now() + chrono::Duration::from_std(time_remaining).unwrap_or_default();
+        let estimated_finish =
+            Utc::now() + chrono::Duration::from_std(time_remaining).unwrap_or_default();
 
         ConversionProgress {
             job_id: self.job_id.clone(),
@@ -367,16 +370,16 @@ mod tests {
     fn test_progress_tracker_update() {
         let mut tracker = ProgressTracker::new("test-job".to_string(), 60000, 3);
         tracker.start();
-        
+
         // Set first file (20 seconds)
         tracker.set_current_file(0, "file1.mp3", 20000);
-        
+
         // Update to 10 seconds into first file
         tracker.update_position(10000);
-        
+
         // 10000 / 60000 = ~16.67%
         assert!((tracker.progress_percent() - 16.67).abs() < 0.1);
-        
+
         // 10000 / 20000 = 50%
         assert_eq!(tracker.file_progress_percent(), 50.0);
     }
@@ -385,15 +388,15 @@ mod tests {
     fn test_progress_tracker_file_transition() {
         let mut tracker = ProgressTracker::new("test-job".to_string(), 60000, 3);
         tracker.start();
-        
+
         // Complete first file (20 seconds)
         tracker.set_current_file(0, "file1.mp3", 20000);
         tracker.update_position(20000);
-        
+
         // Move to second file
         tracker.set_current_file(1, "file2.mp3", 20000);
         tracker.update_position(10000);
-        
+
         // 20000 + 10000 = 30000 / 60000 = 50%
         assert_eq!(tracker.progress_percent(), 50.0);
     }
@@ -401,11 +404,11 @@ mod tests {
     #[test]
     fn test_progress_tracker_speed_smoothing() {
         let mut tracker = ProgressTracker::new("test-job".to_string(), 60000, 1);
-        
+
         tracker.update_speed(2.0);
         tracker.update_speed(2.5);
         tracker.update_speed(2.0);
-        
+
         let speed = tracker.smoothed_speed().unwrap();
         assert!((speed - 2.167).abs() < 0.01);
     }
@@ -435,7 +438,9 @@ mod tests {
 
         for stage in stages {
             tracker.set_stage(stage);
-            let emitted = tracker.get_progress().expect("Stage transition must emit immediately");
+            let emitted = tracker
+                .get_progress()
+                .expect("Stage transition must emit immediately");
             assert_eq!(emitted.stage, stage);
         }
     }

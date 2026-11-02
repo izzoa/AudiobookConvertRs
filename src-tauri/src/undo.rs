@@ -67,7 +67,9 @@ impl EditCommand {
             EditCommand::UpdateMetadata { .. } => "Update metadata".to_string(),
             EditCommand::UpdateChapter { index, .. } => format!("Update chapter {}", index + 1),
             EditCommand::AddChapter { chapter, .. } => format!("Add chapter \"{}\"", chapter.title),
-            EditCommand::DeleteChapter { chapter, .. } => format!("Delete chapter \"{}\"", chapter.title),
+            EditCommand::DeleteChapter { chapter, .. } => {
+                format!("Delete chapter \"{}\"", chapter.title)
+            }
             EditCommand::ReorderChapters { .. } => "Reorder chapters".to_string(),
             EditCommand::ReplaceChapters { new_chapters, .. } => {
                 format!("Replace chapters ({} chapters)", new_chapters.len())
@@ -99,7 +101,9 @@ pub fn apply_command(audiobook: &mut AudioBook, command: &EditCommand) -> AppRes
             audiobook.output_metadata = new_metadata.clone();
             audiobook.mark_modified();
         }
-        EditCommand::UpdateChapter { index, new_chapter, .. } => {
+        EditCommand::UpdateChapter {
+            index, new_chapter, ..
+        } => {
             if *index >= audiobook.chapters.len() {
                 return Err(AppError::InvalidChapter {
                     reason: format!("Chapter index {} out of range", index),
@@ -167,7 +171,9 @@ pub fn unapply_command(audiobook: &mut AudioBook, command: &EditCommand) -> AppR
             audiobook.output_metadata = old_metadata.clone();
             audiobook.mark_modified();
         }
-        EditCommand::UpdateChapter { index, old_chapter, .. } => {
+        EditCommand::UpdateChapter {
+            index, old_chapter, ..
+        } => {
             if *index >= audiobook.chapters.len() {
                 return Err(AppError::InvalidChapter {
                     reason: format!("Chapter index {} out of range", index),
@@ -273,7 +279,10 @@ impl UndoManager {
             self.undo_stack.pop_front();
         }
 
-        debug!("Executed command, undo stack size: {}", self.undo_stack.len());
+        debug!(
+            "Executed command, undo stack size: {}",
+            self.undo_stack.len()
+        );
         Ok(())
     }
 
@@ -335,22 +344,34 @@ impl UndoManager {
 
     /// Whether this book has an edit to undo.
     pub fn can_undo_for(&self, audiobook_id: &str) -> bool {
-        self.undo_stack.iter().any(|c| c.audiobook_id() == audiobook_id)
+        self.undo_stack
+            .iter()
+            .any(|c| c.audiobook_id() == audiobook_id)
     }
 
     /// Whether this book has an undone edit to redo.
     pub fn can_redo_for(&self, audiobook_id: &str) -> bool {
-        self.redo_stack.iter().any(|c| c.audiobook_id() == audiobook_id)
+        self.redo_stack
+            .iter()
+            .any(|c| c.audiobook_id() == audiobook_id)
     }
 
     /// Description of this book's next undo.
     pub fn peek_undo_for(&self, audiobook_id: &str) -> Option<String> {
-        self.undo_stack.iter().rev().find(|c| c.audiobook_id() == audiobook_id).map(|c| c.description())
+        self.undo_stack
+            .iter()
+            .rev()
+            .find(|c| c.audiobook_id() == audiobook_id)
+            .map(|c| c.description())
     }
 
     /// Description of this book's next redo.
     pub fn peek_redo_for(&self, audiobook_id: &str) -> Option<String> {
-        self.redo_stack.iter().rev().find(|c| c.audiobook_id() == audiobook_id).map(|c| c.description())
+        self.redo_stack
+            .iter()
+            .rev()
+            .find(|c| c.audiobook_id() == audiobook_id)
+            .map(|c| c.description())
     }
 
     /// Clear all history
@@ -372,7 +393,9 @@ impl UndoManager {
 
 /// Removes and returns the newest command in `stack` that edits this book.
 fn take_last_for(stack: &mut VecDeque<EditCommand>, audiobook_id: &str) -> Option<EditCommand> {
-    let index = stack.iter().rposition(|c| c.audiobook_id() == audiobook_id)?;
+    let index = stack
+        .iter()
+        .rposition(|c| c.audiobook_id() == audiobook_id)?;
     stack.remove(index)
 }
 
@@ -396,7 +419,11 @@ mod tests {
         let old_metadata = book.output_metadata.clone();
         let mut new_metadata = old_metadata.clone();
         new_metadata.title = Some(title.to_string());
-        let command = EditCommand::UpdateMetadata { audiobook_id: book.id.clone(), old_metadata, new_metadata };
+        let command = EditCommand::UpdateMetadata {
+            audiobook_id: book.id.clone(),
+            old_metadata,
+            new_metadata,
+        };
         manager.execute(book, command).unwrap();
     }
 
@@ -533,7 +560,7 @@ mod tests {
             },
         };
         manager.execute(&mut ab, cmd2).unwrap();
-        
+
         assert!(!manager.can_redo());
     }
 }

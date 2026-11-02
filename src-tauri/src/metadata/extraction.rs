@@ -27,8 +27,8 @@ pub fn extract_metadata(path: &Utf8Path) -> AppResult<Metadata> {
     }
 
     // Open file for reading
-    let file = File::open(path.as_std_path())
-        .map_err(|e| AppError::metadata_read(path, e.to_string()))?;
+    let file =
+        File::open(path.as_std_path()).map_err(|e| AppError::metadata_read(path, e.to_string()))?;
 
     let mss = MediaSourceStream::new(Box::new(file), Default::default());
 
@@ -69,7 +69,10 @@ pub fn extract_metadata(path: &Utf8Path) -> AppResult<Metadata> {
     // Normalize the metadata
     normalize_metadata(&mut metadata);
 
-    debug!("Extracted metadata: title={:?}, artist={:?}", metadata.title, metadata.artist);
+    debug!(
+        "Extracted metadata: title={:?}, artist={:?}",
+        metadata.title, metadata.artist
+    );
     Ok(metadata)
 }
 
@@ -95,7 +98,10 @@ pub fn extract_vorbis_comments(path: &Utf8Path) -> AppResult<Metadata> {
     if let Some(ext) = path.extension() {
         let ext_lower = ext.to_lowercase();
         if ext_lower != "flac" && ext_lower != "ogg" && ext_lower != "oga" {
-            warn!("extract_vorbis_comments called on non-FLAC/OGG file: {}", path);
+            warn!(
+                "extract_vorbis_comments called on non-FLAC/OGG file: {}",
+                path
+            );
         }
     }
     extract_metadata(path)
@@ -205,7 +211,7 @@ pub(crate) fn extract_from_revision(
 
     for tag in meta_rev.tags() {
         let value_str = value_to_string(&tag.value);
-        
+
         match tag.std_key {
             Some(StandardTagKey::TrackTitle) => {
                 if metadata.title.is_none() {
@@ -343,7 +349,12 @@ pub(crate) fn extract_from_revision(
 /// only the part after the last colon is compared. The aliases are the names
 /// Audiobookshelf reads, which is what other audiobook tools write for.
 fn read_custom_tag(metadata: &mut Metadata, key: &str, value: &str) {
-    let name = key.rsplit(':').next().unwrap_or(key).trim().to_ascii_uppercase();
+    let name = key
+        .rsplit(':')
+        .next()
+        .unwrap_or(key)
+        .trim()
+        .to_ascii_uppercase();
     let field = match name.as_str() {
         "NARRATOR" => &mut metadata.narrator,
         "SERIES" => &mut metadata.series,
@@ -364,7 +375,10 @@ fn read_custom_tag(metadata: &mut Metadata, key: &str, value: &str) {
 /// Set a field from a trimmed, non-empty value unless it already has one.
 fn fill_if_empty(field: &mut Option<String>, value: Option<&str>) {
     if field.is_none() {
-        *field = value.map(str::trim).filter(|v| !v.is_empty()).map(str::to_string);
+        *field = value
+            .map(str::trim)
+            .filter(|v| !v.is_empty())
+            .map(str::to_string);
     }
 }
 
@@ -391,12 +405,13 @@ pub fn normalize_metadata(metadata: &mut Metadata) {
         if let Some(ref mut val) = field {
             // Trim whitespace
             *val = val.trim().to_string();
-            
+
             // Remove null characters and other control characters
-            *val = val.chars()
+            *val = val
+                .chars()
                 .filter(|c| !c.is_control() || *c == '\n' || *c == '\r' || *c == '\t')
                 .collect();
-            
+
             // If empty after trimming, set to None
             if val.is_empty() {
                 *field = None;
@@ -523,7 +538,9 @@ mod tests {
 
         // Import reads tags through Symphonia, not mp4ameta, so reopening a
         // converted book must find every field there too.
-        let imported = crate::audio::loader::load_audio_file(&dest).unwrap().metadata;
+        let imported = crate::audio::loader::load_audio_file(&dest)
+            .unwrap()
+            .metadata;
         assert_eq!(imported.narrator.as_deref(), Some("The Narrator"));
         assert_eq!(imported.publisher.as_deref(), Some("The Publisher"));
         assert_eq!(imported.series.as_deref(), Some("Pimsleur Italian"));
@@ -558,7 +575,11 @@ mod tests {
             (None, "com.apple.iTunes:NARRATOR", "Scott Brick"),
             (None, "com.apple.iTunes:SERIES", "Dune"),
             (None, "com.apple.iTunes:SERIES-PART", "2"),
-            (Some(StandardTagKey::IdentAsin), "com.apple.iTunes:ASIN", "B002V8H660"),
+            (
+                Some(StandardTagKey::IdentAsin),
+                "com.apple.iTunes:ASIN",
+                "B002V8H660",
+            ),
         ]);
         let vorbis = read_tags(&[
             (None, "narrator", "Scott Brick"),

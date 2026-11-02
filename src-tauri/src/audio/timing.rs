@@ -3,7 +3,7 @@
 //! Functions for calculating, formatting, and parsing audio durations.
 
 use crate::error::{AppError, AppResult};
-use crate::models::{AudioFile, Chapter, format_duration_ms, parse_time_string};
+use crate::models::{format_duration_ms, parse_time_string, AudioFile, Chapter};
 
 /// Calculate total duration of multiple audio files in milliseconds
 pub fn calculate_total_duration(files: &[AudioFile]) -> u64 {
@@ -19,7 +19,10 @@ pub fn format_duration_ms_precise(ms: u64) -> String {
     let seconds = total_seconds % 60;
 
     if hours > 0 {
-        format!("{:02}:{:02}:{:02}.{:03}", hours, minutes, seconds, remaining_ms)
+        format!(
+            "{:02}:{:02}:{:02}.{:03}",
+            hours, minutes, seconds, remaining_ms
+        )
     } else {
         format!("{:02}:{:02}.{:03}", minutes, seconds, remaining_ms)
     }
@@ -32,7 +35,7 @@ pub fn auto_split_chapters(total_duration_ms: u64, chapter_count: usize) -> Vec<
     }
 
     let chapter_duration = total_duration_ms / chapter_count as u64;
-    
+
     (0..chapter_count)
         .map(|i| {
             let start = i as u64 * chapter_duration;
@@ -41,7 +44,7 @@ pub fn auto_split_chapters(total_duration_ms: u64, chapter_count: usize) -> Vec<
             } else {
                 (i as u64 + 1) * chapter_duration
             };
-            
+
             Chapter {
                 index: i,
                 title: format!("Chapter {}", i + 1),
@@ -101,10 +104,7 @@ pub fn validate_chapters(chapters: &[Chapter], total_duration_ms: u64) -> AppRes
 }
 
 /// Estimate time remaining for conversion
-pub fn estimate_time_remaining(
-    elapsed_ms: u64,
-    progress_percent: f32,
-) -> Option<u64> {
+pub fn estimate_time_remaining(elapsed_ms: u64, progress_percent: f32) -> Option<u64> {
     if progress_percent <= 0.0 || progress_percent >= 100.0 {
         return None;
     }
@@ -128,7 +128,7 @@ mod tests {
     #[test]
     fn test_auto_split_chapters() {
         let chapters = auto_split_chapters(60000, 3); // 60 seconds, 3 chapters
-        
+
         assert_eq!(chapters.len(), 3);
         assert_eq!(chapters[0].start_time_ms, 0);
         assert_eq!(chapters[0].end_time_ms, 20000);
@@ -154,9 +154,7 @@ mod tests {
         assert!(validate_chapters(&overlapping, 20000).is_err());
 
         // Chapter exceeds duration
-        let exceeds = vec![
-            Chapter::new(0, "Ch1".to_string(), 0, 25000),
-        ];
+        let exceeds = vec![Chapter::new(0, "Ch1".to_string(), 0, 25000)];
         assert!(validate_chapters(&exceeds, 20000).is_err());
     }
 
@@ -171,4 +169,3 @@ mod tests {
         assert_eq!(estimate_time_remaining(1000, 100.0), None);
     }
 }
-

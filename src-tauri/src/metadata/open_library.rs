@@ -81,7 +81,8 @@ async fn fetch_docs(query: &str, limit: u32) -> AppResult<Vec<OpenLibraryDoc>> {
         SEARCH_FIELDS
     );
 
-    let response = client.get(&url)
+    let response = client
+        .get(&url)
         .send()
         .await
         .map_err(|e| AppError::MetadataLookupError {
@@ -96,12 +97,14 @@ async fn fetch_docs(query: &str, limit: u32) -> AppResult<Vec<OpenLibraryDoc>> {
         });
     }
 
-    let search_response: SearchResponse = response.json()
-        .await
-        .map_err(|e| AppError::MetadataLookupError {
-            provider: "Open Library".to_string(),
-            reason: format!("Failed to parse response: {}", e),
-        })?;
+    let search_response: SearchResponse =
+        response
+            .json()
+            .await
+            .map_err(|e| AppError::MetadataLookupError {
+                provider: "Open Library".to_string(),
+                reason: format!("Failed to parse response: {}", e),
+            })?;
 
     Ok(search_response.docs)
 }
@@ -166,17 +169,25 @@ mod tests {
         assert_eq!(found.id, "/works/OL893461W");
         assert_eq!(found.authors, ["Frank Herbert"]);
         assert_eq!(found.year, Some(1969));
-        assert_eq!(found.cover_url.as_deref(), Some("https://covers.openlibrary.org/b/id/980253-L.jpg"));
+        assert_eq!(
+            found.cover_url.as_deref(),
+            Some("https://covers.openlibrary.org/b/id/980253-L.jpg")
+        );
         assert!(found.narrators.is_empty() && found.series.is_none());
 
         let (fields, cover) = record_fields(&docs[0]);
         assert_eq!(fields.title.as_deref(), Some("Dune Messiah"));
         assert_eq!(fields.artist.as_deref(), Some("Frank Herbert"));
         assert_eq!(fields.year, Some(1969));
-        assert_eq!(fields.publisher.as_deref(), Some("Orion Publishing Group, Limited"));
+        assert_eq!(
+            fields.publisher.as_deref(),
+            Some("Orion Publishing Group, Limited")
+        );
         assert_eq!(fields.genre.as_deref(), Some("American Science fiction"));
-        assert_eq!((fields.narrator, fields.series, fields.description), (None, None, None));
+        assert_eq!(
+            (fields.narrator, fields.series, fields.description),
+            (None, None, None)
+        );
         assert_eq!(cover, found.cover_url);
     }
 }
-

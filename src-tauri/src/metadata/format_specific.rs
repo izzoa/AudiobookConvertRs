@@ -8,9 +8,9 @@
 use crate::audio::loader::load_audio_file;
 use crate::error::{AppError, AppResult};
 use crate::ffmpeg::detection::detect_ffmpeg;
-use crate::models::{AudioFormat, AudioFile, Chapter, Metadata};
 use crate::metadata::chapters::extract_chapters_from_m4b;
 use crate::metadata::extraction::extract_metadata;
+use crate::models::{AudioFile, AudioFormat, Chapter, Metadata};
 use camino::Utf8Path;
 use regex::Regex;
 use std::fs::File;
@@ -93,14 +93,20 @@ pub fn extract_chapters_from_flac_cuesheet(path: &Utf8Path) -> AppResult<Vec<Cha
 
 /// The first tag named `name` (any case), from the reader or the probe result
 fn read_tag(path: &Utf8Path, name: &str) -> AppResult<Option<String>> {
-    let file = File::open(path.as_std_path()).map_err(|e| AppError::metadata_read(path, e.to_string()))?;
+    let file =
+        File::open(path.as_std_path()).map_err(|e| AppError::metadata_read(path, e.to_string()))?;
     let mss = MediaSourceStream::new(Box::new(file), Default::default());
     let mut hint = Hint::new();
     if let Some(ext) = path.extension() {
         hint.with_extension(ext);
     }
     let mut probed = symphonia::default::get_probe()
-        .format(&hint, mss, &FormatOptions::default(), &MetadataOptions::default())
+        .format(
+            &hint,
+            mss,
+            &FormatOptions::default(),
+            &MetadataOptions::default(),
+        )
         .map_err(|e| AppError::metadata_read(path, e.to_string()))?;
 
     let find = |rev: &symphonia::core::meta::MetadataRevision| {
@@ -113,7 +119,12 @@ fn read_tag(path: &Utf8Path, name: &str) -> AppResult<Option<String>> {
     if let Some(value) = reader.metadata().current().and_then(find) {
         return Ok(Some(value));
     }
-    Ok(probed.metadata.get().as_ref().and_then(|m| m.current()).and_then(find))
+    Ok(probed
+        .metadata
+        .get()
+        .as_ref()
+        .and_then(|m| m.current())
+        .and_then(find))
 }
 
 /// Parse a cue sheet string into chapters
@@ -149,30 +160,44 @@ fn parse_cuesheet(cuesheet: &str) -> AppResult<Vec<Chapter>> {
                     });
                 }
             }
-            current_index = caps.get(1)
+            current_index = caps
+                .get(1)
                 .and_then(|m| m.as_str().parse::<usize>().ok())
-                .unwrap_or(1) - 1;
+                .unwrap_or(1)
+                - 1;
         }
 
         if let Some(caps) = title_re.captures(line) {
-            current_title = caps.get(1).map(|m| m.as_str().to_string()).unwrap_or_default();
+            current_title = caps
+                .get(1)
+                .map(|m| m.as_str().to_string())
+                .unwrap_or_default();
         }
 
         if let Some(caps) = index_re.captures(line) {
-            let minutes: u64 = caps.get(1).and_then(|m| m.as_str().parse().ok()).unwrap_or(0);
-            let seconds: u64 = caps.get(2).and_then(|m| m.as_str().parse().ok()).unwrap_or(0);
-            let frames: u64 = caps.get(3).and_then(|m| m.as_str().parse().ok()).unwrap_or(0);
-            
+            let minutes: u64 = caps
+                .get(1)
+                .and_then(|m| m.as_str().parse().ok())
+                .unwrap_or(0);
+            let seconds: u64 = caps
+                .get(2)
+                .and_then(|m| m.as_str().parse().ok())
+                .unwrap_or(0);
+            let frames: u64 = caps
+                .get(3)
+                .and_then(|m| m.as_str().parse().ok())
+                .unwrap_or(0);
+
             // CD frames are 1/75th of a second
             let ms = (minutes * 60 * 1000) + (seconds * 1000) + (frames * 1000 / 75);
-            
+
             // Update previous chapter's end time
             if let Some(last) = chapters.last_mut() {
                 if last.end_time_ms == 0 {
                     last.end_time_ms = ms;
                 }
             }
-            
+
             pending_start_ms = Some(ms);
         }
     }
@@ -287,7 +312,9 @@ fn parse_ffmetadata_chapters(text: &str) -> Vec<Chapter> {
         .enumerate()
         .map(|(i, (start_time_ms, end_time_ms, title))| Chapter {
             index: i,
-            title: title.filter(|t| !t.trim().is_empty()).unwrap_or_else(|| format!("Chapter {}", i + 1)),
+            title: title
+                .filter(|t| !t.trim().is_empty())
+                .unwrap_or_else(|| format!("Chapter {}", i + 1)),
             start_time_ms,
             end_time_ms,
             auto_detected: true,
@@ -312,15 +339,9 @@ fn unescape_ffmetadata(value: &str) -> String {
 /// Auto-detect and extract chapters from any supported format
 pub fn auto_extract_chapters(file: &AudioFile) -> AppResult<Vec<Chapter>> {
     match file.format {
-        AudioFormat::M4b | AudioFormat::M4a => {
-            extract_chapters_from_m4b(&file.path)
-        }
-        AudioFormat::Flac => {
-            extract_chapters_from_flac_cuesheet(&file.path)
-        }
-        AudioFormat::Mp3 => {
-            extract_chapters_from_mp3(&file.path)
-        }
+        AudioFormat::M4b | AudioFormat::M4a => extract_chapters_from_m4b(&file.path),
+        AudioFormat::Flac => extract_chapters_from_flac_cuesheet(&file.path),
+        AudioFormat::Mp3 => extract_chapters_from_mp3(&file.path),
         _ => {
             debug!("No chapter extraction for format: {}", file.format);
             Ok(Vec::new())

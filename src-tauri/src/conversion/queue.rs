@@ -3,8 +3,8 @@
 //! Provides thread-safe job queue management for conversion jobs,
 //! including persistence to disk for resuming interrupted conversions.
 
-use crate::error::{AppError, AppResult};
 use crate::conversion::progress::ConversionProgress;
+use crate::error::{AppError, AppResult};
 use crate::models::{AudioBook, ConversionJob, ConversionSettings, JobStatus};
 use camino::{Utf8Path, Utf8PathBuf};
 use parking_lot::RwLock;
@@ -69,13 +69,13 @@ impl ConversionQueue {
     /// Add a new job to the queue
     pub fn add_job(&self, job: ConversionJob) -> AppResult<()> {
         info!("Adding job {} to queue", job.id);
-        
+
         let mut pending = self.pending.write();
         pending.push_back(job);
-        
+
         drop(pending);
         self.save_to_disk()?;
-        
+
         Ok(())
     }
 
@@ -174,10 +174,7 @@ impl ConversionQueue {
             }
         }
 
-        Err(AppError::StateError(format!(
-            "Job not found: {}",
-            job_id
-        )))
+        Err(AppError::StateError(format!("Job not found: {}", job_id)))
     }
 
     /// Update job progress
@@ -252,22 +249,19 @@ impl ConversionQueue {
             if let Some(pos) = pending.iter().position(|j| j.id == job_id) {
                 let mut job = pending.remove(pos).unwrap();
                 job.cancel();
-                
+
                 let mut completed = self.completed.write();
                 completed.push(job);
-                
+
                 drop(pending);
                 drop(completed);
-                
+
                 self.save_to_disk()?;
                 return Ok(());
             }
         }
 
-        Err(AppError::StateError(format!(
-            "Job not found: {}",
-            job_id
-        )))
+        Err(AppError::StateError(format!("Job not found: {}", job_id)))
     }
 
     /// Get all jobs (pending + active + completed)
@@ -466,9 +460,8 @@ impl ConversionQueue {
             }
         };
 
-        let json = serde_json::to_string_pretty(&state).map_err(|e| {
-            AppError::StateError(format!("Failed to serialize queue state: {}", e))
-        })?;
+        let json = serde_json::to_string_pretty(&state)
+            .map_err(|e| AppError::StateError(format!("Failed to serialize queue state: {}", e)))?;
 
         // Ensure parent directory exists
         if let Some(parent) = path.parent() {
@@ -498,9 +491,8 @@ impl ConversionQueue {
             reason: format!("Failed to read queue state: {}", e),
         })?;
 
-        let state: QueueState = serde_json::from_str(&content).map_err(|e| {
-            AppError::StateError(format!("Failed to parse queue state: {}", e))
-        })?;
+        let state: QueueState = serde_json::from_str(&content)
+            .map_err(|e| AppError::StateError(format!("Failed to parse queue state: {}", e)))?;
 
         let mut pending = self.pending.write();
         let mut active = self.active.write();
@@ -567,9 +559,11 @@ mod tests {
         let queue = ConversionQueue::new();
         let audiobook = create_test_audiobook();
         let settings = ConversionSettings::default();
-        
-        let job_id = queue.queue_conversion(audiobook, settings).expect("Should add job");
-        
+
+        let job_id = queue
+            .queue_conversion(audiobook, settings)
+            .expect("Should add job");
+
         assert_eq!(queue.len(), 1);
         assert!(queue.get_job(&job_id).is_some());
     }
@@ -579,9 +573,11 @@ mod tests {
         let queue = ConversionQueue::new();
         let audiobook = create_test_audiobook();
         let settings = ConversionSettings::default();
-        
-        let job_id = queue.queue_conversion(audiobook, settings).expect("Should add job");
-        
+
+        let job_id = queue
+            .queue_conversion(audiobook, settings)
+            .expect("Should add job");
+
         let job = queue.get_next_job().expect("Should get job");
         assert_eq!(job.id, job_id);
         assert_eq!(job.status, JobStatus::Running);
@@ -594,12 +590,14 @@ mod tests {
         let queue = ConversionQueue::new();
         let audiobook = create_test_audiobook();
         let settings = ConversionSettings::default();
-        
-        let job_id = queue.queue_conversion(audiobook, settings).expect("Should add job");
+
+        let job_id = queue
+            .queue_conversion(audiobook, settings)
+            .expect("Should add job");
         let _ = queue.get_next_job();
-        
+
         queue.complete_job(&job_id).expect("Should complete");
-        
+
         assert!(!queue.has_active_job());
         assert_eq!(queue.get_completed_jobs().len(), 1);
     }
@@ -609,11 +607,13 @@ mod tests {
         let queue = ConversionQueue::new();
         let audiobook = create_test_audiobook();
         let settings = ConversionSettings::default();
-        
-        let job_id = queue.queue_conversion(audiobook, settings).expect("Should add job");
-        
+
+        let job_id = queue
+            .queue_conversion(audiobook, settings)
+            .expect("Should add job");
+
         queue.cancel_job(&job_id).expect("Should cancel");
-        
+
         assert!(queue.is_empty());
         assert_eq!(queue.get_completed_jobs().len(), 1);
         assert_eq!(queue.get_completed_jobs()[0].status, JobStatus::Cancelled);
@@ -623,18 +623,24 @@ mod tests {
     fn test_queue_multiple_jobs() {
         let queue = ConversionQueue::new();
         let settings = ConversionSettings::default();
-        
-        queue.queue_conversion(create_test_audiobook(), settings.clone()).unwrap();
-        queue.queue_conversion(create_test_audiobook(), settings.clone()).unwrap();
-        queue.queue_conversion(create_test_audiobook(), settings).unwrap();
-        
+
+        queue
+            .queue_conversion(create_test_audiobook(), settings.clone())
+            .unwrap();
+        queue
+            .queue_conversion(create_test_audiobook(), settings.clone())
+            .unwrap();
+        queue
+            .queue_conversion(create_test_audiobook(), settings)
+            .unwrap();
+
         assert_eq!(queue.len(), 3);
-        
+
         // Get first job
         let _ = queue.get_next_job();
         assert_eq!(queue.len(), 2);
         assert!(queue.has_active_job());
-        
+
         // Parallel queue allows claiming a second active job
         assert!(queue.get_next_job().is_some());
         assert_eq!(queue.active_job_count(), 2);
@@ -647,7 +653,9 @@ mod tests {
         let audiobook = create_test_audiobook();
         let settings = ConversionSettings::default();
 
-        let job_id = queue.queue_conversion(audiobook, settings).expect("Should add job");
+        let job_id = queue
+            .queue_conversion(audiobook, settings)
+            .expect("Should add job");
         let _ = queue.get_next_job().expect("Should claim job");
 
         let snapshot = ConversionProgress {
@@ -667,7 +675,10 @@ mod tests {
         let job = queue.get_job(&job_id).expect("Should retrieve active job");
         assert_eq!(job.progress_percent, 62.5);
         assert_eq!(job.current_file_index, 1);
-        assert_eq!(job.status_message.as_deref(), Some("Encoding: chapter2.mp3"));
+        assert_eq!(
+            job.status_message.as_deref(),
+            Some("Encoding: chapter2.mp3")
+        );
         let stored = job.progress.expect("Progress snapshot should be retained");
         assert_eq!(stored.stage, ConversionStage::Encoding);
         assert_eq!(stored.current_file, "chapter2.mp3");

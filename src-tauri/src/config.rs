@@ -16,9 +16,8 @@ use std::path::PathBuf;
 use tracing::{debug, info, warn};
 
 /// Global configuration instance
-static CONFIG: Lazy<RwLock<UserSettings>> = Lazy::new(|| {
-    RwLock::new(UserSettings::load().unwrap_or_default())
-});
+static CONFIG: Lazy<RwLock<UserSettings>> =
+    Lazy::new(|| RwLock::new(UserSettings::load().unwrap_or_default()));
 
 /// User-configurable settings
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -208,9 +207,8 @@ impl UserSettings {
             return Ok(Self::default());
         }
 
-        let contents = std::fs::read_to_string(&path).map_err(|e| {
-            AppError::ConfigLoadError(format!("Failed to read config file: {}", e))
-        })?;
+        let contents = std::fs::read_to_string(&path)
+            .map_err(|e| AppError::ConfigLoadError(format!("Failed to read config file: {}", e)))?;
 
         let settings: Self = serde_json::from_str(&contents).map_err(|e| {
             warn!("Failed to parse config file, using defaults: {}", e);
@@ -225,9 +223,8 @@ impl UserSettings {
     pub fn save(&self) -> AppResult<()> {
         let path = Self::config_file_path()?;
 
-        let contents = serde_json::to_string_pretty(self).map_err(|e| {
-            AppError::ConfigSaveError(format!("Failed to serialize config: {}", e))
-        })?;
+        let contents = serde_json::to_string_pretty(self)
+            .map_err(|e| AppError::ConfigSaveError(format!("Failed to serialize config: {}", e)))?;
 
         std::fs::write(&path, contents).map_err(|e| {
             AppError::ConfigSaveError(format!("Failed to write config file: {}", e))
@@ -397,7 +394,10 @@ mod tests {
         let json = serde_json::to_string(&settings).unwrap();
         let deserialized: UserSettings = serde_json::from_str(&json).unwrap();
 
-        assert_eq!(settings.default_bitrate_kbps, deserialized.default_bitrate_kbps);
+        assert_eq!(
+            settings.default_bitrate_kbps,
+            deserialized.default_bitrate_kbps
+        );
     }
 
     #[test]
@@ -414,8 +414,10 @@ mod tests {
         assert_eq!(settings.audible_region, "us");
         assert!(settings.validate().is_ok());
 
-        let unknown = UserSettings { audible_region: "nz".to_string(), ..UserSettings::default() };
+        let unknown = UserSettings {
+            audible_region: "nz".to_string(),
+            ..UserSettings::default()
+        };
         assert!(unknown.validate().is_err());
     }
 }
-

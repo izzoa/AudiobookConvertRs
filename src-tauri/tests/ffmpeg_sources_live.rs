@@ -33,5 +33,9 @@ async fn every_fixed_build_is_online_and_unchanged() {
         }
     }
 
-    assert!(failures.is_empty(), "fixed FFmpeg builds changed:\n{}", failures.join("\n"));
+    assert!(
+        failures.is_empty(),
+        "fixed FFmpeg builds changed:\n{}",
+        failures.join("\n")
+    );
 }

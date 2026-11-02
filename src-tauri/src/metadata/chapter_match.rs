@@ -28,9 +28,15 @@ pub struct FoundChapters {
     pub outro_ms: u64,
 }
 
-pub fn offer_chapters(found: &FoundChapters, book_duration_ms: u64, current: &[Chapter]) -> ChapterOffer {
+pub fn offer_chapters(
+    found: &FoundChapters,
+    book_duration_ms: u64,
+    current: &[Chapter],
+) -> ChapterOffer {
     if found.chapters.is_empty() {
-        return ChapterOffer::Unavailable { reason: "This record has no chapter list.".to_string() };
+        return ChapterOffer::Unavailable {
+            reason: "This record has no chapter list.".to_string(),
+        };
     }
     let near = |a: u64, b: u64| a.abs_diff(b) <= RUNTIME_TOLERANCE_MS;
 
@@ -41,9 +47,17 @@ pub fn offer_chapters(found: &FoundChapters, book_duration_ms: u64, current: &[C
     }
 
     let branding_ms = found.intro_ms + found.outro_ms;
-    if branding_ms > 0 && near(book_duration_ms, found.runtime_ms.saturating_sub(branding_ms)) {
+    if branding_ms > 0
+        && near(
+            book_duration_ms,
+            found.runtime_ms.saturating_sub(branding_ms),
+        )
+    {
         if let Some(chapters) = fit(found, found.intro_ms, book_duration_ms) {
-            return ChapterOffer::Shifted { chapters, shift_ms: found.intro_ms };
+            return ChapterOffer::Shifted {
+                chapters,
+                shift_ms: found.intro_ms,
+            };
         }
     }
 
@@ -52,7 +66,11 @@ pub fn offer_chapters(found: &FoundChapters, book_duration_ms: u64, current: &[C
             .iter()
             .zip(&found.chapters)
             .map(|(chapter, found)| Chapter {
-                title: if found.title.trim().is_empty() { chapter.title.clone() } else { found.title.clone() },
+                title: if found.title.trim().is_empty() {
+                    chapter.title.clone()
+                } else {
+                    found.title.clone()
+                },
                 auto_detected: false,
                 ..chapter.clone()
             })
@@ -79,7 +97,13 @@ fn fit(found: &FoundChapters, shift_ms: u64, book_duration_ms: u64) -> Option<Ve
         .chapters
         .iter()
         .enumerate()
-        .map(|(i, c)| if i == 0 { 0 } else { c.start_ms.saturating_sub(shift_ms) })
+        .map(|(i, c)| {
+            if i == 0 {
+                0
+            } else {
+                c.start_ms.saturating_sub(shift_ms)
+            }
+        })
         .collect();
     let chapters: Vec<Chapter> = found
         .chapters
@@ -90,7 +114,9 @@ fn fit(found: &FoundChapters, shift_ms: u64, book_duration_ms: u64) -> Option<Ve
             Chapter::new(i, c.title.clone(), starts[i], end)
         })
         .collect();
-    validate_chapters(&chapters, book_duration_ms).ok().map(|_| chapters)
+    validate_chapters(&chapters, book_duration_ms)
+        .ok()
+        .map(|_| chapters)
 }
 
 /// "8h 57m", or "41m" under an hour.
@@ -110,9 +136,18 @@ mod tests {
     fn dune_messiah() -> FoundChapters {
         FoundChapters {
             chapters: vec![
-                FoundChapter { title: "Opening Credits".to_string(), start_ms: 0 },
-                FoundChapter { title: "Excerpts from the Death Cell Interview".to_string(), start_ms: 41_820 },
-                FoundChapter { title: "Analysis of History".to_string(), start_ms: 602_001 },
+                FoundChapter {
+                    title: "Opening Credits".to_string(),
+                    start_ms: 0,
+                },
+                FoundChapter {
+                    title: "Excerpts from the Death Cell Interview".to_string(),
+                    start_ms: 41_820,
+                },
+                FoundChapter {
+                    title: "Analysis of History".to_string(),
+                    start_ms: 602_001,
+                },
             ],
             runtime_ms: 32_269_161,
             intro_ms: 3_970,
@@ -121,21 +156,29 @@ mod tests {
     }
 
     fn spans(chapters: &[Chapter]) -> Vec<(u64, u64)> {
-        chapters.iter().map(|c| (c.start_time_ms, c.end_time_ms)).collect()
+        chapters
+            .iter()
+            .map(|c| (c.start_time_ms, c.end_time_ms))
+            .collect()
     }
 
     #[test]
     fn same_edition_uses_listed_timings() {
-        let ChapterOffer::Exact { chapters } = offer_chapters(&dune_messiah(), 32_269_161, &[]) else {
+        let ChapterOffer::Exact { chapters } = offer_chapters(&dune_messiah(), 32_269_161, &[])
+        else {
             panic!("expected exact timings");
         };
-        assert_eq!(spans(&chapters), vec![(0, 41_820), (41_820, 602_001), (602_001, 32_269_161)]);
+        assert_eq!(
+            spans(&chapters),
+            vec![(0, 41_820), (41_820, 602_001), (602_001, 32_269_161)]
+        );
         assert_eq!(chapters[1].title, "Excerpts from the Death Cell Interview");
     }
 
     #[test]
     fn a_book_slightly_shorter_than_the_edition_still_matches() {
-        let ChapterOffer::Exact { chapters } = offer_chapters(&dune_messiah(), 32_268_000, &[]) else {
+        let ChapterOffer::Exact { chapters } = offer_chapters(&dune_messiah(), 32_268_000, &[])
+        else {
             panic!("expected exact timings");
         };
         assert_eq!(chapters.last().unwrap().end_time_ms, 32_268_000);
@@ -148,15 +191,27 @@ mod tests {
             panic!("expected shifted timings");
         };
         assert_eq!(shift_ms, 3_970);
-        assert_eq!(spans(&chapters), vec![(0, 37_850), (37_850, 598_031), (598_031, 32_260_246)]);
+        assert_eq!(
+            spans(&chapters),
+            vec![(0, 37_850), (37_850, 598_031), (598_031, 32_260_246)]
+        );
     }
 
     #[test]
     fn same_count_from_another_edition_offers_titles_only() {
         let current: Vec<Chapter> = (0..3)
-            .map(|i| Chapter::new(i, format!("Track {:02}", i + 1), i as u64 * 1_000_000, (i as u64 + 1) * 1_000_000))
+            .map(|i| {
+                Chapter::new(
+                    i,
+                    format!("Track {:02}", i + 1),
+                    i as u64 * 1_000_000,
+                    (i as u64 + 1) * 1_000_000,
+                )
+            })
             .collect();
-        let ChapterOffer::TitlesOnly { chapters } = offer_chapters(&dune_messiah(), 33_120_000, &current) else {
+        let ChapterOffer::TitlesOnly { chapters } =
+            offer_chapters(&dune_messiah(), 33_120_000, &current)
+        else {
             panic!("expected titles only");
         };
         assert_eq!(chapters[2].title, "Analysis of History");
@@ -167,21 +222,40 @@ mod tests {
     fn different_edition_and_count_says_why() {
         let mut found = dune_messiah();
         found.chapters = (0..28)
-            .map(|i| FoundChapter { title: format!("Chapter {}", i + 1), start_ms: i * 1_152_000 })
+            .map(|i| FoundChapter {
+                title: format!("Chapter {}", i + 1),
+                start_ms: i * 1_152_000,
+            })
             .collect();
-        let current: Vec<Chapter> = (0..6).map(|i| Chapter::new(i, format!("Part {}", i + 1), i as u64 * 5_000_000, (i as u64 + 1) * 5_000_000)).collect();
+        let current: Vec<Chapter> = (0..6)
+            .map(|i| {
+                Chapter::new(
+                    i,
+                    format!("Part {}", i + 1),
+                    i as u64 * 5_000_000,
+                    (i as u64 + 1) * 5_000_000,
+                )
+            })
+            .collect();
 
-        let ChapterOffer::Unavailable { reason } = offer_chapters(&found, 33_120_000, &current) else {
+        let ChapterOffer::Unavailable { reason } = offer_chapters(&found, 33_120_000, &current)
+        else {
             panic!("expected unavailable");
         };
-        assert_eq!(reason, "The found edition runs 8h 57m with 28 chapters; this book runs 9h 12m with 6.");
+        assert_eq!(
+            reason,
+            "The found edition runs 8h 57m with 28 chapters; this book runs 9h 12m with 6."
+        );
     }
 
     #[test]
     fn timings_that_do_not_fit_the_book_are_not_offered() {
         // Within tolerance, but the last chapter would start after the book ends.
         let mut found = dune_messiah();
-        found.chapters.push(FoundChapter { title: "Closing Credits".to_string(), start_ms: 32_268_500 });
+        found.chapters.push(FoundChapter {
+            title: "Closing Credits".to_string(),
+            start_ms: 32_268_500,
+        });
         assert!(matches!(
             offer_chapters(&found, 32_268_000, &[]),
             ChapterOffer::Unavailable { .. }
@@ -192,6 +266,9 @@ mod tests {
     fn no_chapter_list_is_unavailable() {
         let mut found = dune_messiah();
         found.chapters.clear();
-        assert!(matches!(offer_chapters(&found, 32_269_161, &[]), ChapterOffer::Unavailable { .. }));
+        assert!(matches!(
+            offer_chapters(&found, 32_269_161, &[]),
+            ChapterOffer::Unavailable { .. }
+        ));
     }
 }

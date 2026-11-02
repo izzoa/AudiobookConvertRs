@@ -33,9 +33,8 @@ pub const SUPPORTED_FORMATS_LABEL: &str = "MP3, M4A, M4B, FLAC, WAV, OGG, AAC";
 ///
 /// The UI lists these to users from `src-ui/src/lib/formats.ts`; change both
 /// together so the app never advertises a format this loader rejects.
-pub const SUPPORTED_EXTENSIONS: &[&str] = &[
-    "mp3", "flac", "m4a", "m4b", "wav", "ogg", "oga", "aac",
-];
+pub const SUPPORTED_EXTENSIONS: &[&str] =
+    &["mp3", "flac", "m4a", "m4b", "wav", "ogg", "oga", "aac"];
 
 /// Check if a file format is supported for input
 pub fn is_supported_format(path: &Utf8Path) -> bool {
@@ -64,7 +63,8 @@ pub fn validate_audio_file(path: &Utf8Path) -> AppResult<()> {
         .map_err(|e| AppError::PermissionDenied(path.as_std_path().to_path_buf()))?;
 
     // Check file is not empty
-    let metadata = file.metadata()
+    let metadata = file
+        .metadata()
         .map_err(|e| AppError::file_read(path, e.to_string()))?;
 
     if metadata.len() == 0 {
@@ -119,8 +119,8 @@ pub fn detect_format(path: &Utf8Path) -> AppResult<AudioFormat> {
     }
 
     // Fallback to probing
-    let file = File::open(path.as_std_path())
-        .map_err(|e| AppError::file_read(path, e.to_string()))?;
+    let file =
+        File::open(path.as_std_path()).map_err(|e| AppError::file_read(path, e.to_string()))?;
 
     let mss = MediaSourceStream::new(Box::new(file), Default::default());
     let format_opts = FormatOptions::default();
@@ -159,7 +159,10 @@ pub fn detect_format(path: &Utf8Path) -> AppResult<AudioFormat> {
 /// Get file type filter string for file dialogs
 pub fn get_audio_file_filter() -> Vec<(&'static str, &'static [&'static str])> {
     vec![
-        ("Audio Files", &["mp3", "flac", "m4a", "m4b", "wav", "ogg", "aac"]),
+        (
+            "Audio Files",
+            &["mp3", "flac", "m4a", "m4b", "wav", "ogg", "aac"],
+        ),
         ("MP3 Files", &["mp3"]),
         ("FLAC Files", &["flac"]),
         ("M4A/M4B Files", &["m4a", "m4b"]),
@@ -197,4 +200,3 @@ mod tests {
         assert!(!SUPPORTED_EXTENSIONS.contains(&"txt"));
     }
 }
-

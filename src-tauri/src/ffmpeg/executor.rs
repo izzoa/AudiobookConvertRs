@@ -367,7 +367,10 @@ where
     let args = command.build_args()?;
     let executable = command.executable().to_owned();
 
-    info!("Executing FFmpeg with progress tracking: {}", args.join(" "));
+    info!(
+        "Executing FFmpeg with progress tracking: {}",
+        args.join(" ")
+    );
     let start = Instant::now();
 
     let mut child = Command::new(executable.as_str())
@@ -495,21 +498,29 @@ pub fn parse_ffmpeg_progress(line: &str) -> Option<FFmpegProgress> {
             if let Ok(us) = parts[1].trim().parse::<u64>() {
                 // Convert microseconds to milliseconds
                 progress.time_ms = us / 1000;
-                return if progress.is_valid() { Some(progress) } else { None };
+                return if progress.is_valid() {
+                    Some(progress)
+                } else {
+                    None
+                };
             }
         }
     }
-    
+
     if line.starts_with("out_time=") {
         let parts: Vec<&str> = line.splitn(2, '=').collect();
         if parts.len() == 2 {
             if let Some(ms) = parse_time_to_ms(parts[1].trim()) {
                 progress.time_ms = ms;
-                return if progress.is_valid() { Some(progress) } else { None };
+                return if progress.is_valid() {
+                    Some(progress)
+                } else {
+                    None
+                };
             }
         }
     }
-    
+
     // Speed line from progress pipe
     if line.starts_with("speed=") {
         let parts: Vec<&str> = line.splitn(2, '=').collect();
@@ -601,12 +612,16 @@ fn parse_time_to_ms(time_str: &str) -> Option<u64> {
             let hours: u64 = parts[0].parse().ok()?;
             let minutes: u64 = parts[1].parse().ok()?;
             let seconds_parts: Vec<&str> = parts[2].split('.').collect();
-            
+
             let seconds: u64 = seconds_parts[0].parse().ok()?;
             let millis: u64 = if seconds_parts.len() > 1 {
                 let ms_str = seconds_parts[1];
                 // Pad or truncate to 3 digits
-                let ms_str = if ms_str.len() > 3 { &ms_str[..3] } else { ms_str };
+                let ms_str = if ms_str.len() > 3 {
+                    &ms_str[..3]
+                } else {
+                    ms_str
+                };
                 let padding = 3 - ms_str.len();
                 let ms_val: u64 = ms_str.parse().ok()?;
                 ms_val * 10u64.pow(padding as u32)
@@ -620,11 +635,15 @@ fn parse_time_to_ms(time_str: &str) -> Option<u64> {
             // MM:SS.ms
             let minutes: u64 = parts[0].parse().ok()?;
             let seconds_parts: Vec<&str> = parts[1].split('.').collect();
-            
+
             let seconds: u64 = seconds_parts[0].parse().ok()?;
             let millis: u64 = if seconds_parts.len() > 1 {
                 let ms_str = seconds_parts[1];
-                let ms_str = if ms_str.len() > 3 { &ms_str[..3] } else { ms_str };
+                let ms_str = if ms_str.len() > 3 {
+                    &ms_str[..3]
+                } else {
+                    ms_str
+                };
                 let padding = 3 - ms_str.len();
                 ms_str.parse::<u64>().ok()? * 10u64.pow(padding as u32)
             } else {
@@ -640,7 +659,7 @@ fn parse_time_to_ms(time_str: &str) -> Option<u64> {
 /// Parse size string (e.g., "1234kB") to bytes
 fn parse_size_to_bytes(size_str: &str) -> Option<u64> {
     let size_str = size_str.to_lowercase();
-    
+
     if let Some(kb_str) = size_str.strip_suffix("kb") {
         let kb: u64 = kb_str.parse().ok()?;
         Some(kb * 1024)
@@ -660,7 +679,7 @@ fn parse_size_to_bytes(size_str: &str) -> Option<u64> {
 /// Parse bitrate string (e.g., "128kbits/s") to kbps
 fn parse_bitrate(br_str: &str) -> Option<f32> {
     let br_str = br_str.to_lowercase();
-    
+
     if let Some(kbits_str) = br_str.strip_suffix("kbits/s") {
         kbits_str.parse().ok()
     } else if let Some(kbps_str) = br_str.strip_suffix("kbps") {
@@ -681,7 +700,7 @@ pub fn calculate_progress_percent(current_ms: u64, total_ms: u64) -> f32 {
     if total_ms == 0 {
         return 0.0;
     }
-    
+
     let percent = (current_ms as f64 / total_ms as f64) * 100.0;
     percent.clamp(0.0, 100.0) as f32
 }
@@ -692,7 +711,8 @@ mod tests {
 
     #[test]
     fn test_parse_ffmpeg_progress_valid() {
-        let line = "frame=12345 fps=30.0 size=1234kB time=00:15:30.45 bitrate=128kbits/s speed=2.5x";
+        let line =
+            "frame=12345 fps=30.0 size=1234kB time=00:15:30.45 bitrate=128kbits/s speed=2.5x";
         let progress = parse_ffmpeg_progress(line).expect("Should parse progress");
 
         assert_eq!(progress.frame, Some(12345));
@@ -727,8 +747,14 @@ mod tests {
         assert_eq!(parse_time_to_ms("00:00:01.00"), Some(1000));
         assert_eq!(parse_time_to_ms("00:01:00.00"), Some(60000));
         assert_eq!(parse_time_to_ms("01:00:00.00"), Some(3600000));
-        assert_eq!(parse_time_to_ms("01:23:45.67"), Some((1 * 3600 + 23 * 60 + 45) * 1000 + 670));
-        assert_eq!(parse_time_to_ms("00:15:30.45"), Some((15 * 60 + 30) * 1000 + 450));
+        assert_eq!(
+            parse_time_to_ms("01:23:45.67"),
+            Some((1 * 3600 + 23 * 60 + 45) * 1000 + 670)
+        );
+        assert_eq!(
+            parse_time_to_ms("00:15:30.45"),
+            Some((15 * 60 + 30) * 1000 + 450)
+        );
     }
 
     #[test]
@@ -783,7 +809,9 @@ mod tests {
         assert!(acc.parse_line("speed=2.5x").is_none());
 
         // On progress= line, we get the accumulated result
-        let progress = acc.parse_line("progress=continue").expect("Should emit progress");
+        let progress = acc
+            .parse_line("progress=continue")
+            .expect("Should emit progress");
         assert_eq!(progress.time_ms, 5000); // 5000000 microseconds = 5000 ms
         assert_eq!(progress.speed, Some(2.5));
         assert_eq!(progress.bitrate_kbps, Some(128.5));
@@ -797,7 +825,9 @@ mod tests {
         assert!(acc.parse_line("out_time=00:01:30.500").is_none());
         assert!(acc.parse_line("speed=3.0x").is_none());
 
-        let progress = acc.parse_line("progress=continue").expect("Should emit progress");
+        let progress = acc
+            .parse_line("progress=continue")
+            .expect("Should emit progress");
         assert_eq!(progress.time_ms, 90500); // 1 min 30.5 sec = 90500 ms
         assert_eq!(progress.speed, Some(3.0));
     }

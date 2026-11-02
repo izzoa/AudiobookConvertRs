@@ -4,13 +4,13 @@
 
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-use audiobookconvert_rs::logging::init_logging;
-use audiobookconvert_rs::state::AppState;
+use audiobookconvert_rs::audio::player::create_shared_player;
 use audiobookconvert_rs::commands::undo::UndoState;
+use audiobookconvert_rs::config::UserSettings;
 use audiobookconvert_rs::conversion::runner::create_shared_manager;
 use audiobookconvert_rs::ffmpeg::detect_ffmpeg;
-use audiobookconvert_rs::config::UserSettings;
-use audiobookconvert_rs::audio::player::create_shared_player;
+use audiobookconvert_rs::logging::init_logging;
+use audiobookconvert_rs::state::AppState;
 use camino::Utf8PathBuf;
 use tracing::{info, warn};
 
@@ -36,11 +36,15 @@ fn main() {
     }
 
     // Create conversion manager with persistence
-    let config_dir = UserSettings::config_dir()
-        .unwrap_or_else(|_| std::path::PathBuf::from("."));
-    let queue_path = Utf8PathBuf::from(config_dir.join("conversion_queue.json").to_string_lossy().to_string());
-    let manager = create_shared_manager(Some(queue_path))
-        .expect("Failed to create conversion manager");
+    let config_dir = UserSettings::config_dir().unwrap_or_else(|_| std::path::PathBuf::from("."));
+    let queue_path = Utf8PathBuf::from(
+        config_dir
+            .join("conversion_queue.json")
+            .to_string_lossy()
+            .to_string(),
+    );
+    let manager =
+        create_shared_manager(Some(queue_path)).expect("Failed to create conversion manager");
 
     // Create audio player for preview functionality
     let player = create_shared_player();

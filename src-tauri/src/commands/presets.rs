@@ -3,9 +3,7 @@
 use camino::Utf8PathBuf;
 use tauri::State;
 
-use crate::conversion::batch::{
-    ConversionPreset, DryRunResult, PresetManager, dry_run_analysis,
-};
+use crate::conversion::batch::{dry_run_analysis, ConversionPreset, DryRunResult, PresetManager};
 use crate::models::ConversionSettings;
 use crate::state::AppState;
 
@@ -54,10 +52,7 @@ pub async fn save_preset(
 
 /// Delete a preset by name
 #[tauri::command]
-pub async fn delete_preset(
-    name: String,
-    _state: State<'_, AppState>,
-) -> Result<bool, String> {
+pub async fn delete_preset(name: String, _state: State<'_, AppState>) -> Result<bool, String> {
     let path = get_presets_path();
     let mut manager = PresetManager::load(&path).map_err(|e| e.to_string())?;
     let deleted = manager.delete_preset(&name);

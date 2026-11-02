@@ -166,7 +166,11 @@ pub fn parse_cue_content(content: &str) -> AppResult<CueSheet> {
                 }
             }
         } else if upper_line.starts_with("INDEX 01 ") || upper_line.starts_with("INDEX 1 ") {
-            let timestamp_start = if upper_line.starts_with("INDEX 01 ") { 9 } else { 8 };
+            let timestamp_start = if upper_line.starts_with("INDEX 01 ") {
+                9
+            } else {
+                8
+            };
             let timestamp = &line[timestamp_start..];
             if let Some(ms) = parse_cue_timestamp(timestamp) {
                 if let Some(ref mut track) = current_track {
@@ -198,7 +202,11 @@ fn parse_file_line(rest: &str) -> Option<(String, String)> {
         if let Some(end_quote) = rest[1..].find('"') {
             let file_path = rest[1..=end_quote].to_string();
             let remaining = rest[end_quote + 2..].trim();
-            let file_type = remaining.split_whitespace().next().unwrap_or("WAVE").to_string();
+            let file_type = remaining
+                .split_whitespace()
+                .next()
+                .unwrap_or("WAVE")
+                .to_string();
             return Some((file_path, file_type));
         }
     } else {
@@ -219,7 +227,10 @@ pub fn generate_chapters_from_cue(cue: &CueSheet, total_duration_ms: u64) -> Vec
     let mut chapters = Vec::new();
 
     for (idx, track) in cue.tracks.iter().enumerate() {
-        let title = track.title.clone().unwrap_or_else(|| format!("Track {}", track.number));
+        let title = track
+            .title
+            .clone()
+            .unwrap_or_else(|| format!("Track {}", track.number));
 
         let end_time_ms = if idx + 1 < cue.tracks.len() {
             let next_track = &cue.tracks[idx + 1];
@@ -268,14 +279,23 @@ pub fn generate_chapters_from_multifile_cue(
     let mut chapters = Vec::new();
 
     for (idx, track) in cue.tracks.iter().enumerate() {
-        let title = track.title.clone().unwrap_or_else(|| format!("Track {}", track.number));
+        let title = track
+            .title
+            .clone()
+            .unwrap_or_else(|| format!("Track {}", track.number));
 
-        let file_offset = cumulative_offsets.get(track.file_index).copied().unwrap_or(0);
+        let file_offset = cumulative_offsets
+            .get(track.file_index)
+            .copied()
+            .unwrap_or(0);
         let absolute_start = file_offset + track.start_time_ms;
 
         let end_time_ms = if idx + 1 < cue.tracks.len() {
             let next_track = &cue.tracks[idx + 1];
-            let next_file_offset = cumulative_offsets.get(next_track.file_index).copied().unwrap_or(0);
+            let next_file_offset = cumulative_offsets
+                .get(next_track.file_index)
+                .copied()
+                .unwrap_or(0);
             next_file_offset + next_track.start_time_ms
         } else {
             total_duration

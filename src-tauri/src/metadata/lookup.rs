@@ -45,12 +45,21 @@ pub struct LookupCandidate {
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum ChapterOffer {
     /// The book is the found edition; timings are used as listed.
-    Exact { chapters: Vec<Chapter> },
+    Exact {
+        chapters: Vec<Chapter>,
+    },
     /// The found edition with its branding intro and outro cut off.
-    Shifted { chapters: Vec<Chapter>, shift_ms: u64 },
+    Shifted {
+        chapters: Vec<Chapter>,
+        shift_ms: u64,
+    },
     /// Another edition with the same chapter count: titles only.
-    TitlesOnly { chapters: Vec<Chapter> },
-    Unavailable { reason: String },
+    TitlesOnly {
+        chapters: Vec<Chapter>,
+    },
+    Unavailable {
+        reason: String,
+    },
 }
 
 /// The full record for one chosen result, ready for review.
@@ -124,9 +133,25 @@ fn overlay_selected(current: &Metadata, selected: &Metadata) -> Metadata {
         };
     }
     take_selected!(
-        title, artist, album, album_artist, narrator, composer, year, genre, track_number,
-        total_tracks, disc_number, total_discs, comments, description, publisher, copyright,
-        series, series_index, language,
+        title,
+        artist,
+        album,
+        album_artist,
+        narrator,
+        composer,
+        year,
+        genre,
+        track_number,
+        total_tracks,
+        disc_number,
+        total_discs,
+        comments,
+        description,
+        publisher,
+        copyright,
+        series,
+        series_index,
+        language,
     );
     if let Some(asin) = selected.asin.as_deref().and_then(normalize_asin) {
         merged.asin = Some(asin);
@@ -137,7 +162,10 @@ fn overlay_selected(current: &Metadata, selected: &Metadata) -> Metadata {
 /// Downloads a found cover and returns it as base64, sized like any other
 /// cover the app embeds.
 pub async fn download_cover(url: &str) -> AppResult<String> {
-    let fail = |reason: String| AppError::MetadataLookupError { provider: "cover".to_string(), reason };
+    let fail = |reason: String| AppError::MetadataLookupError {
+        provider: "cover".to_string(),
+        reason,
+    };
     if !(url.starts_with("https://") || url.starts_with("http://")) {
         return Err(fail(format!("not a web address: {}", url)));
     }
@@ -146,11 +174,18 @@ pub async fn download_cover(url: &str) -> AppResult<String> {
         .timeout(Duration::from_secs(15))
         .build()
         .map_err(|e| AppError::NetworkError(format!("Failed to create HTTP client: {}", e)))?;
-    let response = client.get(url).send().await.map_err(|e| fail(format!("download failed: {}", e)))?;
+    let response = client
+        .get(url)
+        .send()
+        .await
+        .map_err(|e| fail(format!("download failed: {}", e)))?;
     if !response.status().is_success() {
         return Err(fail(format!("download failed: HTTP {}", response.status())));
     }
-    let bytes = response.bytes().await.map_err(|e| fail(format!("download failed: {}", e)))?;
+    let bytes = response
+        .bytes()
+        .await
+        .map_err(|e| fail(format!("download failed: {}", e)))?;
     if bytes.is_empty() {
         return Err(fail("the image was empty".to_string()));
     }
@@ -161,7 +196,11 @@ pub async fn download_cover(url: &str) -> AppResult<String> {
 
 /// "Scott Brick, Euan Morton", or nothing when no names are given.
 pub fn join_names<S: AsRef<str>>(names: &[S]) -> Option<String> {
-    let names: Vec<&str> = names.iter().map(|n| n.as_ref().trim()).filter(|n| !n.is_empty()).collect();
+    let names: Vec<&str> = names
+        .iter()
+        .map(|n| n.as_ref().trim())
+        .filter(|n| !n.is_empty())
+        .collect();
     (!names.is_empty()).then(|| names.join(", "))
 }
 
@@ -175,7 +214,12 @@ pub fn series_position(raw: &str) -> Option<String> {
     if raw.is_empty() {
         return None;
     }
-    Some(SERIES_NUMBER.find(raw).map_or(raw, |m| m.as_str()).to_string())
+    Some(
+        SERIES_NUMBER
+            .find(raw)
+            .map_or(raw, |m| m.as_str())
+            .to_string(),
+    )
 }
 
 /// A catalog language as a display name. Audible sends lowercase ("english");
@@ -186,7 +230,10 @@ pub fn language_name(raw: &str) -> Option<String> {
         .filter(|w| !w.is_empty())
         .map(|w| {
             let mut chars = w.chars();
-            let first = chars.next().map(|c| c.to_uppercase().collect::<String>()).unwrap_or_default();
+            let first = chars
+                .next()
+                .map(|c| c.to_uppercase().collect::<String>())
+                .unwrap_or_default();
             first + &chars.as_str().to_lowercase()
         })
         .collect();
@@ -209,7 +256,10 @@ pub fn html_to_text(html: &str) -> Option<String> {
             Some(hex) => u32::from_str_radix(hex, 16).ok(),
             None => code.parse().ok(),
         };
-        value.and_then(char::from_u32).map(String::from).unwrap_or_default()
+        value
+            .and_then(char::from_u32)
+            .map(String::from)
+            .unwrap_or_default()
     });
     // &amp; last, so "&amp;lt;" stays the literal text "&lt;".
     let text = text
@@ -234,14 +284,20 @@ mod tests {
 
     #[test]
     fn names_are_joined_with_commas() {
-        assert_eq!(join_names(&["Scott Brick", " Euan Morton "]).as_deref(), Some("Scott Brick, Euan Morton"));
+        assert_eq!(
+            join_names(&["Scott Brick", " Euan Morton "]).as_deref(),
+            Some("Scott Brick, Euan Morton")
+        );
         assert_eq!(join_names::<&str>(&[]), None);
         assert_eq!(join_names(&["", "  "]), None);
     }
 
     #[test]
     fn series_position_takes_the_first_number() {
-        assert_eq!(series_position("2, Dramatized Adaptation").as_deref(), Some("2"));
+        assert_eq!(
+            series_position("2, Dramatized Adaptation").as_deref(),
+            Some("2")
+        );
         assert_eq!(series_position("1.5").as_deref(), Some("1.5"));
         assert_eq!(series_position("Book 3").as_deref(), Some("3"));
         assert_eq!(series_position(".5").as_deref(), Some(".5"));
@@ -253,7 +309,10 @@ mod tests {
     fn language_is_capitalized() {
         assert_eq!(language_name("english").as_deref(), Some("English"));
         assert_eq!(language_name("GERMAN").as_deref(), Some("German"));
-        assert_eq!(language_name("mandarin_chinese").as_deref(), Some("Mandarin Chinese"));
+        assert_eq!(
+            language_name("mandarin_chinese").as_deref(),
+            Some("Mandarin Chinese")
+        );
         assert_eq!(language_name("  "), None);
     }
 
@@ -264,7 +323,8 @@ mod tests {
             Some("First.\n\nSecond part.")
         );
         assert_eq!(
-            html_to_text("Dune &amp; Dune&nbsp;Messiah<br/>Herbert&#39;s &#x2014; classic").as_deref(),
+            html_to_text("Dune &amp; Dune&nbsp;Messiah<br/>Herbert&#39;s &#x2014; classic")
+                .as_deref(),
             Some("Dune & Dune Messiah\n\nHerbert's \u{2014} classic")
         );
         assert_eq!(html_to_text("<p> </p>"), None);
@@ -299,13 +359,18 @@ mod tests {
             ..Default::default()
         };
         let edit = apply_edit(&book, LookupSource::OpenLibrary, &selected, None, None).unwrap();
-        crate::undo::UndoManager::new().execute(&mut book, edit).unwrap();
+        crate::undo::UndoManager::new()
+            .execute(&mut book, edit)
+            .unwrap();
 
         let m = &book.output_metadata;
         assert_eq!(m.title.as_deref(), Some("Dune Messiah (Revised)"));
         assert_eq!(m.artist.as_deref(), Some("Frank Herbert"));
         assert_eq!(m.narrator.as_deref(), Some("Scott Brick"));
-        assert_eq!((m.series.as_deref(), m.series_index.as_deref()), (Some("Dune"), Some("2")));
+        assert_eq!(
+            (m.series.as_deref(), m.series_index.as_deref()),
+            (Some("Dune"), Some("2"))
+        );
         assert_eq!(m.track_number, Some(1));
         assert_eq!(m.artwork_data.as_deref(), Some("b2xkLWNvdmVy"));
         assert_eq!(book.chapters[0].title, "Track 01");
@@ -325,22 +390,44 @@ mod tests {
             Chapter::new(0, "Opening Credits".to_string(), 0, 1_500_000),
             Chapter::new(1, "Book One".to_string(), 1_500_000, 3_000_000),
         ];
-        let edit = apply_edit(&book, LookupSource::Audible, &selected, Some("bmV3LWNvdmVy".to_string()), Some(chapters)).unwrap();
+        let edit = apply_edit(
+            &book,
+            LookupSource::Audible,
+            &selected,
+            Some("bmV3LWNvdmVy".to_string()),
+            Some(chapters),
+        )
+        .unwrap();
         assert_eq!(edit.description(), "Apply details from Audible");
 
         let mut undo = crate::undo::UndoManager::new();
         undo.execute(&mut book, edit).unwrap();
-        assert_eq!(book.output_metadata.narrator.as_deref(), Some("Scott Brick, Euan Morton"));
+        assert_eq!(
+            book.output_metadata.narrator.as_deref(),
+            Some("Scott Brick, Euan Morton")
+        );
         assert_eq!(book.output_metadata.asin.as_deref(), Some("B002V8H660"));
-        assert_eq!(book.output_metadata.artwork_data.as_deref(), Some("bmV3LWNvdmVy"));
+        assert_eq!(
+            book.output_metadata.artwork_data.as_deref(),
+            Some("bmV3LWNvdmVy")
+        );
         assert_eq!(book.chapters[0].title, "Opening Credits");
 
         undo.undo(&mut book).unwrap();
         assert!(!undo.can_undo());
-        assert_eq!(book.output_metadata.narrator, before.output_metadata.narrator);
-        assert_eq!(book.output_metadata.series_index, before.output_metadata.series_index);
+        assert_eq!(
+            book.output_metadata.narrator,
+            before.output_metadata.narrator
+        );
+        assert_eq!(
+            book.output_metadata.series_index,
+            before.output_metadata.series_index
+        );
         assert_eq!(book.output_metadata.asin, None);
-        assert_eq!(book.output_metadata.artwork_data, before.output_metadata.artwork_data);
+        assert_eq!(
+            book.output_metadata.artwork_data,
+            before.output_metadata.artwork_data
+        );
         assert_eq!(book.chapters[0].title, "Track 01");
     }
 
@@ -348,7 +435,14 @@ mod tests {
     fn chapters_that_do_not_fit_the_book_are_refused() {
         let book = book_with_details();
         let too_long = vec![Chapter::new(0, "All".to_string(), 0, 9_000_000)];
-        assert!(apply_edit(&book, LookupSource::Audible, &Metadata::default(), None, Some(too_long)).is_err());
+        assert!(apply_edit(
+            &book,
+            LookupSource::Audible,
+            &Metadata::default(),
+            None,
+            Some(too_long)
+        )
+        .is_err());
     }
 
     #[tokio::test]
@@ -361,7 +455,10 @@ mod tests {
         let record = LookupRecord {
             source: LookupSource::Audible,
             id: "B002V8H660".to_string(),
-            fields: Metadata { series_index: Some("2".to_string()), ..Default::default() },
+            fields: Metadata {
+                series_index: Some("2".to_string()),
+                ..Default::default()
+            },
             cover_url: None,
             runtime_ms: Some(32_269_161),
             chapters: ChapterOffer::Shifted {
@@ -375,6 +472,8 @@ mod tests {
 
         let back: LookupRecord = serde_json::from_value(json).unwrap();
         assert_eq!(back.fields.series_index.as_deref(), Some("2"));
-        assert!(matches!(back.chapters, ChapterOffer::Shifted { shift_ms: 3_970, ref chapters } if chapters.len() == 1));
+        assert!(
+            matches!(back.chapters, ChapterOffer::Shifted { shift_ms: 3_970, ref chapters } if chapters.len() == 1)
+        );
     }
 }

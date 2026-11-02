@@ -5,8 +5,8 @@
 
 use crate::audio::format::{is_supported_format, SUPPORTED_FORMATS_LABEL};
 use crate::audio::loader::load_audio_file;
-use crate::metadata::chapters::create_chapters_from_files;
 use crate::error::{AppError, AppResult};
+use crate::metadata::chapters::create_chapters_from_files;
 use crate::models::{AudioBook, AudioFile, Metadata};
 use camino::{Utf8Path, Utf8PathBuf};
 use rayon::prelude::*;
@@ -58,7 +58,11 @@ impl BatchProgress {
             current_index: index,
             total_files: total,
             current_file: file.to_string(),
-            progress: if total > 0 { index as f32 / total as f32 } else { 0.0 },
+            progress: if total > 0 {
+                index as f32 / total as f32
+            } else {
+                0.0
+            },
         }
     }
 }
@@ -74,12 +78,15 @@ pub fn load_files_batch(paths: &[Utf8PathBuf]) -> BatchLoadResult {
 ///
 /// The callback is called after each file is processed (successfully or not).
 /// Note: Due to parallel processing, callbacks may be out of order.
-pub fn load_files_batch_with_progress<F>(paths: &[Utf8PathBuf], progress_callback: F) -> BatchLoadResult
+pub fn load_files_batch_with_progress<F>(
+    paths: &[Utf8PathBuf],
+    progress_callback: F,
+) -> BatchLoadResult
 where
     F: Fn(BatchProgress) + Sync,
 {
     info!("Loading {} audio files in batch", paths.len());
-    
+
     let total = paths.len();
     let processed = std::sync::atomic::AtomicUsize::new(0);
 
@@ -87,12 +94,12 @@ where
         .par_iter()
         .map(|path| {
             let result = load_audio_file(path);
-            
+
             // Update progress
             let current = processed.fetch_add(1, std::sync::atomic::Ordering::SeqCst) + 1;
             let file_name = path.file_name().unwrap_or(path.as_str());
             progress_callback(BatchProgress::new(current, total, file_name));
-            
+
             (path.clone(), result)
         })
         .collect();
@@ -209,7 +216,11 @@ pub fn load_audiobook_from_files(paths: &[Utf8PathBuf]) -> AppResult<AudioBook> 
     let total_size_bytes: u64 = files.iter().map(|f| f.file_size_bytes).sum();
 
     let file_paths: Vec<Utf8PathBuf> = files.iter().map(|f| f.path.clone()).collect();
-    let title = choose_book_title(&files, &merged_metadata, book_folder(&file_paths).as_deref());
+    let title = choose_book_title(
+        &files,
+        &merged_metadata,
+        book_folder(&file_paths).as_deref(),
+    );
 
     // The merged tags start from the first file, so for a multi-file book they
     // describe its first chapter. The M4B's title and track tags must describe
@@ -298,10 +309,17 @@ fn merge_metadata_from_files(files: &[AudioFile]) -> Metadata {
 /// nothing usable, the folder the book lives in is a better name than the first
 /// file's stem ("01 - Opening").
 fn choose_book_title(files: &[AudioFile], merged: &Metadata, folder: Option<&Utf8Path>) -> String {
-    let non_empty = |v: &Option<String>| v.as_deref().map(str::trim).filter(|t| !t.is_empty()).map(String::from);
+    let non_empty = |v: &Option<String>| {
+        v.as_deref()
+            .map(str::trim)
+            .filter(|t| !t.is_empty())
+            .map(String::from)
+    };
 
     if files.len() == 1 {
-        if let Some(title) = non_empty(&files[0].metadata.title).or_else(|| non_empty(&merged.album)) {
+        if let Some(title) =
+            non_empty(&files[0].metadata.title).or_else(|| non_empty(&merged.album))
+        {
             return title;
         }
     } else {
@@ -331,7 +349,8 @@ pub fn is_disc_folder_name(name: &str) -> bool {
         .find_map(|prefix| lower.strip_prefix(prefix));
     match rest {
         Some(rest) => {
-            let digits = rest.trim_start_matches(|c: char| c == ' ' || c == '_' || c == '-' || c == '.');
+            let digits =
+                rest.trim_start_matches(|c: char| c == ' ' || c == '_' || c == '-' || c == '.');
             !digits.is_empty() && digits.chars().all(|c| c.is_ascii_digit())
         }
         None => false,
@@ -357,7 +376,9 @@ pub fn book_folder(paths: &[Utf8PathBuf]) -> Option<Utf8PathBuf> {
     }
 
     // Every file must be in the book folder or one level below it.
-    let close = parents.iter().all(|p| *p == root || p.parent() == Some(root.as_path()));
+    let close = parents
+        .iter()
+        .all(|p| *p == root || p.parent() == Some(root.as_path()));
     close.then_some(root)
 }
 
@@ -405,7 +426,10 @@ pub fn group_into_books(paths: &[Utf8PathBuf]) -> Vec<BookGroup> {
                 parent.to_path_buf()
             }
         });
-        match groups.iter_mut().find(|g| g.folder.is_some() && g.folder == folder) {
+        match groups
+            .iter_mut()
+            .find(|g| g.folder.is_some() && g.folder == folder)
+        {
             Some(group) => group.files.push(file),
             None => groups.push(BookGroup {
                 name: folder
@@ -428,11 +452,15 @@ pub fn group_into_books(paths: &[Utf8PathBuf]) -> Vec<BookGroup> {
 }
 
 fn collect_book_folders(dir: &Utf8Path, depth: usize, groups: &mut Vec<BookGroup>) {
-    let Ok(entries) = std::fs::read_dir(dir.as_std_path()) else { return };
+    let Ok(entries) = std::fs::read_dir(dir.as_std_path()) else {
+        return;
+    };
     let mut has_audio = false;
     let mut subdirs: Vec<Utf8PathBuf> = Vec::new();
     for entry in entries.flatten() {
-        let Ok(path) = Utf8PathBuf::from_path_buf(entry.path()) else { continue };
+        let Ok(path) = Utf8PathBuf::from_path_buf(entry.path()) else {
+            continue;
+        };
         if path.file_name().map(|n| n.starts_with('.')).unwrap_or(true) {
             continue;
         }
@@ -446,7 +474,9 @@ fn collect_book_folders(dir: &Utf8Path, depth: usize, groups: &mut Vec<BookGroup
 
     let audio_subdirs: Vec<&Utf8PathBuf> = subdirs.iter().filter(|d| contains_audio(d)).collect();
     let only_discs = !audio_subdirs.is_empty()
-        && audio_subdirs.iter().all(|d| d.file_name().map(is_disc_folder_name).unwrap_or(false));
+        && audio_subdirs
+            .iter()
+            .all(|d| d.file_name().map(is_disc_folder_name).unwrap_or(false));
 
     if has_audio || only_discs || depth >= MAX_LIBRARY_DEPTH {
         let files = expand_input_paths(&[dir.to_path_buf()]);
@@ -471,7 +501,9 @@ fn contains_audio(dir: &Utf8Path) -> bool {
         .filter_map(Result::ok)
         .filter(|e| e.file_type().is_file())
         .filter_map(|e| Utf8PathBuf::from_path_buf(e.into_path()).ok())
-        .any(|p| !p.file_name().map(|n| n.starts_with('.')).unwrap_or(false) && is_supported_format(&p))
+        .any(|p| {
+            !p.file_name().map(|n| n.starts_with('.')).unwrap_or(false) && is_supported_format(&p)
+        })
 }
 
 /// Names what was dropped, for an error that says where nothing was found.
@@ -558,10 +590,7 @@ fn extract_number<I: Iterator<Item = char>>(chars: &mut std::iter::Peekable<I>) 
 /// - All files exist
 /// - All files are valid audio
 /// - Sufficient disk space for output (optional)
-pub fn validate_files_for_conversion(
-    files: &[AudioFile],
-    output_path: &Utf8Path,
-) -> AppResult<()> {
+pub fn validate_files_for_conversion(files: &[AudioFile], output_path: &Utf8Path) -> AppResult<()> {
     if files.is_empty() {
         return Err(AppError::NoFilesProvided);
     }
@@ -569,7 +598,9 @@ pub fn validate_files_for_conversion(
     // Check all source files still exist
     for file in files {
         if !file.path.exists() {
-            return Err(AppError::FileNotFound(file.path.as_std_path().to_path_buf()));
+            return Err(AppError::FileNotFound(
+                file.path.as_std_path().to_path_buf(),
+            ));
         }
     }
 
@@ -630,11 +661,16 @@ mod tests {
 
     #[test]
     fn disc_folder_names() {
-        for name in ["CD1", "cd 2", "Disc 03", "disk_4", "Part 5", "Vol. 1", "Volume-2"] {
+        for name in [
+            "CD1", "cd 2", "Disc 03", "disk_4", "Part 5", "Vol. 1", "Volume-2",
+        ] {
             assert!(is_disc_folder_name(name), "{name} should be a disc folder");
         }
         for name in ["Dune", "CD", "Discworld", "Part One", "Cdx1"] {
-            assert!(!is_disc_folder_name(name), "{name} should not be a disc folder");
+            assert!(
+                !is_disc_folder_name(name),
+                "{name} should not be a disc folder"
+            );
         }
     }
 
@@ -644,13 +680,25 @@ mod tests {
             Utf8PathBuf::from("/lib/Dune/CD1/01.mp3"),
             Utf8PathBuf::from("/lib/Dune/CD2/01.mp3"),
         ];
-        assert_eq!(book_folder(&discs).as_deref(), Some(Utf8Path::new("/lib/Dune")));
+        assert_eq!(
+            book_folder(&discs).as_deref(),
+            Some(Utf8Path::new("/lib/Dune"))
+        );
 
         let one_disc = [Utf8PathBuf::from("/lib/Dune/Disc 1/01.mp3")];
-        assert_eq!(book_folder(&one_disc).as_deref(), Some(Utf8Path::new("/lib/Dune")));
+        assert_eq!(
+            book_folder(&one_disc).as_deref(),
+            Some(Utf8Path::new("/lib/Dune"))
+        );
 
-        let flat = [Utf8PathBuf::from("/lib/Dune/01.mp3"), Utf8PathBuf::from("/lib/Dune/02.mp3")];
-        assert_eq!(book_folder(&flat).as_deref(), Some(Utf8Path::new("/lib/Dune")));
+        let flat = [
+            Utf8PathBuf::from("/lib/Dune/01.mp3"),
+            Utf8PathBuf::from("/lib/Dune/02.mp3"),
+        ];
+        assert_eq!(
+            book_folder(&flat).as_deref(),
+            Some(Utf8Path::new("/lib/Dune"))
+        );
     }
 
     #[test]
@@ -665,11 +713,22 @@ mod tests {
     #[test]
     fn multi_file_book_is_named_by_album_not_first_chapter() {
         let files = [
-            book_file("/lib/x/01 - Opening.mp3", Some("Opening"), Some("The Clockwork Chronicle")),
-            book_file("/lib/x/02 - Arrival.mp3", Some("Arrival"), Some("The Clockwork Chronicle")),
+            book_file(
+                "/lib/x/01 - Opening.mp3",
+                Some("Opening"),
+                Some("The Clockwork Chronicle"),
+            ),
+            book_file(
+                "/lib/x/02 - Arrival.mp3",
+                Some("Arrival"),
+                Some("The Clockwork Chronicle"),
+            ),
         ];
         let merged = merge_metadata_from_files(&files);
-        assert_eq!(choose_book_title(&files, &merged, None), "The Clockwork Chronicle");
+        assert_eq!(
+            choose_book_title(&files, &merged, None),
+            "The Clockwork Chronicle"
+        );
     }
 
     #[test]
@@ -678,20 +737,37 @@ mod tests {
             book_file("/lib/x/01.mp3", Some("Dune"), None),
             book_file("/lib/x/02.mp3", Some("Dune"), None),
         ];
-        assert_eq!(choose_book_title(&stamped, &merge_metadata_from_files(&stamped), None), "Dune");
+        assert_eq!(
+            choose_book_title(&stamped, &merge_metadata_from_files(&stamped), None),
+            "Dune"
+        );
 
         let untagged = [
             book_file("/lib/Dune/CD1/01 - Opening.mp3", Some("Opening"), None),
             book_file("/lib/Dune/CD1/02 - Arrival.mp3", Some("Arrival"), None),
         ];
         let folder = Utf8Path::new("/lib/Dune");
-        assert_eq!(choose_book_title(&untagged, &merge_metadata_from_files(&untagged), Some(folder)), "Dune");
+        assert_eq!(
+            choose_book_title(
+                &untagged,
+                &merge_metadata_from_files(&untagged),
+                Some(folder)
+            ),
+            "Dune"
+        );
     }
 
     #[test]
     fn single_file_book_is_named_by_its_title_tag() {
-        let files = [book_file("/lib/dune.m4b", Some("Dune"), Some("Dune Chronicles"))];
-        assert_eq!(choose_book_title(&files, &merge_metadata_from_files(&files), None), "Dune");
+        let files = [book_file(
+            "/lib/dune.m4b",
+            Some("Dune"),
+            Some("Dune Chronicles"),
+        )];
+        assert_eq!(
+            choose_book_title(&files, &merge_metadata_from_files(&files), None),
+            "Dune"
+        );
     }
 
     fn touch(path: &Utf8Path) {
@@ -712,7 +788,11 @@ mod tests {
         groups
             .iter()
             .map(|g| {
-                let files = g.files.iter().map(|f| f.strip_prefix(root).unwrap().to_string()).collect();
+                let files = g
+                    .files
+                    .iter()
+                    .map(|f| f.strip_prefix(root).unwrap().to_string())
+                    .collect();
                 (g.name.clone(), files)
             })
             .collect()
@@ -734,11 +814,26 @@ mod tests {
         assert_eq!(
             summary(&groups, &root),
             [
-                ("Dune".into(), vec!["Herbert/Dune/CD1/01.mp3".into(), "Herbert/Dune/CD2/01.mp3".into()]),
-                ("Dune Messiah".into(), vec!["Herbert/Dune Messiah/01.mp3".into(), "Herbert/Dune Messiah/02.mp3".into()]),
+                (
+                    "Dune".into(),
+                    vec![
+                        "Herbert/Dune/CD1/01.mp3".into(),
+                        "Herbert/Dune/CD2/01.mp3".into()
+                    ]
+                ),
+                (
+                    "Dune Messiah".into(),
+                    vec![
+                        "Herbert/Dune Messiah/01.mp3".into(),
+                        "Herbert/Dune Messiah/02.mp3".into()
+                    ]
+                ),
                 (
                     "Earthsea".into(),
-                    vec!["Le Guin/Earthsea/01 - Warrior.mp3".into(), "Le Guin/Earthsea/Extras/interview.mp3".into()]
+                    vec![
+                        "Le Guin/Earthsea/01 - Warrior.mp3".into(),
+                        "Le Guin/Earthsea/Extras/interview.mp3".into()
+                    ]
                 ),
             ]
         );
@@ -765,7 +860,10 @@ mod tests {
         assert_eq!(
             summary(&groups, &root),
             [
-                ("Dune".into(), vec!["Dune/CD1/01.mp3".into(), "Dune/CD2/01.mp3".into()]),
+                (
+                    "Dune".into(),
+                    vec!["Dune/CD1/01.mp3".into(), "Dune/CD2/01.mp3".into()]
+                ),
                 ("Emma".into(), vec!["Emma/01.mp3".into()]),
             ]
         );
@@ -839,7 +937,7 @@ mod tests {
         assert_eq!(progress.total_files, 10);
         assert_eq!(progress.current_file, "test.mp3");
         assert!((progress.progress - 0.5).abs() < 0.001);
-        
+
         // Edge case: zero total
         let progress_zero = BatchProgress::new(0, 0, "empty.mp3");
         assert_eq!(progress_zero.progress, 0.0);

@@ -12,7 +12,9 @@ use crate::ffmpeg::command_builder::{
 };
 use crate::ffmpeg::detection::FFmpegInfo;
 use crate::ffmpeg::executor::{execute_ffmpeg_command, FFmpegProgressAccumulator};
-use crate::metadata::writing::{embed_artwork_in_m4b, generate_ffmpeg_chapters_metadata, write_metadata_to_m4b};
+use crate::metadata::writing::{
+    embed_artwork_in_m4b, generate_ffmpeg_chapters_metadata, write_metadata_to_m4b,
+};
 use crate::models::{AudioBook, AudioFile, Chapter, ConversionJob, ConversionSettings};
 use camino::{Utf8Path, Utf8PathBuf};
 use std::fs;
@@ -53,7 +55,10 @@ pub struct ConversionPipeline {
 impl ConversionPipeline {
     /// Create a new conversion pipeline
     pub fn new(ffmpeg_info: FFmpegInfo, config: PipelineConfig) -> Self {
-        Self { ffmpeg_info, config }
+        Self {
+            ffmpeg_info,
+            config,
+        }
     }
 
     /// Run the complete conversion pipeline
@@ -92,12 +97,13 @@ impl ConversionPipeline {
 
         // Initialize progress tracker
         let total_duration_ms: u64 = job.audiobook.files.iter().map(|f| f.duration_ms).sum();
-        info!("Total duration: {} ms across {} files", total_duration_ms, job.audiobook.files.len());
-        let mut tracker = ProgressTracker::new(
-            job.id.clone(),
+        info!(
+            "Total duration: {} ms across {} files",
             total_duration_ms,
-            job.audiobook.files.len(),
+            job.audiobook.files.len()
         );
+        let mut tracker =
+            ProgressTracker::new(job.id.clone(), total_duration_ms, job.audiobook.files.len());
         tracker.start();
         info!("Progress tracker initialized");
 
@@ -169,12 +175,9 @@ impl ConversionPipeline {
             if let Some(progress) = tracker.get_progress() {
                 progress_callback(progress);
             }
-            let chaptered_path = self.embed_chapters(
-                &encoded_path,
-                &job.audiobook.chapters,
-                &temp_dir,
-            )?;
-            
+            let chaptered_path =
+                self.embed_chapters(&encoded_path, &job.audiobook.chapters, &temp_dir)?;
+
             // If chapters were embedded to a new file, use that
             if chaptered_path != encoded_path {
                 fs::remove_file(&encoded_path).ok();
@@ -238,23 +241,35 @@ impl ConversionPipeline {
             return Ok(None);
         }
 
-        let norm_settings = settings.normalization_settings.as_ref().map(|ns| {
-            NormalizationSettings {
+        let norm_settings = settings
+            .normalization_settings
+            .as_ref()
+            .map(|ns| NormalizationSettings {
                 target_lufs: ns.target_lufs,
                 target_true_peak: ns.target_true_peak,
                 target_lra: ns.target_lra,
                 two_pass: ns.two_pass,
-            }
-        }).unwrap_or_default();
+            })
+            .unwrap_or_default();
 
-        info!("Normalizing {} files with settings: {:?}", files.len(), norm_settings);
+        info!(
+            "Normalizing {} files with settings: {:?}",
+            files.len(),
+            norm_settings
+        );
 
         let mut normalized_paths = Vec::with_capacity(files.len());
 
         for (index, file) in files.iter().enumerate() {
             let normalized_path = temp_dir.file_path(&format!("normalized_{}.wav", index));
 
-            info!("Normalizing file {}/{}: {} -> {}", index + 1, files.len(), file.path, normalized_path);
+            info!(
+                "Normalizing file {}/{}: {} -> {}",
+                index + 1,
+                files.len(),
+                file.path,
+                normalized_path
+            );
 
             apply_normalization(&file.path, &normalized_path, &norm_settings)?;
 
@@ -283,7 +298,11 @@ impl ConversionPipeline {
         let settings = &job.settings;
         let encoder = self.ffmpeg_info.aac_encoder();
 
-        info!("execute_encoding: {} files, encoder: {}", files.len(), encoder);
+        info!(
+            "execute_encoding: {} files, encoder: {}",
+            files.len(),
+            encoder
+        );
 
         if files.is_empty() {
             return Err(AppError::ConversionError {
@@ -302,7 +321,11 @@ impl ConversionPipeline {
                 &files[0].path
             };
             info!("execute_encoding: single file mode, input: {}", input_path);
-            tracker.set_current_file(0, input_path.file_name().unwrap_or("input"), files[0].duration_ms);
+            tracker.set_current_file(
+                0,
+                input_path.file_name().unwrap_or("input"),
+                files[0].duration_ms,
+            );
 
             let command = build_convert_command(
                 &self.ffmpeg_info.path,
@@ -335,11 +358,16 @@ impl ConversionPipeline {
             let concat_content = generate_concat_file_content(&file_paths);
             info!("execute_encoding: concat file content:\n{}", concat_content);
 
-            fs::write(&concat_file_path, &concat_content).map_err(|e| AppError::FileWriteError {
-                path: concat_file_path.clone().into(),
-                reason: format!("Failed to write concat file: {}", e),
+            fs::write(&concat_file_path, &concat_content).map_err(|e| {
+                AppError::FileWriteError {
+                    path: concat_file_path.clone().into(),
+                    reason: format!("Failed to write concat file: {}", e),
+                }
             })?;
-            info!("execute_encoding: wrote concat file to {}", concat_file_path);
+            info!(
+                "execute_encoding: wrote concat file to {}",
+                concat_file_path
+            );
 
             // Set tracker for total duration
             let total_duration: u64 = files.iter().map(|f| f.duration_ms).sum();
@@ -381,8 +409,11 @@ impl ConversionPipeline {
     {
         let args = command.build_args()?;
         let executable = command.executable();
-        
-        info!("execute_ffmpeg_with_progress: spawning FFmpeg: {} {:?}", executable, args);
+
+        info!(
+            "execute_ffmpeg_with_progress: spawning FFmpeg: {} {:?}",
+            executable, args
+        );
 
         // Spawn FFmpeg process with piped stdio so we can stream progress
         let mut child = Command::new(executable.as_str())
@@ -400,16 +431,25 @@ impl ConversionPipeline {
                     }
                 }
             })?;
-        
-        info!("execute_ffmpeg_with_progress: FFmpeg process spawned, pid: {:?}", child.id());
 
-        let stdout = child.stdout.take().ok_or_else(|| AppError::FFmpegExecutionError {
-            reason: "Failed to capture stdout".to_string(),
-        })?;
+        info!(
+            "execute_ffmpeg_with_progress: FFmpeg process spawned, pid: {:?}",
+            child.id()
+        );
 
-        let stderr = child.stderr.take().ok_or_else(|| AppError::FFmpegExecutionError {
-            reason: "Failed to capture stderr".to_string(),
-        })?;
+        let stdout = child
+            .stdout
+            .take()
+            .ok_or_else(|| AppError::FFmpegExecutionError {
+                reason: "Failed to capture stdout".to_string(),
+            })?;
+
+        let stderr = child
+            .stderr
+            .take()
+            .ok_or_else(|| AppError::FFmpegExecutionError {
+                reason: "Failed to capture stderr".to_string(),
+            })?;
 
         // Read stderr in background so it doesn't block
         let stderr_handle = thread::spawn(move || {
@@ -443,12 +483,18 @@ impl ConversionPipeline {
                 return Err(AppError::ConversionCancelled);
             }
 
-            let bytes = stdout_reader.read_line(&mut line).map_err(|e| AppError::FFmpegExecutionError {
-                reason: format!("Failed to read FFmpeg stdout: {}", e),
-            })?;
+            let bytes =
+                stdout_reader
+                    .read_line(&mut line)
+                    .map_err(|e| AppError::FFmpegExecutionError {
+                        reason: format!("Failed to read FFmpeg stdout: {}", e),
+                    })?;
 
             if bytes == 0 {
-                info!("execute_ffmpeg_with_progress: EOF reached after {} lines", lines_read);
+                info!(
+                    "execute_ffmpeg_with_progress: EOF reached after {} lines",
+                    lines_read
+                );
                 break; // EOF
             }
 
@@ -461,9 +507,12 @@ impl ConversionPipeline {
             if let Some(ffmpeg_progress) = progress_accumulator.parse_line(line.trim()) {
                 // Log progress periodically (every 5 seconds)
                 if last_progress_log.elapsed().as_secs() >= 5 {
-                    info!("execute_ffmpeg_with_progress: progress {} ms ({}%), speed: {:?}",
+                    info!(
+                        "execute_ffmpeg_with_progress: progress {} ms ({}%), speed: {:?}",
                         ffmpeg_progress.time_ms,
-                        (ffmpeg_progress.time_ms as f64 / tracker.total_duration_ms() as f64 * 100.0).min(100.0),
+                        (ffmpeg_progress.time_ms as f64 / tracker.total_duration_ms() as f64
+                            * 100.0)
+                            .min(100.0),
                         ffmpeg_progress.speed
                     );
                     last_progress_log = std::time::Instant::now();
@@ -487,10 +536,16 @@ impl ConversionPipeline {
         })?;
 
         let stderr_content = stderr_handle.join().unwrap_or_default();
-        info!("execute_ffmpeg_with_progress: FFmpeg exited with status: {:?}", status.code());
+        info!(
+            "execute_ffmpeg_with_progress: FFmpeg exited with status: {:?}",
+            status.code()
+        );
 
         if !status.success() {
-            info!("execute_ffmpeg_with_progress: FFmpeg FAILED, stderr:\n{}", stderr_content);
+            info!(
+                "execute_ffmpeg_with_progress: FFmpeg FAILED, stderr:\n{}",
+                stderr_content
+            );
             return Err(AppError::FFmpegExecutionError {
                 reason: format!(
                     "FFmpeg failed (code {:?}): {}\n{}",
@@ -500,7 +555,7 @@ impl ConversionPipeline {
                 ),
             });
         }
-        
+
         info!("execute_ffmpeg_with_progress: FFmpeg succeeded");
 
         // Ensure we emit the latest progress once more after completion
@@ -522,7 +577,7 @@ impl ConversionPipeline {
         // First check for artwork_data (base64), then fallback to artwork_path
         let artwork_bytes = if let Some(ref artwork_data) = audiobook.output_metadata.artwork_data {
             // Decode base64 artwork data
-            use base64::{Engine as _, engine::general_purpose::STANDARD};
+            use base64::{engine::general_purpose::STANDARD, Engine as _};
             match STANDARD.decode(artwork_data) {
                 Ok(bytes) => Some(bytes),
                 Err(e) => {
@@ -573,7 +628,7 @@ impl ConversionPipeline {
         // Generate FFmpeg metadata file
         let metadata_content = generate_ffmpeg_chapters_metadata(chapters);
         let metadata_path = temp_dir.file_path("chapters.txt");
-        
+
         fs::write(&metadata_path, &metadata_content).map_err(|e| AppError::FileWriteError {
             path: metadata_path.clone().into(),
             reason: format!("Failed to write chapters file: {}", e),
@@ -581,7 +636,7 @@ impl ConversionPipeline {
 
         // Create chaptered output
         let output_path = temp_dir.file_path("output_chaptered.m4b");
-        
+
         let command = build_chapters_command(
             &self.ffmpeg_info.path,
             m4b_path,
@@ -628,7 +683,9 @@ pub fn validate_conversion_inputs(
     }
 
     // Validate settings
-    settings.validate().map_err(|e| AppError::ValidationError(e))?;
+    settings
+        .validate()
+        .map_err(|e| AppError::ValidationError(e))?;
 
     // Validate output directory is writable
     if !settings.output_path.as_str().is_empty() {
@@ -688,7 +745,10 @@ pub fn verify_output_file(m4b_path: &Utf8Path) -> AppResult<()> {
 
     // Minimum size check (at least 1KB for any valid audio)
     if metadata.len() < 1024 {
-        warn!("Output file is suspiciously small: {} bytes", metadata.len());
+        warn!(
+            "Output file is suspiciously small: {} bytes",
+            metadata.len()
+        );
     }
 
     debug!("Output file verified: {} bytes", metadata.len());
@@ -756,9 +816,9 @@ mod tests {
     fn test_artwork_data_precedence_over_path() {
         // This test verifies the logic in embed_metadata that prefers artwork_data
         let mut audiobook = AudioBook::new("Test".to_string());
-        
+
         // Set both artwork_data and artwork_path
-        use base64::{Engine as _, engine::general_purpose::STANDARD};
+        use base64::{engine::general_purpose::STANDARD, Engine as _};
         let dummy_jpeg = vec![0xFF, 0xD8, 0xFF, 0xE0]; // JPEG header
         audiobook.output_metadata.artwork_data = Some(STANDARD.encode(&dummy_jpeg));
         audiobook.output_metadata.artwork_path = Some("/some/path.jpg".into());
@@ -767,7 +827,7 @@ mod tests {
         // We verify this by checking that artwork_data is present
         // (Full integration would require an actual M4B file, so this is a unit-level check)
         assert!(audiobook.output_metadata.artwork_data.is_some());
-        
+
         // Verify decode works
         let decoded = STANDARD.decode(audiobook.output_metadata.artwork_data.as_ref().unwrap());
         assert!(decoded.is_ok());
