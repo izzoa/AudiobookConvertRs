@@ -200,7 +200,20 @@ export function HelpPage() {
                         <li>
                             Chapters from Audible are offered only when your files match that edition&apos;s length, or
                             match it with the Audible intro and outro removed. With a different edition but the same
-                            number of chapters, only the titles are offered. Otherwise the review says why not.
+                            number of chapters, only the titles are offered.
+                        </li>
+                        <li>
+                            When your book is within 2% of that edition&apos;s length but split differently, such as a CD
+                            rip of many tracks or one long file, Audible&apos;s chapters are fitted to it. Each chapter
+                            goes to a track start within 30 seconds of where it is expected, otherwise into a pause of
+                            at least half a second nearby, otherwise where it is expected. The review says how many
+                            landed each way and lists the ones that did not land on a track start. Otherwise the review
+                            says why no chapters are offered.
+                        </li>
+                        <li>
+                            After applying, the Chapters tab marks those chapters <B>at a pause</B> or <B>estimated</B>,
+                            so you can play them to check. Click a chapter&apos;s start time to type a new one (h:mm:ss, m:ss or
+                            seconds); the chapter before it ends there, and the mark goes.
                         </li>
                         <li>Applying is one step: a single undo puts back every field, the cover and the chapters.</li>
                         <li>

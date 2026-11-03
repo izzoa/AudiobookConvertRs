@@ -5,7 +5,7 @@
  *
  * It is imported dynamically from main.tsx and never reaches a release build.
  */
-import type { AudioBook, AudioFile, Chapter, LookupCandidate, LookupRecord, Metadata, UserSettings } from "@/types/models";
+import type { AudioBook, AudioFile, Chapter, ChapterOffer, LookupCandidate, LookupRecord, Metadata, PlacementKind, UserSettings } from "@/types/models";
 
 const FIXTURE_FILES = [
     ["01 - Dune - Book One.mp3", 2_892_000],
@@ -152,6 +152,36 @@ function mockRecord(id: string, target: AudioBook | null | undefined): LookupRec
     return { source: found.source, id: found.id, fields, cover_url: found.cover_url, runtime_ms: found.runtime_ms, chapters };
 }
 
+/** Dune Messiah's chapters fitted to the open book: most on a track start, one at a pause, one estimated. */
+function mockFitted(target: AudioBook): ChapterOffer {
+    const titles = [
+        "Opening Credits",
+        "Excerpts from the Death Cell Interview",
+        "Analysis of History",
+        "The Preacher at the Edge of the Desert",
+        "The Stilgar Commentary",
+        "Alia's Song",
+        "End Credits",
+    ];
+    const total = target.total_duration_ms;
+    const kinds: PlacementKind[] = titles.map((_, i) => (i === 3 ? "pause" : i === 5 ? "estimate" : "track"));
+    const starts = titles.map((_, i) => Math.round((total * i) / titles.length));
+    const chapters: Chapter[] = titles.map((title, i) => ({
+        index: i,
+        title,
+        start_time_ms: starts[i],
+        end_time_ms: starts[i + 1] ?? total,
+        auto_detected: false,
+        ...(kinds[i] === "track" ? {} : { placement: kinds[i] as "pause" | "estimate" }),
+    }));
+    return {
+        kind: "fitted",
+        chapters,
+        placements: kinds.map((kind, index) => ({ index, kind, moved_ms: kind === "pause" ? 2_400 : index > 0 && kind === "track" ? 800 : 0 })),
+        counts: { track: kinds.filter((k) => k === "track").length, pause: 1, estimate: 1 },
+    };
+}
+
 const SETTINGS: UserSettings = {
     default_bitrate_kbps: 64,
     default_output_directory: "/Users/you/Audiobooks/out",
@@ -283,8 +313,17 @@ export function installMockBackend() {
         audible_search: ({ title }: { title?: string }) =>
             AUDIBLE_RESULTS.filter((c) => !title || c.title.toLowerCase().includes(String(title).toLowerCase().split(" ")[0])),
         open_library_search: () => OPEN_LIBRARY_RESULTS,
-        lookup_record: ({ id, audiobookId }: { id: string; audiobookId: string }) =>
-            mockRecord(id, books.get(audiobookId) ?? book),
+        lookup_record: ({ id, audiobookId }: { id: string; audiobookId: string }) => {
+            const target = books.get(audiobookId) ?? book;
+            const record = mockRecord(id, target);
+            // Dune Messiah needs pause searches: the review opens fitting, and the fit follows
+            if (id === "B002V8H660" && target) {
+                const request_id = `mock-fit-${Date.now()}`;
+                setTimeout(() => emit("lookup_chapters_fitted", { request_id, offer: mockFitted(target) }), 1500);
+                return { ...record, chapters: { kind: "fitting", request_id } };
+            }
+            return record;
+        },
         apply_lookup: ({ audiobookId, source, fields, chapters }: { audiobookId: string; source: string; fields: Metadata; chapters: Chapter[] | null }) => {
             const target = books.get(audiobookId) ?? book;
             if (!target) return book;
@@ -341,8 +380,18 @@ export function installMockBackend() {
             }
             return book;
         },
-        set_chapters: ({ chapters }: any) => {
-            if (book) book = { ...book, chapters };
+        set_chapters: ({ chapters }: { chapters: Chapter[] }) => {
+            if (!book) return book;
+            // As the backend does: a placement mark survives only on a start that did not move
+            const old = book.chapters;
+            const kept = chapters.map((c) =>
+                c.placement && !old.some((o) => o.start_time_ms === c.start_time_ms && o.placement === c.placement)
+                    ? { ...c, placement: undefined }
+                    : c
+            );
+            undoStack.push({ before: book, description: "Edit chapters" });
+            book = { ...book, chapters: kept };
+            books.set(book.id, book);
             return book;
         },
         generate_chapters_from_source: () => {

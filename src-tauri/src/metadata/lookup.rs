@@ -57,9 +57,46 @@ pub enum ChapterOffer {
     TitlesOnly {
         chapters: Vec<Chapter>,
     },
+    /// Another edition of nearly the same length: the found titles placed on
+    /// the book's own track starts, pauses or estimates. Chapters not on a
+    /// track start already carry their placement mark.
+    Fitted {
+        chapters: Vec<Chapter>,
+        placements: Vec<FittedPlacement>,
+        counts: PlacementCounts,
+    },
+    /// Pauses are still being searched; `lookup_chapters_fitted` brings the
+    /// finished offer for this `request_id`.
+    Fitting {
+        request_id: String,
+    },
     Unavailable {
         reason: String,
     },
+}
+
+/// How one fitted chapter's start was found.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum PlacementKind {
+    Track,
+    Pause,
+    Estimate,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct FittedPlacement {
+    pub index: usize,
+    pub kind: PlacementKind,
+    /// Placed start minus estimated start; negative when it moved earlier.
+    pub moved_ms: i64,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PlacementCounts {
+    pub track: usize,
+    pub pause: usize,
+    pub estimate: usize,
 }
 
 /// The full record for one chosen result, ready for review.
@@ -330,6 +367,57 @@ mod tests {
         assert_eq!(html_to_text("<p> </p>"), None);
     }
 
+    #[test]
+    fn fitted_and_fitting_offers_round_trip() {
+        let mut estimated = Chapter::new(1, "Two".to_string(), 1000, 2000);
+        estimated.placement = Some(crate::models::ChapterPlacement::Estimate);
+        let fitted = ChapterOffer::Fitted {
+            chapters: vec![Chapter::new(0, "One".to_string(), 0, 1000), estimated],
+            placements: vec![
+                FittedPlacement {
+                    index: 0,
+                    kind: PlacementKind::Track,
+                    moved_ms: 0,
+                },
+                FittedPlacement {
+                    index: 1,
+                    kind: PlacementKind::Estimate,
+                    moved_ms: -250,
+                },
+            ],
+            counts: PlacementCounts {
+                track: 1,
+                pause: 0,
+                estimate: 1,
+            },
+        };
+        let json = serde_json::to_value(&fitted).unwrap();
+        assert_eq!(json["kind"], "fitted");
+        assert_eq!(json["placements"][1]["kind"], "estimate");
+        assert_eq!(json["chapters"][1]["placement"], "estimate");
+        let ChapterOffer::Fitted {
+            placements, counts, ..
+        } = serde_json::from_value(json).unwrap()
+        else {
+            panic!("not fitted");
+        };
+        assert_eq!(placements[1].moved_ms, -250);
+        assert_eq!(counts.estimate, 1);
+
+        let fitting = ChapterOffer::Fitting {
+            request_id: "r1".to_string(),
+        };
+        let json = serde_json::to_value(&fitting).unwrap();
+        assert_eq!(
+            json,
+            serde_json::json!({"kind": "fitting", "request_id": "r1"})
+        );
+        assert!(matches!(
+            serde_json::from_value(json).unwrap(),
+            ChapterOffer::Fitting { request_id } if request_id == "r1"
+        ));
+    }
+
     fn book_with_details() -> AudioBook {
         let mut book = AudioBook::new("Dune Messiah".to_string());
         book.total_duration_ms = 3_000_000;
@@ -373,6 +461,46 @@ mod tests {
         );
         assert_eq!(m.track_number, Some(1));
         assert_eq!(m.artwork_data.as_deref(), Some("b2xkLWNvdmVy"));
+        assert_eq!(book.chapters[0].title, "Track 01");
+    }
+
+    #[test]
+    fn applying_fitted_chapters_keeps_their_marks_in_one_undo_step() {
+        use crate::models::ChapterPlacement;
+        let mut book = book_with_details();
+        let before = book.chapters.clone();
+        // What the review sends back for a fitted offer
+        let mut fitted = vec![
+            Chapter::new(0, "Opening Credits".to_string(), 0, 1_000_000),
+            Chapter::new(1, "Book One".to_string(), 1_000_000, 2_000_000),
+            Chapter::new(2, "Book Two".to_string(), 2_000_000, 3_000_000),
+        ];
+        fitted[1].placement = Some(ChapterPlacement::Pause);
+        fitted[2].placement = Some(ChapterPlacement::Estimate);
+
+        let edit = apply_edit(
+            &book,
+            LookupSource::Audible,
+            &Metadata::default(),
+            None,
+            Some(fitted),
+        )
+        .unwrap();
+        let mut undo = crate::undo::UndoManager::new();
+        undo.execute(&mut book, edit).unwrap();
+        let marks: Vec<_> = book.chapters.iter().map(|c| c.placement).collect();
+        assert_eq!(
+            marks,
+            [
+                None,
+                Some(ChapterPlacement::Pause),
+                Some(ChapterPlacement::Estimate)
+            ]
+        );
+
+        undo.undo(&mut book).unwrap();
+        assert_eq!(book.chapters.len(), before.len());
+        assert!(book.chapters.iter().all(|c| c.placement.is_none()));
         assert_eq!(book.chapters[0].title, "Track 01");
     }
 

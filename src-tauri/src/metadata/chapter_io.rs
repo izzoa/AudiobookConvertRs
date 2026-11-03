@@ -126,6 +126,7 @@ fn parse_audacity_labels(content: &str) -> AppResult<Vec<Chapter>> {
             start_time_ms: start_ms,
             end_time_ms: end_ms,
             auto_detected: false,
+            placement: None,
         });
     }
 
@@ -150,6 +151,7 @@ fn parse_ffmetadata(content: &str) -> AppResult<Vec<Chapter>> {
                     start_time_ms: start,
                     end_time_ms: end,
                     auto_detected: false,
+                    placement: None,
                 });
             }
             current_chapter = Some((0, 0, String::new()));
@@ -182,6 +184,7 @@ fn parse_ffmetadata(content: &str) -> AppResult<Vec<Chapter>> {
                 start_time_ms: start,
                 end_time_ms: end,
                 auto_detected: false,
+                placement: None,
             });
         }
     }
@@ -255,6 +258,7 @@ fn parse_csv_line(line: &str, index: usize) -> AppResult<Option<Chapter>> {
         start_time_ms: start_ms,
         end_time_ms: end_ms,
         auto_detected: false,
+        placement: None,
     }))
 }
 

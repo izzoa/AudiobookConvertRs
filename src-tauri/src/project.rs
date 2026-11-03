@@ -364,6 +364,50 @@ mod tests {
         assert!(project.conversion_settings.is_none());
     }
 
+    fn book_with_chapters(chapters: Vec<crate::models::Chapter>) -> AudioBook {
+        let mut audiobook = AudioBook::new("Dune".to_string());
+        audiobook.chapters = chapters;
+        audiobook
+    }
+
+    #[test]
+    fn project_keeps_chapter_placement_marks() {
+        use crate::models::{Chapter, ChapterPlacement};
+        let mut marked = Chapter::new(0, "One".to_string(), 0, 1000);
+        marked.placement = Some(ChapterPlacement::Pause);
+        let audiobook =
+            book_with_chapters(vec![marked, Chapter::new(1, "Two".to_string(), 1000, 2000)]);
+
+        let dir = tempfile::tempdir().unwrap();
+        let path = Utf8PathBuf::from_path_buf(dir.path().join("marks.acproj")).unwrap();
+        Project::new(audiobook).save(&path).unwrap();
+
+        let project = Project::load(&path).unwrap();
+        let marks: Vec<_> = project
+            .audiobook
+            .chapters
+            .iter()
+            .map(|c| c.placement)
+            .collect();
+        assert_eq!(marks, [Some(ChapterPlacement::Pause), None]);
+    }
+
+    #[test]
+    fn project_saved_before_placement_marks_loads_unmarked() {
+        use crate::models::Chapter;
+        let audiobook = book_with_chapters(vec![Chapter::new(0, "One".to_string(), 0, 1000)]);
+        let json = serde_json::to_value(Project::new(audiobook)).unwrap();
+        assert!(json["audiobook"]["chapters"][0].get("placement").is_none());
+
+        let dir = tempfile::tempdir().unwrap();
+        let path = Utf8PathBuf::from_path_buf(dir.path().join("old.acproj")).unwrap();
+        fs::write(&path, json.to_string()).unwrap();
+
+        let project = Project::load(&path).unwrap();
+        assert_eq!(project.audiobook.chapters[0].placement, None);
+        assert_eq!(project.audiobook.chapters[0].title, "One");
+    }
+
     #[test]
     fn project_saved_with_numeric_series_index_still_loads() {
         // A version-1 project file from before the series position became text.

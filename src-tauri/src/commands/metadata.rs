@@ -6,7 +6,7 @@ use crate::metadata::chapter_generation::{
     extract_chapters_from_sources, get_regex_presets, rename_chapters_regex,
 };
 use crate::metadata::chapter_io::{parse_chapters, render_chapters, ChapterFormat};
-use crate::metadata::chapters::validate_chapters;
+use crate::metadata::chapters::{clear_marks_on_moved_starts, validate_chapters};
 use crate::metadata::cue_parser::{generate_chapters_from_cue, parse_cue_file, CueDetectionResult};
 use crate::metadata::editor::{self, ChapterUpdate};
 use crate::models::{normalize_asin, AudioBook, Chapter, Metadata};
@@ -283,7 +283,7 @@ pub async fn export_chapters(
 #[tauri::command]
 pub async fn set_chapters(
     audiobook_id: String,
-    chapters: Vec<Chapter>,
+    mut chapters: Vec<Chapter>,
     state: State<'_, AppState>,
     undo_state: State<'_, UndoState>,
 ) -> Result<AudioBook, String> {
@@ -295,6 +295,7 @@ pub async fn set_chapters(
     validate_chapters(&chapters, current.total_duration_ms).map_err(to_string_err)?;
 
     let old_chapters = current.chapters.clone();
+    clear_marks_on_moved_starts(&old_chapters, &mut chapters);
 
     // Create edit command
     let command = EditCommand::ReplaceChapters {

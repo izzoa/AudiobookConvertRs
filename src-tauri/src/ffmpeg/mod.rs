@@ -10,6 +10,7 @@ pub mod command_builder;
 pub mod detection;
 pub mod download;
 pub mod executor;
+pub mod silence;
 
 pub use command_builder::*;
 pub use detection::*;

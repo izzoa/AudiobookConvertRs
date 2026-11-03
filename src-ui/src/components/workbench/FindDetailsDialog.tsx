@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { ArrowLeftIcon, CheckIcon, MagnifyingGlassIcon, PhotoIcon, XMarkIcon } from "@heroicons/react/24/outline";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -7,17 +8,18 @@ import { useToast } from "@/components/ui/use-toast";
 import { useApp } from "@/context/useApp";
 import * as LookupApi from "@/api/lookup";
 import { AUDIBLE_REGIONS, DEFAULT_AUDIBLE_REGION } from "@/lib/audibleRegions";
-import { formatDuration } from "@/lib/format";
+import { formatClock, formatDuration } from "@/lib/format";
 import {
     applyPayload,
     initialSelection,
     isSelectable,
     reviewRows,
     type ReviewKey,
+    type FlaggedChapter,
     type ReviewRow,
 } from "@/lib/lookupReview";
 import { cn } from "@/lib/utils";
-import type { AudioBook, LookupCandidate, LookupRecord, LookupSource } from "@/types/models";
+import type { AudioBook, ChaptersFittedEvent, LookupCandidate, LookupRecord, LookupSource } from "@/types/models";
 
 /** Ten letters and digits with at least one digit: an ASIN (or an ISBN-10), not a word. */
 const ASIN_PATTERN = /^(?=.*\d)[A-Z0-9]{10}$/i;
@@ -70,6 +72,26 @@ function FindDetails({ book, onClose }: { book: AudioBook; onClose: () => void }
     const [record, setRecord] = useState<LookupRecord | null>(null);
     const [busy, setBusy] = useState<"search" | "record" | "apply" | null>(null);
     const [error, setError] = useState<string | null>(null);
+
+    // Chapters that need pause searches arrive after the record. A result for a
+    // record no longer shown (another pick, or Back) does not match and is dropped.
+    useEffect(() => {
+        let unlisten: UnlistenFn | undefined;
+        let closed = false;
+        listen<ChaptersFittedEvent>("lookup_chapters_fitted", ({ payload }) =>
+            setRecord((shown) =>
+                shown?.chapters.kind === "fitting" && shown.chapters.request_id === payload.request_id
+                    ? { ...shown, chapters: payload.offer }
+                    : shown
+            )
+        )
+            .then((fn) => (closed ? fn() : (unlisten = fn)))
+            .catch((e) => console.error("Could not listen for fitted chapters:", e));
+        return () => {
+            closed = true;
+            unlisten?.();
+        };
+    }, []);
 
     const search = async (event?: FormEvent, from: LookupSource = source) => {
         event?.preventDefault();
@@ -366,6 +388,16 @@ function Review({
         [book, record]
     );
     const [selected, setSelected] = useState<Set<ReviewKey>>(() => initialSelection(rows));
+    // A row still being worked out starts unticked; once it is ready it gets
+    // the selection it would have had from the start.
+    const chaptersRow = rows.find((r) => r.key === "chapters");
+    const [chaptersPending, setChaptersPending] = useState(Boolean(chaptersRow?.pending));
+    if (chaptersPending && chaptersRow && !chaptersRow.pending) {
+        setChaptersPending(false);
+        if (chaptersRow.state === "selected" && isSelectable(chaptersRow)) {
+            setSelected((prev) => new Set(prev).add("chapters"));
+        }
+    }
     const toggle = (key: ReviewKey) =>
         setSelected((prev) => {
             const next = new Set(prev);
@@ -489,13 +521,42 @@ function ReviewLine({
             {value(row.current, "current")}
             {row.unavailable ? (
                 <span className="text-xs text-warning">{row.unavailable}</span>
+            ) : row.pending ? (
+                <span className="text-xs text-muted-foreground animate-pulse">{row.pending}</span>
             ) : row.state === "unchanged" ? (
                 <span className="text-xs">Same</span>
             ) : (
-                value(row.found, "found")
+                <span className="min-w-0">
+                    {value(row.found, "found")}
+                    {row.flagged && row.flagged.length > 0 && <FlaggedList flagged={row.flagged} />}
+                </span>
             )}
         </label>
     );
+}
+
+/** Fitted chapters that did not land on a track start: where they went, and how far they moved. */
+function FlaggedList({ flagged }: { flagged: FlaggedChapter[] }) {
+    return (
+        <ul className="mt-1.5 space-y-0.5 text-xs text-muted-foreground">
+            {flagged.map((chapter) => (
+                <li key={`${chapter.start_ms}-${chapter.title}`} className="flex gap-2">
+                    <span className="nums shrink-0 text-warning">{formatClock(chapter.start_ms)}</span>
+                    <span className="min-w-0 truncate" title={chapter.title}>
+                        {chapter.title}
+                    </span>
+                    <span className="nums ml-auto shrink-0">
+                        {chapter.kind === "pause" ? `at a pause, ${formatMoved(chapter.moved_ms)}` : "estimated"}
+                    </span>
+                </li>
+            ))}
+        </ul>
+    );
+}
+
+/** "+2.4 s" */
+function formatMoved(ms: number): string {
+    return `${ms >= 0 ? "+" : "−"}${(Math.abs(ms) / 1000).toFixed(1)} s`;
 }
 
 function Thumb({ url, size = "sm" }: { url?: string | null; size?: "sm" | "lg" }) {

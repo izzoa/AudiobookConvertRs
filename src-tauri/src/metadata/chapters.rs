@@ -38,6 +38,7 @@ pub fn create_chapters_from_files(files: &[AudioFile]) -> Vec<Chapter> {
             start_time_ms: current_start_ms,
             end_time_ms,
             auto_detected: true,
+            placement: None,
         });
         current_start_ms = end_time_ms;
     }
@@ -109,6 +110,7 @@ pub fn create_chapters_auto_split(total_duration_ms: u64, count: usize) -> Vec<C
             start_time_ms: current_start_ms,
             end_time_ms,
             auto_detected: true,
+            placement: None,
         };
 
         chapters.push(chapter);
@@ -147,6 +149,7 @@ pub fn extract_chapters_from_m4b(path: &Utf8Path) -> AppResult<Vec<Chapter>> {
             // End time will be calculated from next chapter or total duration
             end_time_ms: 0, // Will be fixed below
             auto_detected: false,
+            placement: None,
         };
         chapters.push(chapter);
     }
@@ -281,6 +284,10 @@ pub fn update_chapter(
     }
 
     if let Some(start) = update.start_time_ms {
+        // The mark says how a fit placed this start; a moved start is the user's
+        if start != chapter.start_time_ms {
+            chapter.placement = None;
+        }
         chapter.start_time_ms = start;
     }
 
@@ -297,6 +304,22 @@ pub fn update_chapter(
 
     debug!("Updated chapter {}: {}", index, chapter.title);
     Ok(())
+}
+
+/// Drop the placement mark from each chapter in `new` whose start was moved.
+///
+/// The Chapters tab sends whole lists, so chapters cannot be matched by index.
+/// A mark survives only where `old` had a chapter with the same start and the
+/// same mark, which holds through renames, reorders, deletions and inserts.
+pub fn clear_marks_on_moved_starts(old: &[Chapter], new: &mut [Chapter]) {
+    for chapter in new.iter_mut().filter(|c| c.placement.is_some()) {
+        let unmoved = old
+            .iter()
+            .any(|o| o.start_time_ms == chapter.start_time_ms && o.placement == chapter.placement);
+        if !unmoved {
+            chapter.placement = None;
+        }
+    }
 }
 
 /// Delete a chapter from the list
@@ -428,6 +451,7 @@ pub fn split_chapter(
         start_time_ms: split_time_ms,
         end_time_ms: original_end,
         auto_detected: false,
+        placement: None,
     };
 
     chapters.insert(index + 1, new_chapter);
@@ -655,5 +679,99 @@ mod tests {
         assert_eq!(chapters[0].title, "AB");
         assert_eq!(chapters[0].start_time_ms, 0);
         assert_eq!(chapters[0].end_time_ms, 120000);
+    }
+
+    use crate::models::ChapterPlacement;
+
+    /// A, B (at a pause), C (estimated)
+    fn marked_chapters() -> Vec<Chapter> {
+        let mut chapters = vec![
+            Chapter::new(0, "A".to_string(), 0, 60000),
+            Chapter::new(1, "B".to_string(), 60000, 120000),
+            Chapter::new(2, "C".to_string(), 120000, 180000),
+        ];
+        chapters[1].placement = Some(ChapterPlacement::Pause);
+        chapters[2].placement = Some(ChapterPlacement::Estimate);
+        chapters
+    }
+
+    fn marks(chapters: &[Chapter]) -> Vec<Option<ChapterPlacement>> {
+        chapters.iter().map(|c| c.placement).collect()
+    }
+
+    #[test]
+    fn moving_a_start_clears_its_mark() {
+        let mut chapters = marked_chapters();
+        let update = ChapterUpdate {
+            start_time_ms: Some(65000),
+            ..Default::default()
+        };
+        update_chapter(&mut chapters, 1, update).unwrap();
+        assert_eq!(chapters[1].placement, None);
+        assert_eq!(chapters[2].placement, Some(ChapterPlacement::Estimate));
+    }
+
+    #[test]
+    fn renaming_or_resending_the_same_start_keeps_the_mark() {
+        let mut chapters = marked_chapters();
+        let update = ChapterUpdate {
+            title: Some("B, renamed".to_string()),
+            start_time_ms: Some(60000),
+            ..Default::default()
+        };
+        update_chapter(&mut chapters, 1, update).unwrap();
+        assert_eq!(chapters[1].placement, Some(ChapterPlacement::Pause));
+    }
+
+    #[test]
+    fn split_merge_and_reorder_keep_marks_on_unmoved_starts() {
+        let mut split = marked_chapters();
+        split_chapter(&mut split, 1, 90000, "B2".to_string()).unwrap();
+        assert_eq!(
+            marks(&split),
+            [
+                None,
+                Some(ChapterPlacement::Pause),
+                None,
+                Some(ChapterPlacement::Estimate)
+            ]
+        );
+
+        let mut merged = marked_chapters();
+        merge_chapters(&mut merged, 1, 2, "BC".to_string()).unwrap();
+        assert_eq!(marks(&merged), [None, Some(ChapterPlacement::Pause)]);
+
+        let mut reordered = marked_chapters();
+        reorder_chapters(&mut reordered, 2, 0).unwrap();
+        assert_eq!(reordered[0].title, "C");
+        assert_eq!(reordered[0].placement, Some(ChapterPlacement::Estimate));
+    }
+
+    #[test]
+    fn whole_list_edit_clears_only_moved_starts() {
+        let old = marked_chapters();
+        let mut new = old.clone();
+        new[1].title = "B, renamed".to_string();
+        new[2].start_time_ms = 125000;
+        new[1].end_time_ms = 125000;
+        clear_marks_on_moved_starts(&old, &mut new);
+        assert_eq!(marks(&new), [None, Some(ChapterPlacement::Pause), None]);
+    }
+
+    #[test]
+    fn whole_list_edit_keeps_marks_through_deletes_and_inserts() {
+        let old = marked_chapters();
+        // Delete A, then insert a new chapter that copies C's mark at a new start
+        let mut new = vec![old[1].clone(), old[2].clone(), old[2].clone()];
+        new[2].start_time_ms = 150000;
+        clear_marks_on_moved_starts(&old, &mut new);
+        assert_eq!(
+            marks(&new),
+            [
+                Some(ChapterPlacement::Pause),
+                Some(ChapterPlacement::Estimate),
+                None
+            ]
+        );
     }
 }

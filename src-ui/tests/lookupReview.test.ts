@@ -87,6 +87,72 @@ test("the cover starts selected only when the book has none", () => {
     assert.equal(reviewRows({ ...book, hasCover: true }, record).find((r) => r.key === "cover")?.state, "unselected");
 });
 
+const fittedRecord: LookupRecord = {
+    ...record,
+    chapters: {
+        kind: "fitted",
+        chapters: [
+            chapter(0, "Opening Credits", false),
+            { ...chapter(1, "Book One", false), placement: "pause" },
+            { ...chapter(2, "Book Two", false), placement: "estimate" },
+            chapter(3, "Book Three", false),
+        ],
+        placements: [
+            { index: 0, kind: "track", moved_ms: 0 },
+            { index: 1, kind: "pause", moved_ms: 2_400 },
+            { index: 2, kind: "estimate", moved_ms: 0 },
+            { index: 3, kind: "track", moved_ms: -1_200 },
+        ],
+        counts: { track: 2, pause: 1, estimate: 1 },
+    },
+};
+
+test("fitted chapters state how they were placed and list the ones to check", () => {
+    const chapters = reviewRows(book, fittedRecord).find((r) => r.key === "chapters")!;
+    assert.equal(chapters.found, "4 chapters fitted: 2 on a track start, 1 at a pause, 1 estimated");
+    assert.equal(chapters.state, "selected");
+    assert.deepEqual(chapters.flagged, [
+        { title: "Book One", start_ms: 1000, kind: "pause", moved_ms: 2_400 },
+        { title: "Book Two", start_ms: 2000, kind: "estimate", moved_ms: 0 },
+    ]);
+    // Applying sends the chapters with their marks for the Chapters tab
+    const payload = applyPayload(fittedRecord, new Set(["chapters"]));
+    assert.deepEqual(
+        payload.chapters?.map((c) => c.placement),
+        [undefined, "pause", "estimate", undefined]
+    );
+});
+
+test("fitted chapters all on track starts need no list", () => {
+    const allTracks: LookupRecord = {
+        ...record,
+        chapters: {
+            kind: "fitted",
+            chapters: [chapter(0, "One", false), chapter(1, "Two", false)],
+            placements: [
+                { index: 0, kind: "track", moved_ms: 0 },
+                { index: 1, kind: "track", moved_ms: 800 },
+            ],
+            counts: { track: 2, pause: 0, estimate: 0 },
+        },
+    };
+    const chapters = reviewRows(book, allTracks).find((r) => r.key === "chapters")!;
+    assert.equal(chapters.found, "2 chapters fitted, all on a track start");
+    assert.deepEqual(chapters.flagged, []);
+});
+
+test("chapters still being fitted cannot be ticked or applied", () => {
+    const fitting: LookupRecord = { ...record, chapters: { kind: "fitting", request_id: "r1" } };
+    const rows = reviewRows(book, fitting);
+    const chapters = rows.find((r) => r.key === "chapters")!;
+    assert.equal(chapters.pending, "Fitting chapters to your tracks…");
+    assert.equal(isSelectable(chapters), false);
+    assert.equal(initialSelection(rows).has("chapters"), false);
+    assert.equal(applyPayload(fitting, new Set(["chapters"])).chapters, undefined);
+    // The other rows stay usable meanwhile
+    assert.equal(isSelectable(rows.find((r) => r.key === "narrator")!), true);
+});
+
 test("the payload carries only the ticked values", () => {
     const payload = applyPayload(record, new Set(["narrator", "series", "series_index", "chapters"]));
     assert.deepEqual(payload.fields, { narrator: "Scott Brick, Euan Morton", series: "Dune", series_index: "2" });

@@ -411,6 +411,7 @@ mod tests {
             start_time_ms: 0,
             end_time_ms: 60000,
             auto_detected: false,
+            placement: None,
         });
         ab
     }
@@ -501,6 +502,35 @@ mod tests {
     }
 
     #[test]
+    fn undoing_a_moved_start_restores_its_mark() {
+        use crate::metadata::chapters::clear_marks_on_moved_starts;
+        use crate::models::ChapterPlacement;
+
+        let mut ab = create_test_audiobook();
+        let mut second = Chapter::new(1, "Chapter 2".to_string(), 60000, 120000);
+        second.placement = Some(ChapterPlacement::Estimate);
+        ab.chapters.push(second);
+        let mut manager = UndoManager::new();
+
+        // What the Chapters tab sends after moving chapter 2's start
+        let mut moved = ab.chapters.clone();
+        moved[0].end_time_ms = 65000;
+        moved[1].start_time_ms = 65000;
+        clear_marks_on_moved_starts(&ab.chapters, &mut moved);
+        let cmd = EditCommand::ReplaceChapters {
+            audiobook_id: ab.id.clone(),
+            old_chapters: ab.chapters.clone(),
+            new_chapters: moved,
+        };
+        manager.execute(&mut ab, cmd).unwrap();
+        assert_eq!(ab.chapters[1].placement, None);
+
+        manager.undo(&mut ab).unwrap();
+        assert_eq!(ab.chapters[1].start_time_ms, 60000);
+        assert_eq!(ab.chapters[1].placement, Some(ChapterPlacement::Estimate));
+    }
+
+    #[test]
     fn test_add_delete_chapter() {
         let mut ab = create_test_audiobook();
         let mut manager = UndoManager::new();
@@ -511,6 +541,7 @@ mod tests {
             start_time_ms: 60000,
             end_time_ms: 120000,
             auto_detected: false,
+            placement: None,
         };
 
         let cmd = EditCommand::AddChapter {

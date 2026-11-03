@@ -157,6 +157,7 @@ fn parse_cuesheet(cuesheet: &str) -> AppResult<Vec<Chapter>> {
                         start_time_ms: start_ms,
                         end_time_ms: 0, // Will be updated
                         auto_detected: true,
+                        placement: None,
                     });
                 }
             }
@@ -214,6 +215,7 @@ fn parse_cuesheet(cuesheet: &str) -> AppResult<Vec<Chapter>> {
             start_time_ms: start_ms,
             end_time_ms: 0, // Will need to be set to total duration
             auto_detected: true,
+            placement: None,
         });
     }
 
@@ -318,6 +320,7 @@ fn parse_ffmetadata_chapters(text: &str) -> Vec<Chapter> {
             start_time_ms,
             end_time_ms,
             auto_detected: true,
+            placement: None,
         })
         .collect()
 }

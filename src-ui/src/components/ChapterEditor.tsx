@@ -5,11 +5,12 @@ import { useApp } from "@/context/useApp";
 import * as ChaptersApi from "@/api/chapters";
 import * as FilesApi from "@/api/files";
 import * as PlaybackApi from "@/api/playback";
-import type { Chapter } from "@/types/models";
+import type { Chapter, ChapterPlacement } from "@/types/models";
 import type { CueDetectionResult } from "@/api/files";
 import { PlayIcon, StopIcon } from "@heroicons/react/20/solid";
 import { Popover, MenuItem, MenuLabel, MenuSeparator } from "./ui/popover";
 import { cn } from "@/lib/utils";
+import { formatChapterTime, moveChapterStart, parseChapterTime, TIME_FORMATS } from "@/lib/chapterTime";
 import { Bars2Icon, SparklesIcon, ArrowUpTrayIcon, WrenchScrewdriverIcon, ExclamationTriangleIcon } from "@heroicons/react/24/outline";
 import {
     DndContext,
@@ -31,6 +32,12 @@ import { CSS } from "@dnd-kit/utilities";
 
 type ChapterFormat = "audacity" | "ffmetadata" | "csv";
 
+/** Why a chapter is marked, for its tooltip. */
+const PLACEMENT_HINT: Record<ChapterPlacement, string> = {
+    pause: "Find details placed this chapter in a pause near where it expected it, as no track starts there. Play it to check.",
+    estimate: "Find details placed this chapter where it expected it; no track start or pause was found nearby. Play it to check.",
+};
+
 interface SortableChapterProps {
     chapter: Chapter;
     displayIndex: number;
@@ -38,10 +45,14 @@ interface SortableChapterProps {
     onPlay: (chapter: Chapter) => void;
     isPlaying: boolean;
     onRename: (chapter: Chapter, title: string) => void;
+    /** Moves this chapter's start; resolves to why it was refused, or null. Absent for the first chapter. */
+    onMoveStart?: (startMs: number) => Promise<string | null>;
 }
 
-function SortableChapter({ chapter, displayIndex, formatDuration, onPlay, isPlaying, onRename }: SortableChapterProps) {
+function SortableChapter({ chapter, displayIndex, formatDuration, onPlay, isPlaying, onRename, onMoveStart }: SortableChapterProps) {
     const [draft, setDraft] = useState<string | null>(null);
+    const [timeDraft, setTimeDraft] = useState<string | null>(null);
+    const [timeError, setTimeError] = useState<string | null>(null);
     const {
         attributes,
         listeners,
@@ -60,6 +71,22 @@ function SortableChapter({ chapter, displayIndex, formatDuration, onPlay, isPlay
         const next = (draft ?? "").trim();
         if (next && next !== chapter.title) onRename(chapter, next);
         setDraft(null);
+    };
+
+    const cancelTime = () => {
+        setTimeDraft(null);
+        setTimeError(null);
+    };
+
+    // The field opens on the start as it would be typed, so saving it unchanged moves nothing
+    const commitTime = async () => {
+        if (timeDraft === null || !onMoveStart) return;
+        if (timeDraft.trim() === formatChapterTime(chapter.start_time_ms)) return cancelTime();
+        const startMs = parseChapterTime(timeDraft);
+        if (startMs === null) return setTimeError(`Type the start as ${TIME_FORMATS}.`);
+        const refused = await onMoveStart(startMs);
+        if (refused) return setTimeError(refused);
+        cancelTime();
     };
 
     return (
@@ -108,8 +135,53 @@ function SortableChapter({ chapter, displayIndex, formatDuration, onPlay, isPlay
                 />
             )}
 
-            <span className="shrink-0 text-xs text-muted-foreground nums">
-                {formatDuration(chapter.start_time_ms)} – {formatDuration(chapter.end_time_ms)}
+            {timeError ? (
+                <span className="min-w-0 max-w-[260px] truncate text-[11px] text-destructive" title={timeError}>
+                    {timeError}
+                </span>
+            ) : (
+                chapter.placement && (
+                    <span className="shrink-0 text-[11px] text-warning" title={PLACEMENT_HINT[chapter.placement]}>
+                        {chapter.placement === "pause" ? "at a pause" : "estimated"}
+                    </span>
+                )
+            )}
+
+            <span className="shrink-0 flex items-center gap-1 text-xs text-muted-foreground nums">
+                {timeDraft !== null ? (
+                    <input
+                        autoFocus
+                        value={timeDraft}
+                        onChange={(e) => {
+                            setTimeDraft(e.target.value);
+                            setTimeError(null);
+                        }}
+                        // Opens selected, so typing a time replaces the old one
+                        onFocus={(e) => e.target.select()}
+                        onBlur={commitTime}
+                        onKeyDown={(e) => {
+                            if (e.key === "Enter") commitTime();
+                            if (e.key === "Escape") cancelTime();
+                        }}
+                        aria-label="Chapter start time"
+                        aria-invalid={timeError !== null}
+                        className={cn(
+                            "w-[84px] rounded-md border bg-background px-1.5 py-0.5 text-xs nums focus:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                            timeError ? "border-destructive" : "border-input"
+                        )}
+                    />
+                ) : onMoveStart ? (
+                    <button
+                        onClick={() => setTimeDraft(formatChapterTime(chapter.start_time_ms))}
+                        title="Change where this chapter starts"
+                        className="rounded-sm hover:text-foreground hover:underline decoration-dotted underline-offset-2"
+                    >
+                        {formatDuration(chapter.start_time_ms)}
+                    </button>
+                ) : (
+                    <span>{formatDuration(chapter.start_time_ms)}</span>
+                )}
+                <span>– {formatDuration(chapter.end_time_ms)}</span>
             </span>
 
             <button
@@ -128,7 +200,7 @@ function SortableChapter({ chapter, displayIndex, formatDuration, onPlay, isPlay
 }
 
 export function ChapterEditor() {
-    const { activeAudiobook, setActiveAudiobook } = useApp();
+    const { activeAudiobook, setActiveAudiobook, refreshUndoState } = useApp();
     const [isImporting, setIsImporting] = useState(false);
     const [isExporting, setIsExporting] = useState(false);
     const [isGenerating, setIsGenerating] = useState(false);
@@ -471,6 +543,22 @@ export function ChapterEditor() {
     };
 
     const chapterIds = activeAudiobook.chapters.map((ch) => ch.index.toString());
+    const markedCount = activeAudiobook.chapters.filter((ch) => ch.placement).length;
+
+    const handleMoveStart = async (index: number, startMs: number): Promise<string | null> => {
+        const moved = moveChapterStart(activeAudiobook.chapters, index, startMs);
+        if ("error" in moved) return moved.error;
+        if (moved.chapters === activeAudiobook.chapters) return null;
+        try {
+            setActiveAudiobook(await ChaptersApi.setChapters(activeAudiobook.id, moved.chapters));
+            await refreshUndoState();
+            setError(null);
+            return null;
+        } catch (err) {
+            console.error("Failed to move chapter start:", err);
+            return String(err);
+        }
+    };
 
     const handleRename = async (chapter: Chapter, title: string) => {
         const next = activeAudiobook.chapters.map((ch) =>
@@ -631,6 +719,15 @@ export function ChapterEditor() {
                 </div>
             )}
 
+            {markedCount > 0 && (
+                <div className="shrink-0 flex items-center gap-2 px-3 py-1.5 border-b text-xs text-muted-foreground">
+                    <ExclamationTriangleIcon className="w-4 h-4 text-warning shrink-0" />
+                    {markedCount === 1
+                        ? "1 chapter was placed without a track start. Play it to check."
+                        : `${markedCount} chapters were placed without a track start. Play each to check it.`}
+                </div>
+            )}
+
             {warnings.length > 0 && (
                 <div className="shrink-0 flex items-start gap-2 px-3 py-2 bg-warning/10 border-b text-xs">
                     <ExclamationTriangleIcon className="w-4 h-4 text-warning shrink-0 mt-px" />
@@ -661,6 +758,7 @@ export function ChapterEditor() {
                                     onPlay={handlePlayChapter}
                                     isPlaying={playingChapterIndex === chapter.index}
                                     onRename={handleRename}
+                                    onMoveStart={idx > 0 ? (startMs) => handleMoveStart(idx, startMs) : undefined}
                                 />
                             ))}
                         </SortableContext>

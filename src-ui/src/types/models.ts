@@ -61,7 +61,11 @@ export interface Chapter {
     start_time_ms: number;
     end_time_ms: number;
     auto_detected: boolean;
+    /** Set when fitted lookup chapters put this one at a pause or an estimate; cleared when its start changes. */
+    placement?: ChapterPlacement;
 }
+
+export type ChapterPlacement = 'pause' | 'estimate';
 
 // For updating chapters
 export interface ChapterUpdate {
@@ -433,7 +437,31 @@ export type ChapterOffer =
     | { kind: 'exact'; chapters: Chapter[] }
     | { kind: 'shifted'; chapters: Chapter[]; shift_ms: number }
     | { kind: 'titles_only'; chapters: Chapter[] }
+    | { kind: 'fitted'; chapters: Chapter[]; placements: FittedPlacement[]; counts: PlacementCounts }
+    /** Pauses are still being searched; `lookup_chapters_fitted` brings the result. */
+    | { kind: 'fitting'; request_id: string }
     | { kind: 'unavailable'; reason: string };
+
+export type PlacementKind = 'track' | 'pause' | 'estimate';
+
+export interface FittedPlacement {
+    index: number;
+    kind: PlacementKind;
+    /** Placed start minus estimated start; negative when it moved earlier. */
+    moved_ms: number;
+}
+
+export interface PlacementCounts {
+    track: number;
+    pause: number;
+    estimate: number;
+}
+
+/** Payload of the `lookup_chapters_fitted` event. */
+export interface ChaptersFittedEvent {
+    request_id: string;
+    offer: ChapterOffer;
+}
 
 /** The full record for one chosen result, ready for review. */
 export interface LookupRecord {

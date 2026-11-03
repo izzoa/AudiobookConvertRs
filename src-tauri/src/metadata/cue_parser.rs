@@ -249,6 +249,7 @@ pub fn generate_chapters_from_cue(cue: &CueSheet, total_duration_ms: u64) -> Vec
             start_time_ms: track.start_time_ms,
             end_time_ms,
             auto_detected: true,
+            placement: None,
         });
     }
 
@@ -307,6 +308,7 @@ pub fn generate_chapters_from_multifile_cue(
             start_time_ms: absolute_start,
             end_time_ms,
             auto_detected: true,
+            placement: None,
         });
     }
 

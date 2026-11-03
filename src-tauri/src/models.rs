@@ -385,6 +385,20 @@ pub struct Chapter {
     pub end_time_ms: u64,
     /// Whether this chapter was automatically detected
     pub auto_detected: bool,
+    /// Set when chapters fitted from a lookup put this one at a pause or an
+    /// estimate rather than on a track start; cleared when its start changes
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub placement: Option<ChapterPlacement>,
+}
+
+/// How a fitted chapter was placed when no track started near it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ChapterPlacement {
+    /// Inside a pause near where the chapter was expected
+    Pause,
+    /// Where the chapter was expected, as nothing better was found
+    Estimate,
 }
 
 impl Chapter {
@@ -396,6 +410,7 @@ impl Chapter {
             start_time_ms,
             end_time_ms,
             auto_detected: false,
+            placement: None,
         }
     }
 
@@ -1018,6 +1033,30 @@ mod tests {
     fn test_chapter_duration() {
         let chapter = Chapter::new(0, "Test".to_string(), 1000, 5000);
         assert_eq!(chapter.duration_ms(), 4000);
+    }
+
+    #[test]
+    fn chapter_saved_before_placement_loads_unmarked() {
+        let json =
+            r#"{"index":0,"title":"One","start_time_ms":0,"end_time_ms":10,"auto_detected":false}"#;
+        let chapter: Chapter = serde_json::from_str(json).unwrap();
+        assert_eq!(chapter.placement, None);
+    }
+
+    #[test]
+    fn unmarked_chapter_serializes_without_placement() {
+        let json = serde_json::to_string(&Chapter::new(0, "One".to_string(), 0, 10)).unwrap();
+        assert!(!json.contains("placement"), "{json}");
+    }
+
+    #[test]
+    fn marked_chapter_round_trips() {
+        let mut chapter = Chapter::new(0, "One".to_string(), 0, 10);
+        chapter.placement = Some(ChapterPlacement::Estimate);
+        let json = serde_json::to_string(&chapter).unwrap();
+        assert!(json.contains(r#""placement":"estimate""#), "{json}");
+        let back: Chapter = serde_json::from_str(&json).unwrap();
+        assert_eq!(back.placement, Some(ChapterPlacement::Estimate));
     }
 
     #[test]

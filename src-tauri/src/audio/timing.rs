@@ -51,6 +51,7 @@ pub fn auto_split_chapters(total_duration_ms: u64, chapter_count: usize) -> Vec<
                 start_time_ms: start,
                 end_time_ms: end,
                 auto_detected: true,
+                placement: None,
             }
         })
         .collect()
