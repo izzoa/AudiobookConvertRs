@@ -136,10 +136,13 @@ impl ConversionManager {
         // Signal workers to stop
         self.stop_flag.store(true, Ordering::SeqCst);
 
-        // Wake all workers
-        let (lock, cvar) = &*self.work_available;
-        let _guard = lock.lock();
-        cvar.notify_all();
+        // Wake all workers. The lock must be released before joining them: a
+        // woken worker has to take it again to leave its wait.
+        {
+            let (lock, cvar) = &*self.work_available;
+            let _guard = lock.lock();
+            cvar.notify_all();
+        }
 
         // Wait for workers to finish
         self.stop_workers();
