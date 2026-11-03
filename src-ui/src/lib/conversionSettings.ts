@@ -3,6 +3,8 @@ import type { ConversionDefaults, ConversionSettings, EncodingMode, UserSettings
 /** Per-book choices that override the defaults (the Convert bar's Quality menu). */
 export interface QualityChoice {
     bitrate_kbps?: number;
+    /** `null` keeps each file's own rate; leaving it out uses the default. */
+    sample_rate_hz?: number | null;
     encoding_mode?: EncodingMode;
     embed_chapters?: boolean;
     embed_artwork?: boolean;
@@ -24,7 +26,8 @@ export function buildConversionSettings(
     const normalize = choice.normalize ?? false;
     return {
         bitrate_kbps: choice.bitrate_kbps ?? defaults.bitrate_kbps,
-        sample_rate_hz: defaults.sample_rate_hz,
+        sample_rate_hz:
+            choice.sample_rate_hz === undefined ? defaults.sample_rate_hz : (choice.sample_rate_hz ?? undefined),
         encoding_mode: choice.encoding_mode ?? defaults.encoding_mode,
         output_format: "m4b",
         output_path: outputPath,

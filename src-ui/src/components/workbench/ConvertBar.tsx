@@ -25,6 +25,12 @@ import { outputPathForBook } from "@/lib/outputTemplate";
 
 const BITRATES = [32, 48, 64, 96, 128, 160, 192, 256];
 
+/** The rates Settings offers as a default, so both places agree. */
+const SAMPLE_RATES = [22050, 44100, 48000];
+
+/** 44100 → "44.1 kHz" */
+const formatRate = (hz: number) => `${hz / 1000} kHz`;
+
 /** The backend rejects bitrates above this; lossless sources (FLAC, WAV) would exceed it. */
 const MAX_BITRATE = 320;
 
@@ -56,6 +62,8 @@ export function ConvertBar({ onShowChapters }: { onShowChapters: () => void }) {
     const [chosenPath, setChosenPath] = useState<string | null>(null);
     const [bitrate, setBitrate] = useState(defaults.bitrate_kbps);
     const [matchSource, setMatchSource] = useState(false);
+    // undefined keeps each file's own rate, as the backend reads a missing rate
+    const [sampleRate, setSampleRate] = useState<number | undefined>(defaults.sample_rate_hz);
     const [mode, setMode] = useState<EncodingMode>(defaults.encoding_mode);
     const [embedChapters, setEmbedChapters] = useState(defaults.embed_chapters);
     const [embedArtwork, setEmbedArtwork] = useState(defaults.embed_artwork);
@@ -87,14 +95,25 @@ export function ConvertBar({ onShowChapters }: { onShowChapters: () => void }) {
     }, [activeAudiobook?.files]);
     const effectiveBitrate = matchSource && sourceBitrate ? sourceBitrate : bitrate;
 
-    // Only the defaults' sample rate and overwrite flag reach the job; every
-    // other field is chosen here, so those two are the dependencies.
+    // The files' own rate when they all share one, for the Match source label.
+    const sourceSampleRate = useMemo(() => {
+        const rates = new Set(
+            (activeAudiobook?.files ?? [])
+                .map((f) => f.sample_rate_hz)
+                .filter((r): r is number => typeof r === "number" && r > 0)
+        );
+        return rates.size === 1 ? [...rates][0] : undefined;
+    }, [activeAudiobook?.files]);
+
+    // Only the defaults' overwrite flag reaches the job; every other field is
+    // chosen here, so it is the one default in the dependencies.
     const buildSettings = useCallback(
         (): ConversionSettings | null =>
             !activeAudiobook || !outputPath
                 ? null
                 : buildConversionSettings(defaults, settings, outputPath, {
                       bitrate_kbps: effectiveBitrate,
+                      sample_rate_hz: sampleRate ?? null,
                       encoding_mode: mode,
                       embed_chapters: embedChapters,
                       embed_artwork: embedArtwork,
@@ -105,12 +124,12 @@ export function ConvertBar({ onShowChapters }: { onShowChapters: () => void }) {
             activeAudiobook,
             outputPath,
             effectiveBitrate,
+            sampleRate,
             mode,
             embedChapters,
             embedArtwork,
             copyMetadata,
             normalize,
-            defaults.sample_rate_hz,
             defaults.overwrite_existing,
             settings,
         ]
@@ -146,6 +165,7 @@ export function ConvertBar({ onShowChapters }: { onShowChapters: () => void }) {
     const applyPreset = (preset: ConversionPreset) => {
         setBitrate(preset.settings.bitrate_kbps);
         setMatchSource(false);
+        setSampleRate(preset.settings.sample_rate);
         setEmbedChapters(preset.settings.embed_chapters);
         setEmbedArtwork(preset.settings.embed_artwork);
         setCopyMetadata(preset.settings.copy_metadata);
@@ -161,7 +181,7 @@ export function ConvertBar({ onShowChapters }: { onShowChapters: () => void }) {
                 name,
                 settings: {
                     bitrate_kbps: effectiveBitrate,
-                    sample_rate: defaults.sample_rate_hz,
+                    sample_rate: sampleRate,
                     concurrent_jobs: settings?.concurrent_jobs ?? 1,
                     overwrite_existing: defaults.overwrite_existing,
                     embed_chapters: embedChapters,
@@ -396,6 +416,7 @@ export function ConvertBar({ onShowChapters }: { onShowChapters: () => void }) {
                                 <span className="block text-xs leading-tight nums">
                                     {matchSource && sourceBitrate ? `Source ${sourceBitrate}k` : `${bitrate}k`}{" "}
                                     {mode.toUpperCase()}
+                                    {sampleRate && ` · ${formatRate(sampleRate)}`}
                                     {normalize && " · normalized"}
                                 </span>
                             </span>
@@ -478,6 +499,33 @@ export function ConvertBar({ onShowChapters }: { onShowChapters: () => void }) {
                                 {matchSource && sourceBitrate
                                     ? "AAC needs fewer kbps than MP3 for the same quality, so matching usually makes a larger file than needed."
                                     : "64k is plenty for spoken word. Higher mostly costs disk."}
+                            </p>
+                        </div>
+
+                        <div>
+                            <div className="mb-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                                Sample rate
+                            </div>
+                            <Segmented<number | "source">
+                                columns={3}
+                                label="Sample rate"
+                                options={[
+                                    {
+                                        value: "source" as const,
+                                        label: sourceSampleRate
+                                            ? `Match source (${formatRate(sourceSampleRate)})`
+                                            : "Match source",
+                                        wide: true,
+                                    },
+                                    ...SAMPLE_RATES.map((rate) => ({ value: rate, label: formatRate(rate) })),
+                                ]}
+                                value={sampleRate ?? "source"}
+                                onChange={(choice) => setSampleRate(choice === "source" ? undefined : choice)}
+                            />
+                            <p className="mt-1.5 text-[11px] text-muted-foreground">
+                                {sampleRate
+                                    ? "Every file is resampled to this rate."
+                                    : "Keeps the files' own rate, so nothing is resampled."}
                             </p>
                         </div>
 
