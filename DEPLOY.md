@@ -3,11 +3,13 @@
 How a release of AudiobookConvertRs is made. The short version:
 
 ```bash
-# 1. Bump the version in Cargo.toml ([workspace.package] version), commit, push main
-# 2. Wait for CI to pass on main, then tag:
+# 1. Bump the version in Cargo.toml ([workspace.package] version), then:
+cargo update --workspace   # records it in Cargo.lock
+# 2. Commit both files, push main
+# 3. Wait for CI to pass on main, then tag:
 git tag v0.2.0
 git push origin v0.2.0
-# 3. Check the draft release on GitHub, then press Publish
+# 4. Check the draft release on GitHub, then press Publish
 ```
 
 ## What a release contains
@@ -18,21 +20,22 @@ A `v*` tag runs `.github/workflows/release.yml`, which builds three installers a
 |---|---|---|
 | `AudiobookConvertRs_X.Y.Z_universal.dmg` | macOS, Apple Silicon and Intel | Developer ID, notarized and stapled |
 | `AudiobookConvertRs_X.Y.Z_x64-setup.exe` | Windows 10/11, 64-bit | No: SmartScreen warns on first run |
-| `audiobookconvert-rs_X.Y.Z_amd64.deb` | Ubuntu 22.04+ and Debian-based | No (normal for a `.deb`) |
+| `AudiobookConvertRs_X.Y.Z_amd64.deb` | Ubuntu 22.04+ and Debian-based | No (normal for a `.deb`) |
 | `SHA256SUMS` | checksums of the three files | |
 
 ## Making a release
 
 1. **Bump the version** in `Cargo.toml` under `[workspace.package]`. It is the only place: `tauri.conf.json` has no version of its own and takes this one.
-2. **Commit and push `main`**, and wait for the CI workflow to pass.
-3. **Tag and push the tag** (`git tag vX.Y.Z` then `git push origin vX.Y.Z`). The tag must equal the version, or the first job stops the release.
-4. **Watch Actions → Release.** The jobs are: the version check, macOS (about 25 minutes, most of it compiling twice and waiting for Apple's notarization), Windows, Linux, and the draft release, which runs only when all three builds pass.
-5. **Check the draft** on the Releases page:
+2. **Run `cargo update --workspace`.** `Cargo.lock` also records the app's version, and CI builds with `--locked`, so it fails if the lock file still says the old one. It updates only the app's own entry and leaves every dependency alone.
+3. **Commit both files and push `main`**, and wait for the CI workflow to pass.
+4. **Tag and push the tag** (`git tag vX.Y.Z` then `git push origin vX.Y.Z`). The tag must equal the version, or the first job stops the release.
+5. **Watch Actions → Release.** The jobs are: the version check, macOS (about 20 minutes, most of it compiling twice and waiting for Apple's notarization), Windows, Linux, and the draft release, which runs only when all three builds pass.
+6. **Check the draft** on the Releases page:
    - All four files are attached. Download them and run `shasum -a 256 -c SHA256SUMS` (macOS) or `sha256sum -c SHA256SUMS` (Linux).
    - **macOS:** open the DMG you downloaded with a browser, drag the app to Applications and open it. It must open with no warning. `spctl -a -vv /Applications/AudiobookConvertRs.app` must say `source=Notarized Developer ID`.
    - **Windows:** run the setup file. SmartScreen's "Windows protected your PC" is expected until the installer is signed; choose More info → Run anyway.
-   - **Linux:** `sudo apt install ./audiobookconvert-rs_X.Y.Z_amd64.deb` installs the app and FFmpeg.
-6. **Edit the generated notes if needed, then press Publish.**
+   - **Linux:** `sudo apt install ./AudiobookConvertRs_X.Y.Z_amd64.deb` installs the app and FFmpeg.
+7. **Edit the generated notes if needed, then press Publish.**
 
 A tag with a hyphen, such as `v1.0.0-beta.1`, needs the same version in `Cargo.toml`, and its draft is marked as a pre-release.
 
@@ -89,7 +92,7 @@ scripts/release/macos-verify.sh "$dmg"
 
 ## Continuous integration
 
-- **`ci.yml`** runs on pushes to `main` and on pull requests. It builds and tests on Linux, macOS and Windows; runs the frontend tests on Linux; reports clippy warnings without failing; and fails on unformatted Rust (`cargo fmt --all --check`). `npm run lint` is not enforced yet because of its existing errors.
+- **`ci.yml`** runs on pushes to `main` and on pull requests. It builds and tests on Linux, macOS and Windows with `--locked`, so a `Cargo.lock` that no longer matches `Cargo.toml` fails the run; runs the frontend tests on Linux; reports clippy warnings without failing; and fails on unformatted Rust (`cargo fmt --all --check`). `npm run lint` is not enforced yet because of its existing errors.
 - **`ffmpeg-links.yml`** runs weekly and on demand. It downloads every fixed FFmpeg build that Get FFmpeg offers and checks its size and SHA-256. When it fails, a host moved or replaced a file and `src-tauri/src/ffmpeg/download.rs` needs a new row.
 
 ## Troubleshooting
