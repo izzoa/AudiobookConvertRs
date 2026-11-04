@@ -688,7 +688,7 @@ export function ChapterEditor() {
 
                 <Popover
                     align="start"
-                    className="w-[320px] p-3"
+                    className="w-[400px] p-4"
                     trigger={() => (
                         <Button variant="ghost" size="sm" disabled={activeAudiobook.chapters.length === 0}>
                             <WrenchScrewdriverIcon className="w-4 h-4 mr-1.5" />
@@ -696,13 +696,13 @@ export function ChapterEditor() {
                         </Button>
                     )}
                 >
-                    <div className="space-y-3">
+                    <div className="space-y-4">
                         {regexPresets.length > 0 && (
                             <div>
-                                <div className="mb-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                                <div className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
                                     Presets
                                 </div>
-                                <div className="grid grid-cols-2 gap-1">
+                                <div className="grid grid-cols-2 gap-2">
                                     {regexPresets.map((preset, idx) => (
                                         <Button
                                             key={idx}
@@ -711,7 +711,7 @@ export function ChapterEditor() {
                                             size="sm"
                                             variant="secondary"
                                             title={preset.description}
-                                            className="text-xs"
+                                            className="h-auto min-h-9 px-3 py-2 text-xs leading-snug whitespace-normal text-center"
                                         >
                                             {preset.name}
                                         </Button>
@@ -720,7 +720,7 @@ export function ChapterEditor() {
                             </div>
                         )}
 
-                        <div className="pt-1 border-t space-y-2">
+                        <div className="pt-4 border-t space-y-2.5">
                             <div className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
                                 Find and replace
                             </div>
