@@ -62,3 +62,49 @@ export function moveChapterStart(chapters: Chapter[], index: number, startMs: nu
         ),
     };
 }
+
+/** A pause in the book, as the waveform view reports it. */
+export interface PauseSpan {
+    start_ms: number;
+    end_ms: number;
+}
+
+/** How long before speech resumes a chapter starts in a pause (`LEAD_IN_MS` in `ffmpeg/silence.rs`). */
+export const PAUSE_LEAD_IN_MS = 200;
+
+/**
+ * Where a chapter would start in the pause nearest `atMs`: just before the
+ * speech after it resumes. `null` when no pause starts a chapter within
+ * `reachMs`, or none lies between `minMs` and `maxMs` (exclusive).
+ */
+export function snapToPause(
+    pauses: PauseSpan[],
+    atMs: number,
+    minMs: number,
+    maxMs: number,
+    reachMs = 5_000
+): number | null {
+    let best: number | null = null;
+    for (const pause of pauses) {
+        const start = Math.max(pause.start_ms, pause.end_ms - PAUSE_LEAD_IN_MS);
+        if (start <= minMs || start >= maxMs || Math.abs(start - atMs) > reachMs) continue;
+        if (best === null || Math.abs(start - atMs) < Math.abs(best - atMs)) best = start;
+    }
+    return best;
+}
+
+/** The file that book time `ms` falls in, and how far into it; the last file's end counts as in it. */
+export function locateInBook(
+    files: { path: string; duration_ms: number }[],
+    ms: number
+): { path: string; offsetMs: number; fileStartMs: number } | null {
+    let start = 0;
+    for (const [i, file] of files.entries()) {
+        const end = start + file.duration_ms;
+        if (ms < end || i === files.length - 1) {
+            return { path: file.path, offsetMs: Math.max(0, Math.min(ms - start, file.duration_ms)), fileStartMs: start };
+        }
+        start = end;
+    }
+    return null;
+}

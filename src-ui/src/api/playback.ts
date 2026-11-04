@@ -1,4 +1,5 @@
 import { invoke } from '@tauri-apps/api/core';
+import type { Waveform } from '../types/models';
 
 export type PlaybackState = 'stopped' | 'playing' | 'paused';
 
@@ -36,4 +37,9 @@ export async function setAudioVolume(volume: number): Promise<void> {
 
 export async function getPlaybackStatus(): Promise<PlaybackStatus> {
     return await invoke('get_playback_status');
+}
+
+/** The book's audio `spanMs` either side of `atMs` (book time), drawn as a waveform with its pauses. */
+export async function getWaveform(audiobookId: string, atMs: number, spanMs: number): Promise<Waveform> {
+    return await invoke('get_waveform', { audiobookId, atMs, spanMs });
 }

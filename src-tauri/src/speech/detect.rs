@@ -58,6 +58,8 @@ struct Place {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Found {
     pub title: String,
+    /// The heading alone ("Chapter 4"), which says whether two are the same
+    pub heading: String,
     pub start_ms: u64,
 }
 
@@ -84,7 +86,7 @@ pub fn chapters_from(mut found: Vec<Found>, total_ms: u64) -> Vec<Chapter> {
     let mut kept: Vec<Found> = Vec::new();
     for f in found {
         let repeat = kept.last().is_some_and(|last| {
-            f.start_ms < last.start_ms + SAME_CHAPTER_MS || f.title == last.title
+            f.start_ms < last.start_ms + SAME_CHAPTER_MS || f.heading == last.heading
         });
         if !repeat {
             kept.push(f);
@@ -98,6 +100,7 @@ pub fn chapters_from(mut found: Vec<Found>, total_ms: u64) -> Vec<Chapter> {
                 0,
                 Found {
                     title: "Opening".to_string(),
+                    heading: "Opening".to_string(),
                     start_ms: 0,
                 },
             );
@@ -232,8 +235,13 @@ impl Detection<'_> {
                 if let Some(heading) = heading_at_start(&words, HEADING_WITHIN_MS) {
                     let title_ms = place.from_ms + heading.start_ms;
                     let start = heard_start(title_ms, BREAK_BEFORE_MS, &silences[place.file]);
+                    let title = match &heading.subtitle {
+                        Some(subtitle) => format!("{}: {}", heading.title, subtitle),
+                        None => heading.title.clone(),
+                    };
                     found.push(Found {
-                        title: heading.title,
+                        title,
+                        heading: heading.title,
                         start_ms: file_starts[place.file] + start,
                     });
                 }
@@ -263,6 +271,7 @@ mod tests {
     fn found(title: &str, start_ms: u64) -> Found {
         Found {
             title: title.to_string(),
+            heading: title.split(':').next().unwrap().to_string(),
             start_ms,
         }
     }
@@ -284,7 +293,7 @@ mod tests {
             vec![
                 found("Chapter 2", 600_000),
                 found("Chapter 1", 4_000),
-                found("Chapter 2", 900_000),
+                found("Chapter 2: The river", 900_000),
                 found("Chapter 3", 1_200_000),
                 found("Chapter 4", 1_205_000),
             ],
@@ -390,13 +399,13 @@ mod tests {
         let files = vec![
             book_file(
                 "one",
-                "Chapter one. The road. They set out at dawn, and the road was long. As we will see in chapter three, it did not end well.",
-                "Chapter two. The river. By noon they had reached the water.",
+                "Chapter one. The road. [[slnc 1000]] They set out at dawn, and the road was long. As we will see in chapter three, it did not end well.",
+                "Chapter two. The river. [[slnc 1000]] By noon they had reached the water.",
             ),
             book_file(
                 "two",
                 "They crossed in silence and slept on the far bank.",
-                "Chapter three. Outlaws. In the spring the men came down from the hills.",
+                "Chapter three. Outlaws. [[slnc 1000]] In the spring the men came down from the hills.",
             ),
         ];
         let cancel = AtomicBool::new(false);
@@ -412,7 +421,14 @@ mod tests {
             println!("{} at {} ms", c.title, c.start_time_ms);
         }
         let titles: Vec<&str> = chapters.iter().map(|c| c.title.as_str()).collect();
-        assert_eq!(titles, ["Chapter 1", "Chapter 2", "Chapter 3"]);
+        assert_eq!(
+            titles,
+            [
+                "Chapter 1: The road",
+                "Chapter 2: The river",
+                "Chapter 3: Outlaws"
+            ]
+        );
         assert!(chapters[2].start_time_ms > files[0].duration_ms);
     }
 }

@@ -14,6 +14,7 @@ pub mod loader;
 pub mod player;
 pub mod quality;
 pub mod timing;
+pub mod waveform;
 
 pub use batch::*;
 pub use format::*;

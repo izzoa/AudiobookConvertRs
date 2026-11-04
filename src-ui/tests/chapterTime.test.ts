@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { formatChapterTime, moveChapterStart, parseChapterTime } from "../src/lib/chapterTime.ts";
+import { formatChapterTime, locateInBook, moveChapterStart, parseChapterTime, snapToPause } from "../src/lib/chapterTime.ts";
 import type { Chapter } from "../src/types/models.ts";
 
 const chapter = (index: number, start: number, end: number, placement?: Chapter["placement"]): Chapter => ({
@@ -66,4 +66,30 @@ test("typing the same start changes nothing", () => {
     const result = moveChapterStart(chapters, 3, 12_592_000);
     assert.ok("chapters" in result);
     assert.equal(result.chapters, chapters);
+});
+
+test("snapping goes to just before speech resumes in the nearest pause", () => {
+    const pauses = [
+        { start_ms: 10_000, end_ms: 11_000 },
+        { start_ms: 14_000, end_ms: 14_100 },
+        { start_ms: 30_000, end_ms: 32_000 },
+    ];
+    assert.equal(snapToPause(pauses, 12_000, 0, 100_000), 10_800);
+    // A pause shorter than the lead-in starts the chapter at its start
+    assert.equal(snapToPause(pauses, 13_900, 0, 100_000), 14_000);
+    // Too far from every pause, or outside the chapter's limits
+    assert.equal(snapToPause(pauses, 22_000, 0, 100_000), null);
+    assert.equal(snapToPause(pauses, 12_000, 11_000, 100_000), 14_000);
+    assert.equal(snapToPause([], 12_000, 0, 100_000), null);
+});
+
+test("book time is found in the file it falls in", () => {
+    const files = [
+        { path: "a.mp3", duration_ms: 60_000 },
+        { path: "b.mp3", duration_ms: 30_000 },
+    ];
+    assert.deepEqual(locateInBook(files, 59_000), { path: "a.mp3", offsetMs: 59_000, fileStartMs: 0 });
+    assert.deepEqual(locateInBook(files, 60_000), { path: "b.mp3", offsetMs: 0, fileStartMs: 60_000 });
+    assert.deepEqual(locateInBook(files, 95_000), { path: "b.mp3", offsetMs: 30_000, fileStartMs: 60_000 });
+    assert.equal(locateInBook([], 1_000), null);
 });

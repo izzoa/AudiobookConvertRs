@@ -16,7 +16,8 @@ import { PlayIcon, StopIcon } from "@heroicons/react/20/solid";
 import { Popover, MenuItem, MenuLabel, MenuSeparator } from "./ui/popover";
 import { cn } from "@/lib/utils";
 import { formatChapterTime, moveChapterStart, parseChapterTime, TIME_FORMATS } from "@/lib/chapterTime";
-import { Bars2Icon, SparklesIcon, ArrowUpTrayIcon, WrenchScrewdriverIcon, ExclamationTriangleIcon } from "@heroicons/react/24/outline";
+import { ChapterStartCheck } from "./ChapterStartCheck";
+import { Bars2Icon, AdjustmentsHorizontalIcon, SparklesIcon, ArrowUpTrayIcon, WrenchScrewdriverIcon, ExclamationTriangleIcon } from "@heroicons/react/24/outline";
 import {
     DndContext,
     closestCenter,
@@ -52,9 +53,23 @@ interface SortableChapterProps {
     onRename: (chapter: Chapter, title: string) => void;
     /** Moves this chapter's start; resolves to why it was refused, or null. Absent for the first chapter. */
     onMoveStart?: (startMs: number) => Promise<string | null>;
+    /** Opens or closes the waveform check of this chapter's start */
+    onToggleCheck?: () => void;
+    /** The open waveform check, shown under the row */
+    check?: React.ReactNode;
 }
 
-function SortableChapter({ chapter, displayIndex, formatDuration, onPlay, isPlaying, onRename, onMoveStart }: SortableChapterProps) {
+function SortableChapter({
+    chapter,
+    displayIndex,
+    formatDuration,
+    onPlay,
+    isPlaying,
+    onRename,
+    onMoveStart,
+    onToggleCheck,
+    check,
+}: SortableChapterProps) {
     const [draft, setDraft] = useState<string | null>(null);
     const [timeDraft, setTimeDraft] = useState<string | null>(null);
     const [timeError, setTimeError] = useState<string | null>(null);
@@ -99,107 +114,144 @@ function SortableChapter({ chapter, displayIndex, formatDuration, onPlay, isPlay
             ref={setNodeRef}
             style={style}
             className={cn(
-                "group flex items-center gap-2 h-[42px] px-2 border-b border-border/60 text-sm",
-                isDragging ? "relative z-10 bg-surface shadow-lift rounded-md border-transparent" : "hover:bg-accent/50"
+                "border-b border-border/60",
+                isDragging && "relative z-10 bg-surface shadow-lift rounded-md border-transparent"
             )}
         >
-            <button
-                {...attributes}
-                {...listeners}
-                aria-label="Drag to reorder"
-                className="w-5 h-7 shrink-0 flex items-center justify-center text-muted-foreground/40 group-hover:text-muted-foreground cursor-grab active:cursor-grabbing touch-none"
+            <div
+                className={cn(
+                    "group flex items-center gap-2 h-[42px] px-2 text-sm",
+                    !isDragging && "hover:bg-accent/50",
+                    check && "bg-accent/40"
+                )}
             >
-                <Bars2Icon className="h-4 w-4" />
-            </button>
-
-            <span className="w-7 shrink-0 text-right text-xs text-muted-foreground nums">{displayIndex + 1}</span>
-
-            {draft === null ? (
                 <button
-                    onDoubleClick={() => setDraft(chapter.title)}
-                    onKeyDown={(e) => {
-                        if (e.key === "Enter" || e.key === "F2") setDraft(chapter.title);
-                    }}
-                    className="flex-1 min-w-0 truncate text-left rounded-sm"
-                    title="Double-click or press Enter to rename"
+                    {...attributes}
+                    {...listeners}
+                    aria-label="Drag to reorder"
+                    className="w-5 h-7 shrink-0 flex items-center justify-center text-muted-foreground/40 group-hover:text-muted-foreground cursor-grab active:cursor-grabbing touch-none"
                 >
-                    {chapter.title}
+                    <Bars2Icon className="h-4 w-4" />
                 </button>
-            ) : (
-                <input
-                    autoFocus
-                    value={draft}
-                    onChange={(e) => setDraft(e.target.value)}
-                    onBlur={commit}
-                    onKeyDown={(e) => {
-                        if (e.key === "Enter") commit();
-                        if (e.key === "Escape") setDraft(null);
-                    }}
-                    aria-label="Chapter title"
-                    className="flex-1 min-w-0 rounded-md border border-input bg-background px-2 py-1 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                />
-            )}
 
-            {timeError ? (
-                <span className="min-w-0 max-w-[260px] truncate text-[11px] text-destructive" title={timeError}>
-                    {timeError}
-                </span>
-            ) : (
-                chapter.placement && (
-                    <span className="shrink-0 text-[11px] text-warning" title={PLACEMENT_HINT[chapter.placement]}>
-                        {chapter.placement === "pause" ? "at a pause" : "estimated"}
-                    </span>
-                )
-            )}
+                <span className="w-7 shrink-0 text-right text-xs text-muted-foreground nums">{displayIndex + 1}</span>
 
-            <span className="shrink-0 flex items-center gap-1 text-xs text-muted-foreground nums">
-                {timeDraft !== null ? (
-                    <input
-                        autoFocus
-                        value={timeDraft}
-                        onChange={(e) => {
-                            setTimeDraft(e.target.value);
-                            setTimeError(null);
-                        }}
-                        // Opens selected, so typing a time replaces the old one
-                        onFocus={(e) => e.target.select()}
-                        onBlur={commitTime}
-                        onKeyDown={(e) => {
-                            if (e.key === "Enter") commitTime();
-                            if (e.key === "Escape") cancelTime();
-                        }}
-                        aria-label="Chapter start time"
-                        aria-invalid={timeError !== null}
-                        className={cn(
-                            "w-[84px] rounded-md border bg-background px-1.5 py-0.5 text-xs nums focus:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                            timeError ? "border-destructive" : "border-input"
-                        )}
-                    />
-                ) : onMoveStart ? (
+                {draft === null ? (
                     <button
-                        onClick={() => setTimeDraft(formatChapterTime(chapter.start_time_ms))}
-                        title="Change where this chapter starts"
-                        className="rounded-sm hover:text-foreground hover:underline decoration-dotted underline-offset-2"
+                        onDoubleClick={() => setDraft(chapter.title)}
+                        onKeyDown={(e) => {
+                            if (e.key === "Enter" || e.key === "F2") setDraft(chapter.title);
+                        }}
+                        className="flex-1 min-w-0 truncate text-left rounded-sm"
+                        title="Double-click or press Enter to rename"
                     >
-                        {formatDuration(chapter.start_time_ms)}
+                        {chapter.title}
                     </button>
                 ) : (
-                    <span>{formatDuration(chapter.start_time_ms)}</span>
+                    <input
+                        autoFocus
+                        value={draft}
+                        onChange={(e) => setDraft(e.target.value)}
+                        onBlur={commit}
+                        onKeyDown={(e) => {
+                            if (e.key === "Enter") commit();
+                            if (e.key === "Escape") setDraft(null);
+                        }}
+                        aria-label="Chapter title"
+                        className="flex-1 min-w-0 rounded-md border border-input bg-background px-2 py-1 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    />
                 )}
-                <span>– {formatDuration(chapter.end_time_ms)}</span>
-            </span>
 
-            <button
-                onClick={(e) => { e.stopPropagation(); onPlay(chapter); }}
-                aria-label={isPlaying ? "Stop" : "Play chapter"}
-                title={isPlaying ? "Stop" : "Play chapter"}
-                className={cn(
-                    "w-7 h-7 shrink-0 rounded-md flex items-center justify-center transition-opacity",
-                    isPlaying ? "text-primary" : "text-muted-foreground opacity-0 group-hover:opacity-100 focus:opacity-100 hover:bg-accent"
+                {timeError ? (
+                    <span className="min-w-0 max-w-[260px] truncate text-[11px] text-destructive" title={timeError}>
+                        {timeError}
+                    </span>
+                ) : (
+                    chapter.placement &&
+                    (onToggleCheck ? (
+                        <button
+                            onClick={onToggleCheck}
+                            className="shrink-0 text-[11px] text-warning hover:underline underline-offset-2"
+                            title={`${PLACEMENT_HINT[chapter.placement]} Click to see and hear its start.`}
+                        >
+                            {chapter.placement === "pause" ? "at a pause" : "estimated"}
+                        </button>
+                    ) : (
+                        <span className="shrink-0 text-[11px] text-warning" title={PLACEMENT_HINT[chapter.placement]}>
+                            {chapter.placement === "pause" ? "at a pause" : "estimated"}
+                        </span>
+                    ))
                 )}
-            >
-                {isPlaying ? <StopIcon className="h-3.5 w-3.5" /> : <PlayIcon className="h-3.5 w-3.5" />}
-            </button>
+
+                <span className="shrink-0 flex items-center gap-1 text-xs text-muted-foreground nums">
+                    {timeDraft !== null ? (
+                        <input
+                            autoFocus
+                            value={timeDraft}
+                            onChange={(e) => {
+                                setTimeDraft(e.target.value);
+                                setTimeError(null);
+                            }}
+                            // Opens selected, so typing a time replaces the old one
+                            onFocus={(e) => e.target.select()}
+                            onBlur={commitTime}
+                            onKeyDown={(e) => {
+                                if (e.key === "Enter") commitTime();
+                                if (e.key === "Escape") cancelTime();
+                            }}
+                            aria-label="Chapter start time"
+                            aria-invalid={timeError !== null}
+                            className={cn(
+                                "w-[84px] rounded-md border bg-background px-1.5 py-0.5 text-xs nums focus:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                                timeError ? "border-destructive" : "border-input"
+                            )}
+                        />
+                    ) : onMoveStart ? (
+                        <button
+                            onClick={() => setTimeDraft(formatChapterTime(chapter.start_time_ms))}
+                            title="Change where this chapter starts"
+                            className="rounded-sm hover:text-foreground hover:underline decoration-dotted underline-offset-2"
+                        >
+                            {formatDuration(chapter.start_time_ms)}
+                        </button>
+                    ) : (
+                        <span>{formatDuration(chapter.start_time_ms)}</span>
+                    )}
+                    <span>– {formatDuration(chapter.end_time_ms)}</span>
+                </span>
+
+                <button
+                    onClick={(e) => { e.stopPropagation(); onPlay(chapter); }}
+                    aria-label={isPlaying ? "Stop" : "Play chapter"}
+                    title={isPlaying ? "Stop" : "Play chapter"}
+                    className={cn(
+                        "w-7 h-7 shrink-0 rounded-md flex items-center justify-center transition-opacity",
+                        isPlaying ? "text-primary" : "text-muted-foreground opacity-0 group-hover:opacity-100 focus:opacity-100 hover:bg-accent"
+                    )}
+                >
+                    {isPlaying ? <StopIcon className="h-3.5 w-3.5" /> : <PlayIcon className="h-3.5 w-3.5" />}
+                </button>
+
+                {onToggleCheck ? (
+                    <button
+                        onClick={onToggleCheck}
+                        aria-label="Check this chapter's start"
+                        aria-expanded={check ? true : false}
+                        title="See and hear where this chapter starts"
+                        className={cn(
+                            "w-7 h-7 shrink-0 rounded-md flex items-center justify-center transition-opacity hover:bg-accent",
+                            check || chapter.placement
+                                ? "text-primary opacity-100"
+                                : "text-muted-foreground opacity-0 group-hover:opacity-100 focus:opacity-100"
+                        )}
+                    >
+                        <AdjustmentsHorizontalIcon className="h-4 w-4" />
+                    </button>
+                ) : (
+                    <span className="w-7 shrink-0" />
+                )}
+            </div>
+            {check}
         </div>
     );
 }
@@ -217,6 +269,8 @@ export function ChapterEditor() {
     const [detectedCue, setDetectedCue] = useState<CueDetectionResult | null>(null);
     const [isImportingCue, setIsImportingCue] = useState(false);
     const [playingChapterIndex, setPlayingChapterIndex] = useState<number | null>(null);
+    // The chapter whose start is open in the waveform check
+    const [checkingIndex, setCheckingIndex] = useState<number | null>(null);
     // Listening for spoken headings: "offer" asks for the speech model first
     const [listening, setListening] = useState<"offer" | "running" | null>(null);
     const [listenProgress, setListenProgress] = useState<SpokenChaptersProgress | null>(null);
@@ -846,6 +900,25 @@ export function ChapterEditor() {
                                     isPlaying={playingChapterIndex === chapter.index}
                                     onRename={handleRename}
                                     onMoveStart={idx > 0 ? (startMs) => handleMoveStart(idx, startMs) : undefined}
+                                    onToggleCheck={
+                                        idx > 0
+                                            ? () => setCheckingIndex(checkingIndex === chapter.index ? null : chapter.index)
+                                            : undefined
+                                    }
+                                    check={
+                                        idx > 0 && checkingIndex === chapter.index ? (
+                                            <ChapterStartCheck
+                                                key={chapter.start_time_ms}
+                                                audiobookId={activeAudiobook.id}
+                                                files={activeAudiobook.files}
+                                                startMs={chapter.start_time_ms}
+                                                minMs={activeAudiobook.chapters[idx - 1].start_time_ms}
+                                                maxMs={chapter.end_time_ms}
+                                                onApply={(startMs) => handleMoveStart(idx, startMs)}
+                                                onClose={() => setCheckingIndex(null)}
+                                            />
+                                        ) : undefined
+                                    }
                                 />
                             ))}
                         </SortableContext>

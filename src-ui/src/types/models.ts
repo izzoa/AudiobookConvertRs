@@ -283,6 +283,14 @@ export interface SpokenChaptersProgress {
     total: number;
 }
 
+/** The audio around a chapter start, from `get_waveform`: one peak level (0 to 1) per column, and its pauses, in book time. */
+export interface Waveform {
+    from_ms: number;
+    to_ms: number;
+    peaks: number[];
+    pauses: { start_ms: number; end_ms: number }[];
+}
+
 /** Where the FFmpeg in use was found. */
 export type FFmpegSource = 'chosen' | 'system' | 'downloaded';
 

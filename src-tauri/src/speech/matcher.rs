@@ -159,9 +159,18 @@ pub fn find_announcement(title: &str, words: &[Word], estimate_ms: u64) -> Optio
 pub struct HeardHeading {
     /// "Chapter 4", "Lesson 21", "Prologue"
     pub title: String,
+    /// The chapter's own title read out after the heading, such as
+    /// "Outlaws" after "Chapter four.", when one is heard
+    pub subtitle: Option<String>,
     /// Where it starts, in the transcript's time
     pub start_ms: u64,
 }
+
+/// The longest title read out after a heading, in words
+const SUBTITLE_WORDS: usize = 6;
+/// Narrators pause after a chapter's title; a sentence that runs on without
+/// one is the chapter's first line, not its title
+const SUBTITLE_PAUSE_MS: u64 = 500;
 
 /// A heading announced at the start of `words`, when one of the sentences
 /// starting before `within_ms` opens with one: a division word and its
@@ -182,6 +191,7 @@ pub fn heading_at_start(words: &[Word], within_ms: u64) -> Option<HeardHeading> 
             if let Some(n) = next.and_then(|t| value(&t.text)) {
                 return Some(HeardHeading {
                     title: format!("{} {}", capitalized(&token.text), n),
+                    subtitle: subtitle_after(words, token.start_ms, true),
                     start_ms: token.start_ms,
                 });
             }
@@ -190,8 +200,55 @@ pub fn heading_at_start(words: &[Word], within_ms: u64) -> Option<HeardHeading> 
         if alone && HEADINGS.contains(&token.text.as_str()) {
             return Some(HeardHeading {
                 title: capitalized(&token.text),
+                subtitle: subtitle_after(words, token.start_ms, false),
                 start_ms: token.start_ms,
             });
+        }
+    }
+    None
+}
+
+/// The short title read out after the heading that starts at `start_ms`:
+/// the words after the heading word (and its number, when `numbered`), up
+/// to a pause, when there are a few of them and no sentence ends before the
+/// pause.
+fn subtitle_after(words: &[Word], start_ms: u64, numbered: bool) -> Option<String> {
+    let ends_sentence = |w: &Word| w.text.trim_end().ends_with(['.', '!', '?', ';', ':']);
+    let first = words.iter().position(|w| w.start_ms == start_ms)?;
+    let mut j = first + 1;
+    if numbered {
+        // "twenty" "one." or "4."; stop after the word that ends the heading
+        while let Some(word) = words.get(j) {
+            let tokens = normalize(&word.text);
+            if tokens.is_empty() || !tokens.iter().all(|t| value(&t.text).is_some()) {
+                break;
+            }
+            j += 1;
+            if ends_sentence(word) {
+                break;
+            }
+        }
+    }
+    let rest = &words[j.min(words.len())..];
+    for (k, word) in rest.iter().enumerate().take(SUBTITLE_WORDS) {
+        let next = rest.get(k + 1)?;
+        let paused = next.start_ms.saturating_sub(word.end_ms) >= SUBTITLE_PAUSE_MS;
+        if paused {
+            let text = rest[..=k]
+                .iter()
+                .map(|w| w.text.trim())
+                .collect::<Vec<_>>()
+                .join(" ");
+            let text = text
+                .trim_matches(|c: char| !c.is_alphanumeric())
+                .to_string();
+            let says_something = normalize(&text)
+                .iter()
+                .any(|t| !STOP_WORDS.contains(&t.text.as_str()));
+            return says_something.then(|| capitalized(&text));
+        }
+        if ends_sentence(word) {
+            return None;
         }
     }
     None
@@ -657,6 +714,40 @@ mod tests {
         assert_eq!(heading_at_start(&words, 3_000).unwrap().title, "Lesson 7");
         let words = speech("Prologue. It was a cold night", 0);
         assert_eq!(heading_at_start(&words, 3_000).unwrap().title, "Prologue");
+    }
+
+    #[test]
+    fn the_title_read_after_a_heading_is_heard() {
+        // "|" is a one-second pause
+        let words = speech("Chapter four. Outlaws. | In the spring", 0);
+        let heading = heading_at_start(&words, 3_000).unwrap();
+        assert_eq!(heading.title, "Chapter 4");
+        assert_eq!(heading.subtitle.as_deref(), Some("Outlaws"));
+        let words = speech("Part II: right here, right now. | It began", 0);
+        let heading = heading_at_start(&words, 3_000).unwrap();
+        assert_eq!(heading.title, "Part 2");
+        assert_eq!(heading.subtitle.as_deref(), Some("Right here, right now"));
+        let words = speech("Chapter twenty one | The road home | They set out", 0);
+        let heading = heading_at_start(&words, 3_000).unwrap();
+        assert_eq!(heading.subtitle.as_deref(), Some("The road home"));
+        let words = speech("Prologue. The storm. | It was", 0);
+        assert_eq!(
+            heading_at_start(&words, 3_000).unwrap().subtitle.as_deref(),
+            Some("The storm")
+        );
+    }
+
+    #[test]
+    fn the_first_line_of_a_chapter_is_not_its_title() {
+        // No pause after the sentence: the chapter has begun
+        let words = speech("Chapter four. It was cold. The men rode on | and", 0);
+        assert_eq!(heading_at_start(&words, 3_000).unwrap().subtitle, None);
+        // Too long to be a title
+        let words = speech("Chapter four. The men rode on into the cold night | and", 0);
+        assert_eq!(heading_at_start(&words, 3_000).unwrap().subtitle, None);
+        // Nothing heard after it
+        let words = speech("Chapter four.", 0);
+        assert_eq!(heading_at_start(&words, 3_000).unwrap().subtitle, None);
     }
 
     #[test]

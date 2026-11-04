@@ -159,8 +159,11 @@ export function HelpPage() {
                             <B>Generate → Titles spoken in the audio</B> listens, with the speech model, after every
                             pause of about two seconds and at the start of each file. Where the narrator announces a
                             heading such as &ldquo;Chapter four&rdquo;, &ldquo;Lesson 21&rdquo; or &ldquo;Prologue&rdquo;,
-                            a chapter starts in the pause before it. Titles are the heading alone, so rename them as
-                            needed. A long book takes a few minutes; Undo brings the old chapters back.
+                            a chapter starts in the pause before it. When the narrator reads a short title after the
+                            heading and pauses (&ldquo;Chapter four. Outlaws.&rdquo;), it becomes &ldquo;Chapter 4:
+                            Outlaws&rdquo;; otherwise the title is the heading alone. A long book takes a few minutes;
+                            Undo brings the old chapters back. If your edition is on Audible with the same number of
+                            chapters, Find details can then fill in its titles.
                         </li>
                         <li>
                             <B>Export</B> saves the list as Audacity labels, FFmetadata or CSV.
@@ -225,8 +228,11 @@ export function HelpPage() {
                         </li>
                         <li>
                             After applying, the Chapters tab marks those chapters <B>at a pause</B> or <B>estimated</B>,
-                            so you can play them to check. Click a chapter&apos;s start time to type a new one (h:mm:ss, m:ss or
-                            seconds); the chapter before it ends there, and the mark goes.
+                            so you can check them. Click a mark, or the sliders button at the end of any row, to see the 20
+                            seconds around the start with its pauses shaded: click the waveform or nudge the start,
+                            <B>Snap to pause</B>, and <B>Play</B> from 3 seconds before it, then <B>Use this start</B>.
+                            You can also click a chapter&apos;s start time to type a new one (h:mm:ss, m:ss or seconds); the
+                            chapter before it ends there, and the mark goes.
                         </li>
                         <li>Applying is one step: a single undo puts back every field, the cover and the chapters.</li>
                         <li>

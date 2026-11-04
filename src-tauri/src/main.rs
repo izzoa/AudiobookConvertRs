@@ -124,6 +124,7 @@ fn main() {
             audiobookconvert_rs::commands::speech::remove_speech_model,
             audiobookconvert_rs::commands::speech::detect_spoken_chapters,
             audiobookconvert_rs::commands::speech::cancel_spoken_chapters,
+            audiobookconvert_rs::commands::playback::get_waveform,
             audiobookconvert_rs::commands::settings::reset_settings,
             // Conversion
             audiobookconvert_rs::commands::conversion::start_conversion,

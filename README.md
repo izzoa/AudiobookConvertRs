@@ -68,8 +68,8 @@ Converting needs **FFmpeg**. You probably don't have to do anything: the app fin
 - Or read the chapter marks inside the files (M4B and M4A chapters, MP3 chapter frames, FLAC cue sheets), import a CUE sheet, or import a chapter list (`.txt`, `.csv`, `.ffmeta`).
 - Chapter titles and starts from **Find details**, even when your files are split differently from the Audible edition: each chapter goes to a nearby track start, to where the narrator announces it, or into a pause. The ones placed by a pause or an estimate are marked for you to check.
 - **Chapters by ear**, with the optional speech model (57 MB, downloaded only when you ask): the app listens near each chapter for the narrator saying its title, such as "Chapter Four. Outlaws.", on this computer.
-- Or make chapters from the audio alone with **Generate → Titles spoken in the audio**: the app listens after every long pause and at the start of each file, and starts a chapter wherever the narrator announces a heading ("Chapter four", "Part two", "Lesson 21", "Prologue").
-- Edit any chapter's start time, and play a chapter to check where it begins.
+- Or make chapters from the audio alone with **Generate → Titles spoken in the audio**: the app listens after every long pause and at the start of each file, and starts a chapter wherever the narrator announces a heading ("Chapter four", "Part two", "Lesson 21", "Prologue"). A short title read after the heading is kept too: "Chapter four. Outlaws." becomes "Chapter 4: Outlaws".
+- Check any chapter's start against its waveform: the 20 seconds around it with pauses shaded. Click to move the start, nudge it, snap it to a pause, and play from 3 seconds before. Or type a new start time.
 - Rename, reorder by dragging, and tidy titles in bulk with **Clean up titles**.
 - Export the list as Audacity labels, FFmetadata or CSV.
 
