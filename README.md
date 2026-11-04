@@ -39,7 +39,7 @@ Get the latest version from the [Releases](https://github.com/izzoa/AudiobookCon
 
 | Platform | File | Notes |
 |----------|------|-------|
-| **macOS** | `AudiobookConvertRs_x.y.z_universal.dmg` | Runs natively on Apple Silicon and Intel. Signed and notarized, so it opens without a warning. |
+| **macOS** | `AudiobookConvertRs_x.y.z_universal.dmg` | macOS 10.15 or later. Runs natively on Apple Silicon and Intel. Signed and notarized, so it opens without a warning. |
 | **Windows** | `AudiobookConvertRs_x.y.z_x64-setup.exe` | Not signed yet: SmartScreen shows "Windows protected your PC". Choose **More info → Run anyway**. |
 | **Linux** | `audiobookconvert-rs_x.y.z_amd64.deb` | Ubuntu 22.04 or later and other Debian-based systems: `sudo apt install ./audiobookconvert-rs_x.y.z_amd64.deb`. FFmpeg is installed with it. |
 
