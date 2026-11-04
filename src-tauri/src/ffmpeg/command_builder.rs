@@ -396,6 +396,65 @@ pub fn build_concat_command(
     cmd
 }
 
+/// Output options for copying AAC audio into an M4B as it is: only the
+/// first audio stream, no cover stream, and none of the source's chapters or
+/// tags, which are written afresh afterwards.
+fn copy_audio_options(cmd: FFmpegCommand) -> FFmpegCommand {
+    [
+        "-map",
+        "0:a:0",
+        "-c:a",
+        "copy",
+        "-vn",
+        "-map_metadata",
+        "-1",
+        "-map_chapters",
+        "-1",
+        "-f",
+        "ipod",
+    ]
+    .iter()
+    .fold(cmd, |cmd, option| cmd.output_option(option.to_string()))
+}
+
+/// Build a command that copies one file's AAC audio into an M4B without
+/// re-encoding it
+pub fn build_copy_command(
+    ffmpeg_path: &Utf8Path,
+    input: &Utf8Path,
+    output: &Utf8Path,
+    overwrite: bool,
+) -> FFmpegCommand {
+    let cmd = FFmpegCommand::with_ffmpeg_path(ffmpeg_path)
+        .input(input)
+        .output(output)
+        .overwrite_output(overwrite);
+    copy_audio_options(cmd)
+}
+
+/// Build a command that joins several files' AAC audio into one M4B
+/// without re-encoding it
+pub fn build_concat_copy_command(
+    ffmpeg_path: &Utf8Path,
+    concat_file: &Utf8Path,
+    output: &Utf8Path,
+    overwrite: bool,
+) -> FFmpegCommand {
+    let cmd = FFmpegCommand::with_ffmpeg_path(ffmpeg_path)
+        .input_with_options(
+            concat_file,
+            vec![
+                "-f".to_string(),
+                "concat".to_string(),
+                "-safe".to_string(),
+                "0".to_string(),
+            ],
+        )
+        .output(output)
+        .overwrite_output(overwrite);
+    copy_audio_options(cmd)
+}
+
 /// Generate a concat file content for FFmpeg
 ///
 /// The concat demuxer requires a text file with the format:

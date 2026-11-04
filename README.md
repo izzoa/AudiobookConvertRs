@@ -77,6 +77,7 @@ Converting needs **FFmpeg**. You probably don't have to do anything: the app fin
 - AAC in an M4B with chapters, cover and tags embedded. FFmpeg's `libfdk_aac` encoder is used when your FFmpeg has it.
 - Quality presets (High 256 kbps, Medium 128 kbps, Low 64 kbps) or your own bitrate, sample rate and VBR or CBR.
 - Optional loudness normalization.
+- **Fix an M4B without converting it**: when the files already hold AAC, **Keep as it is** copies the audio untouched and writes only new chapters, tags and cover, in seconds and with no loss. Save over the original file, or write a new one. Several AAC files that share a sample rate and channels are joined the same way.
 - Name files and folders from a template such as `{author}/{series}/{title}`.
 - A queue that converts several books at once (1 to 16), with progress, time left and speed, and a **Retry** for failed jobs.
 

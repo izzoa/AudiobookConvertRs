@@ -17,7 +17,7 @@ import * as FilesApi from "@/api/files";
 import * as ConversionApi from "@/api/conversion";
 import { dryRunConversion, listPresets, savePreset } from "@/api/presets";
 import { suggestNormalization } from "@/api/quality";
-import type { ConversionPreset, ConversionSettings, DryRunResult, EncodingMode } from "@/types/models";
+import type { ConversionPreset, ConversionSettings, CopyCheck, DryRunResult, EncodingMode } from "@/types/models";
 import { basename, formatBytes, formatEta, shortenPath } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { buildConversionSettings } from "@/lib/conversionSettings";
@@ -75,6 +75,11 @@ export function ConvertBar({ onShowChapters }: { onShowChapters: () => void }) {
     const [loudness, setLoudness] = useState<string | null>(null);
     const [analyzing, setAnalyzing] = useState(false);
     const [presetName, setPresetName] = useState<string | null>(null);
+    // Keeping the audio as it is: whether it can be, the choice, and saving
+    // over the source file
+    const [copyCheck, setCopyCheck] = useState<CopyCheck | null>(null);
+    const [keepAudio, setKeepAudio] = useState(false);
+    const [replaceOriginal, setReplaceOriginal] = useState(false);
 
     // A book gets its destination from the naming template without being
     // asked, and it follows tag edits until a path is picked by hand.
@@ -83,7 +88,33 @@ export function ConvertBar({ onShowChapters }: { onShowChapters: () => void }) {
         return activeAudiobook && dir ? outputPathForBook(dir, settings?.output_template, activeAudiobook) : null;
     }, [activeAudiobook, settings?.default_output_directory, settings?.output_template]);
     useEffect(() => setChosenPath(null), [activeAudiobook?.id]);
-    const outputPath = chosenPath ?? templatePath;
+    const canKeep = copyCheck?.possible === true;
+    const keeping = keepAudio && canKeep;
+    // Only one file can be saved over; several are joined into a new one
+    const replacing = keeping && replaceOriginal && activeAudiobook?.files.length === 1;
+    const outputPath = replacing ? activeAudiobook!.files[0].path : (chosenPath ?? templatePath);
+
+    // A book's own files decide whether its audio can be kept. An M4B on its
+    // own starts kept: encoding it again would only lose quality.
+    const filesKey = (activeAudiobook?.files ?? []).map((f) => f.path).join("\n");
+    useEffect(() => {
+        setCopyCheck(null);
+        setKeepAudio(false);
+        setReplaceOriginal(false);
+        if (!activeAudiobook?.id || !filesKey) return;
+        let stale = false;
+        const single = activeAudiobook.files.length === 1 && activeAudiobook.files[0].format === "m4b";
+        ConversionApi.checkAudioCopy(activeAudiobook.id)
+            .then((check) => {
+                if (stale) return;
+                setCopyCheck(check);
+                setKeepAudio(check.possible && single);
+            })
+            .catch((error) => console.error("Could not check the audio:", error));
+        return () => {
+            stale = true;
+        };
+    }, [activeAudiobook?.id, filesKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
     // Average of the files' own bitrates, capped at what the encoder accepts.
     const sourceBitrate = useMemo(() => {
@@ -118,7 +149,9 @@ export function ConvertBar({ onShowChapters }: { onShowChapters: () => void }) {
                       embed_chapters: embedChapters,
                       embed_artwork: embedArtwork,
                       copy_metadata: copyMetadata,
-                      normalize,
+                      normalize: keeping ? false : normalize,
+                      copy_audio: keeping,
+                      ...(replacing ? { overwrite_existing: true } : {}),
                   }),
         [
             activeAudiobook,
@@ -130,6 +163,8 @@ export function ConvertBar({ onShowChapters }: { onShowChapters: () => void }) {
             embedArtwork,
             copyMetadata,
             normalize,
+            keeping,
+            replacing,
             defaults.overwrite_existing,
             settings,
         ]
@@ -234,7 +269,21 @@ export function ConvertBar({ onShowChapters }: { onShowChapters: () => void }) {
             await chooseOutput();
             return;
         }
-        if (preview?.output_exists && !next.overwrite_existing) {
+        if (replacing) {
+            const ok = await confirm({
+                title: "Save over the original file?",
+                description: (
+                    <span>
+                        <span className="font-mono text-xs">{basename(next.output_path)}</span> gets the chapters,
+                        details and cover shown here. Its audio is kept exactly as it is, but its old chapters and
+                        details cannot be brought back.
+                    </span>
+                ),
+                confirmLabel: "Save over it",
+                danger: true,
+            });
+            if (!ok) return;
+        } else if (preview?.output_exists && !next.overwrite_existing) {
             const overwrite = await confirm({
                 title: "Replace the existing file?",
                 description: <span className="font-mono text-xs">{next.output_path}</span>,
@@ -252,7 +301,7 @@ export function ConvertBar({ onShowChapters }: { onShowChapters: () => void }) {
             // Load the new job before switching, so the queue never opens empty.
             await Promise.all([refreshJobs(), refreshQueueState()]);
             toast({
-                title: "Conversion started",
+                title: keeping ? "Saving" : "Conversion started",
                 description: `Writing ${next.output_path}`,
             });
             setView("queue");
@@ -295,9 +344,19 @@ export function ConvertBar({ onShowChapters }: { onShowChapters: () => void }) {
             },
             {
                 key: "output",
-                ok: !!outputPath && !preview?.output_exists,
-                label: !outputPath ? "No output file" : preview?.output_exists ? "Output exists" : "Output set",
-                hint: preview?.output_exists ? "A file is already there. You will be asked before it is replaced." : undefined,
+                ok: !!outputPath && (replacing || !preview?.output_exists),
+                label: !outputPath
+                    ? "No output file"
+                    : replacing
+                      ? "Saving over the original"
+                      : preview?.output_exists
+                        ? "Output exists"
+                        : "Output set",
+                hint: replacing
+                    ? "The new chapters, details and cover go into the original file. You will be asked first."
+                    : preview?.output_exists
+                      ? "A file is already there. You will be asked before it is replaced."
+                      : undefined,
                 onClick: chooseOutput,
             },
             {
@@ -318,7 +377,7 @@ export function ConvertBar({ onShowChapters }: { onShowChapters: () => void }) {
                 onClick: () => openSettings("ffmpeg"),
             },
         ],
-        [book, outputPath, onShowChapters, preview?.output_exists, ffmpegReady, ffmpegOffer, ffmpeg.downloading, ffmpegPercent, openSettings]
+        [book, outputPath, replacing, onShowChapters, preview?.output_exists, ffmpegReady, ffmpegOffer, ffmpeg.downloading, ffmpegPercent, openSettings]
     );
 
     const ready = !!book && book.files.length > 0 && !!outputPath && ffmpegReady;
@@ -396,7 +455,7 @@ export function ConvertBar({ onShowChapters }: { onShowChapters: () => void }) {
                 <Popover
                     side="top"
                     align="start"
-                    className="w-[300px] p-3"
+                    className="w-[300px] p-3 max-h-[calc(100vh-110px)] overflow-y-auto"
                     trigger={(open) => (
                         <button
                             disabled={!book}
@@ -414,156 +473,205 @@ export function ConvertBar({ onShowChapters }: { onShowChapters: () => void }) {
                                     Quality
                                 </span>
                                 <span className="block text-xs leading-tight nums">
-                                    {matchSource && sourceBitrate ? `Source ${sourceBitrate}k` : `${bitrate}k`}{" "}
-                                    {mode.toUpperCase()}
-                                    {sampleRate && ` · ${formatRate(sampleRate)}`}
-                                    {normalize && " · normalized"}
+                                    {keeping ? (
+                                        "Audio kept as is"
+                                    ) : (
+                                        <>
+                                            {matchSource && sourceBitrate ? `Source ${sourceBitrate}k` : `${bitrate}k`}{" "}
+                                            {mode.toUpperCase()}
+                                            {sampleRate && ` · ${formatRate(sampleRate)}`}
+                                            {normalize && " · normalized"}
+                                        </>
+                                    )}
                                 </span>
                             </span>
                         </button>
                     )}
                 >
                     <div className="space-y-3">
-                        {presetName === null ? (
-                            <div className="flex items-center gap-1.5">
-                                <Select
-                                    className="flex-1"
-                                    aria-label="Load a preset"
-                                    value=""
-                                    disabled={presets.length === 0}
-                                    onChange={(e) => {
-                                        const found = presets.find((p) => p.name === e.target.value);
-                                        if (found) applyPreset(found);
+                        <div>
+                            <div className="mb-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                                Audio
+                            </div>
+                            <Segmented<"encode" | "keep">
+                                columns={2}
+                                label="Audio"
+                                options={[
+                                    { value: "encode", label: "Convert" },
+                                    { value: "keep", label: "Keep as it is", disabled: !canKeep },
+                                ]}
+                                value={keeping ? "keep" : "encode"}
+                                onChange={(choice) => setKeepAudio(choice === "keep")}
+                            />
+                            <p className="mt-1.5 text-[11px] text-muted-foreground">
+                                {keeping
+                                    ? `Copies the ${copyCheck?.audio ?? "audio"} into the M4B untouched and writes only the chapters, details and cover. Takes seconds and loses nothing.`
+                                    : copyCheck === null
+                                      ? "Checking whether the audio can be kept as it is…"
+                                      : canKeep
+                                        ? "Re-encodes the audio. Keeping it as it is is faster and loses nothing."
+                                        : copyCheck.reason}
+                            </p>
+                            {keeping && activeAudiobook?.files.length === 1 && (
+                                <div className="mt-1">
+                                    <Toggle
+                                        checked={replaceOriginal}
+                                        onChange={setReplaceOriginal}
+                                        label="Save over the original file"
+                                        hint={`Writes into ${basename(activeAudiobook.files[0].path)} itself instead of a new file.`}
+                                    />
+                                </div>
+                            )}
+                        </div>
+
+                        {!keeping && (
+                            <>
+                            {presetName === null ? (
+                                <div className="flex items-center gap-1.5">
+                                    <Select
+                                        className="flex-1"
+                                        aria-label="Load a preset"
+                                        value=""
+                                        disabled={presets.length === 0}
+                                        onChange={(e) => {
+                                            const found = presets.find((p) => p.name === e.target.value);
+                                            if (found) applyPreset(found);
+                                        }}
+                                    >
+                                        <option value="">{presets.length ? "Load a preset…" : "No saved presets"}</option>
+                                        {presets.map((preset) => (
+                                            <option key={preset.name} value={preset.name}>
+                                                {preset.name}
+                                            </option>
+                                        ))}
+                                    </Select>
+                                    <Button variant="outline" size="sm" className="h-9" onClick={() => setPresetName("")}>
+                                        Save as…
+                                    </Button>
+                                </div>
+                            ) : (
+                                <form
+                                    className="flex items-center gap-1.5"
+                                    onSubmit={(e) => {
+                                        e.preventDefault();
+                                        storePreset();
                                     }}
                                 >
-                                    <option value="">{presets.length ? "Load a preset…" : "No saved presets"}</option>
-                                    {presets.map((preset) => (
-                                        <option key={preset.name} value={preset.name}>
-                                            {preset.name}
-                                        </option>
-                                    ))}
-                                </Select>
-                                <Button variant="outline" size="sm" className="h-9" onClick={() => setPresetName("")}>
-                                    Save as…
-                                </Button>
-                            </div>
-                        ) : (
-                            <form
-                                className="flex items-center gap-1.5"
-                                onSubmit={(e) => {
-                                    e.preventDefault();
-                                    storePreset();
-                                }}
-                            >
-                                <input
-                                    autoFocus
-                                    value={presetName}
-                                    onChange={(e) => setPresetName(e.target.value)}
-                                    onKeyDown={(e) => {
-                                        // Escape would otherwise close the whole popover.
-                                        if (e.key === "Escape") {
-                                            e.stopPropagation();
-                                            setPresetName(null);
-                                        }
+                                    <input
+                                        autoFocus
+                                        value={presetName}
+                                        onChange={(e) => setPresetName(e.target.value)}
+                                        onKeyDown={(e) => {
+                                            // Escape would otherwise close the whole popover.
+                                            if (e.key === "Escape") {
+                                                e.stopPropagation();
+                                                setPresetName(null);
+                                            }
+                                        }}
+                                        placeholder="Preset name"
+                                        aria-label="Preset name"
+                                        className="flex-1 min-w-0 h-9 rounded-md border border-input bg-background px-3 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                                    />
+                                    <Button type="submit" size="sm" className="h-9" disabled={!presetName.trim()}>
+                                        Save
+                                    </Button>
+                                </form>
+                            )}
+
+                            <div>
+                                <div className="mb-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                                    Bitrate
+                                </div>
+                                <Segmented<number | "source">
+                                    columns={4}
+                                    label="Bitrate"
+                                    options={[
+                                        ...(sourceBitrate
+                                            ? [{ value: "source" as const, label: `Match source (~${sourceBitrate}k)`, wide: true }]
+                                            : []),
+                                        ...BITRATES.map((rate) => ({ value: rate, label: `${rate}k` })),
+                                    ]}
+                                    value={matchSource && sourceBitrate ? "source" : bitrate}
+                                    onChange={(choice) => {
+                                        setMatchSource(choice === "source");
+                                        if (choice !== "source") setBitrate(choice);
                                     }}
-                                    placeholder="Preset name"
-                                    aria-label="Preset name"
-                                    className="flex-1 min-w-0 h-9 rounded-md border border-input bg-background px-3 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                                 />
-                                <Button type="submit" size="sm" className="h-9" disabled={!presetName.trim()}>
-                                    Save
-                                </Button>
-                            </form>
+                                <p className="mt-1.5 text-[11px] text-muted-foreground">
+                                    {matchSource && sourceBitrate
+                                        ? "AAC needs fewer kbps than MP3 for the same quality, so matching usually makes a larger file than needed."
+                                        : "64k is plenty for spoken word. Higher mostly costs disk."}
+                                </p>
+                            </div>
+
+                            <div>
+                                <div className="mb-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                                    Sample rate
+                                </div>
+                                <Segmented<number | "source">
+                                    columns={3}
+                                    label="Sample rate"
+                                    options={[
+                                        {
+                                            value: "source" as const,
+                                            label: sourceSampleRate
+                                                ? `Match source (${formatRate(sourceSampleRate)})`
+                                                : "Match source",
+                                            wide: true,
+                                        },
+                                        ...SAMPLE_RATES.map((rate) => ({ value: rate, label: formatRate(rate) })),
+                                    ]}
+                                    value={sampleRate ?? "source"}
+                                    onChange={(choice) => setSampleRate(choice === "source" ? undefined : choice)}
+                                />
+                                <p className="mt-1.5 text-[11px] text-muted-foreground">
+                                    {sampleRate
+                                        ? "Every file is resampled to this rate."
+                                        : "Keeps the files' own rate, so nothing is resampled."}
+                                </p>
+                            </div>
+
+                            <div>
+                                <div className="mb-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                                    Encoding
+                                </div>
+                                <Segmented
+                                    columns={2}
+                                    label="Encoding"
+                                    options={[
+                                        { value: "vbr" as EncodingMode, label: "VBR" },
+                                        { value: "cbr" as EncodingMode, label: "CBR" },
+                                    ]}
+                                    value={mode}
+                                    onChange={setMode}
+                                />
+                            </div>
+                            </>
                         )}
-
-                        <div>
-                            <div className="mb-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                                Bitrate
-                            </div>
-                            <Segmented<number | "source">
-                                columns={4}
-                                label="Bitrate"
-                                options={[
-                                    ...(sourceBitrate
-                                        ? [{ value: "source" as const, label: `Match source (~${sourceBitrate}k)`, wide: true }]
-                                        : []),
-                                    ...BITRATES.map((rate) => ({ value: rate, label: `${rate}k` })),
-                                ]}
-                                value={matchSource && sourceBitrate ? "source" : bitrate}
-                                onChange={(choice) => {
-                                    setMatchSource(choice === "source");
-                                    if (choice !== "source") setBitrate(choice);
-                                }}
-                            />
-                            <p className="mt-1.5 text-[11px] text-muted-foreground">
-                                {matchSource && sourceBitrate
-                                    ? "AAC needs fewer kbps than MP3 for the same quality, so matching usually makes a larger file than needed."
-                                    : "64k is plenty for spoken word. Higher mostly costs disk."}
-                            </p>
-                        </div>
-
-                        <div>
-                            <div className="mb-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                                Sample rate
-                            </div>
-                            <Segmented<number | "source">
-                                columns={3}
-                                label="Sample rate"
-                                options={[
-                                    {
-                                        value: "source" as const,
-                                        label: sourceSampleRate
-                                            ? `Match source (${formatRate(sourceSampleRate)})`
-                                            : "Match source",
-                                        wide: true,
-                                    },
-                                    ...SAMPLE_RATES.map((rate) => ({ value: rate, label: formatRate(rate) })),
-                                ]}
-                                value={sampleRate ?? "source"}
-                                onChange={(choice) => setSampleRate(choice === "source" ? undefined : choice)}
-                            />
-                            <p className="mt-1.5 text-[11px] text-muted-foreground">
-                                {sampleRate
-                                    ? "Every file is resampled to this rate."
-                                    : "Keeps the files' own rate, so nothing is resampled."}
-                            </p>
-                        </div>
-
-                        <div>
-                            <div className="mb-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                                Encoding
-                            </div>
-                            <Segmented
-                                columns={2}
-                                label="Encoding"
-                                options={[
-                                    { value: "vbr" as EncodingMode, label: "VBR" },
-                                    { value: "cbr" as EncodingMode, label: "CBR" },
-                                ]}
-                                value={mode}
-                                onChange={setMode}
-                            />
-                        </div>
 
                         <div className="pt-1 border-t space-y-0.5">
                             <Toggle checked={embedChapters} onChange={setEmbedChapters} label="Embed chapters" />
                             <Toggle checked={embedArtwork} onChange={setEmbedArtwork} label="Embed cover art" />
                             <Toggle checked={copyMetadata} onChange={setCopyMetadata} label="Copy metadata" />
-                            <Toggle
-                                checked={normalize}
-                                onChange={setNormalize}
-                                label="Normalize loudness"
-                                hint="Evens out quiet and loud files. Adds an analysis pass."
-                            />
-                            <button
-                                onClick={checkLoudness}
-                                disabled={analyzing || !activeAudiobook?.files.length}
-                                className="ml-[26px] text-[11px] text-primary hover:underline disabled:opacity-40"
-                            >
-                                {analyzing ? "Measuring…" : "Measure this book's loudness"}
-                            </button>
-                            {loudness && (
-                                <p className="ml-[26px] text-[11px] text-muted-foreground">{loudness}</p>
+                            {!keeping && (
+                                <>
+                                    <Toggle
+                                        checked={normalize}
+                                        onChange={setNormalize}
+                                        label="Normalize loudness"
+                                        hint="Evens out quiet and loud files. Adds an analysis pass."
+                                    />
+                                    <button
+                                        onClick={checkLoudness}
+                                        disabled={analyzing || !activeAudiobook?.files.length}
+                                        className="ml-[26px] text-[11px] text-primary hover:underline disabled:opacity-40"
+                                    >
+                                        {analyzing ? "Measuring…" : "Measure this book's loudness"}
+                                    </button>
+                                    {loudness && (
+                                        <p className="ml-[26px] text-[11px] text-muted-foreground">{loudness}</p>
+                                    )}
+                                </>
                             )}
                         </div>
                     </div>
@@ -572,14 +680,14 @@ export function ConvertBar({ onShowChapters }: { onShowChapters: () => void }) {
                 {preview && (
                     <div className="hidden lg:block shrink-0 px-2 text-xs text-muted-foreground nums leading-tight">
                         <div>≈ {formatBytes(preview.estimated_output_size_bytes)}</div>
-                        <div>≈ {formatEta(preview.estimated_time_seconds)} to convert</div>
+                        <div>≈ {formatEta(preview.estimated_time_seconds)} to {keeping ? "save" : "convert"}</div>
                     </div>
                 )}
 
                 <div className="flex-1" />
 
                 <Button size="lg" onClick={convert} disabled={!ready || submitting} className="shrink-0">
-                    {submitting ? "Starting…" : "Convert to M4B"}
+                    {submitting ? "Starting…" : replacing ? "Save over original" : keeping ? "Save M4B" : "Convert to M4B"}
                     <ArrowRightIcon className="w-4 h-4 ml-2" />
                 </Button>
             </div>
@@ -598,7 +706,7 @@ function Segmented<T extends string | number>({
     columns,
     label,
 }: {
-    options: { value: T; label: string; wide?: boolean }[];
+    options: { value: T; label: string; wide?: boolean; disabled?: boolean }[];
     value: T;
     onChange: (value: T) => void;
     columns: number;
@@ -618,9 +726,10 @@ function Segmented<T extends string | number>({
                         key={option.value}
                         role="radio"
                         aria-checked={active}
+                        disabled={option.disabled}
                         onClick={() => onChange(option.value)}
                         className={cn(
-                            "h-7 rounded-[5px] text-xs font-medium nums transition-colors",
+                            "h-7 rounded-[5px] text-xs font-medium nums transition-colors disabled:opacity-40 disabled:pointer-events-none",
                             option.wide && "col-span-full",
                             active
                                 ? "bg-background dark:bg-accent text-foreground shadow-plane"

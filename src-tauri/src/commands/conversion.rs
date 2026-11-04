@@ -215,3 +215,24 @@ pub async fn retry_conversion(
 
     Ok(new_job_id)
 }
+
+/// Whether the book's audio can go into the M4B as it is, without
+/// re-encoding, and why not
+#[tauri::command]
+pub async fn check_audio_copy(
+    audiobook_id: String,
+    state: State<'_, AppState>,
+) -> Result<crate::ffmpeg::probe::CopyCheck, String> {
+    let book = state
+        .get_audiobook(&audiobook_id)
+        .ok_or_else(|| format!("Audiobook not found: {}", audiobook_id))?;
+    let ffmpeg = crate::ffmpeg::detection::detect_ffmpeg()
+        .map_err(|e| e.to_string())?
+        .path;
+    tauri::async_runtime::spawn_blocking(move || {
+        crate::ffmpeg::probe::copy_check(&ffmpeg, &book.files)
+    })
+    .await
+    .map_err(|e| e.to_string())?
+    .map_err(|e| e.to_string())
+}

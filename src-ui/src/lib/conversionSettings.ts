@@ -10,6 +10,10 @@ export interface QualityChoice {
     embed_artwork?: boolean;
     copy_metadata?: boolean;
     normalize?: boolean;
+    /** Keep the audio as it is instead of encoding it. */
+    copy_audio?: boolean;
+    /** Replace a file already at the output path without asking. */
+    overwrite_existing?: boolean;
 }
 
 /**
@@ -32,7 +36,7 @@ export function buildConversionSettings(
         output_format: "m4b",
         output_path: outputPath,
         concurrent_jobs: settings?.concurrent_jobs ?? 1,
-        overwrite_existing: defaults.overwrite_existing,
+        overwrite_existing: choice.overwrite_existing ?? defaults.overwrite_existing,
         embed_chapters: choice.embed_chapters ?? defaults.embed_chapters,
         embed_artwork: choice.embed_artwork ?? defaults.embed_artwork,
         copy_metadata: choice.copy_metadata ?? defaults.copy_metadata,
@@ -45,5 +49,6 @@ export function buildConversionSettings(
                   two_pass: settings?.normalization_two_pass ?? true,
               }
             : undefined,
+        copy_audio: choice.copy_audio ?? false,
     };
 }

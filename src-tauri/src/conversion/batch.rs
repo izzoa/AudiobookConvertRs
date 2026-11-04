@@ -120,6 +120,7 @@ impl ConversionPreset {
                     ..Default::default()
                 }
             }),
+            copy_audio: false,
         }
     }
 }
@@ -245,11 +246,19 @@ pub fn dry_run_analysis(audiobook: &AudioBook, settings: &ConversionSettings) ->
     // Estimate output size based on bitrate
     // Formula: (bitrate_kbps * 1000 / 8) * (duration_ms / 1000) = bytes
     let duration_secs = input_duration_ms as f64 / 1000.0;
-    let estimated_output_size_bytes =
-        (settings.bitrate_kbps as f64 * 1000.0 / 8.0 * duration_secs) as u64;
-
-    // Estimate conversion time (rough: assume 10x realtime for most systems)
-    let estimated_time_seconds = (duration_secs / 10.0) as u32;
+    // Copied audio stays the size it is, and copying runs at disk speed
+    // (about 100 MB a second); encoding is about 10x realtime
+    let (estimated_output_size_bytes, estimated_time_seconds) = if settings.copy_audio {
+        (
+            input_size_bytes,
+            (input_size_bytes / 100_000_000).max(1) as u32,
+        )
+    } else {
+        (
+            (settings.bitrate_kbps as f64 * 1000.0 / 8.0 * duration_secs) as u64,
+            (duration_secs / 10.0) as u32,
+        )
+    };
 
     let output_path = settings.output_path.to_string();
     let output_exists = settings.output_path.exists();

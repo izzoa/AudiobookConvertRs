@@ -649,6 +649,7 @@ impl ConversionDefaults {
             copy_metadata: self.copy_metadata,
             normalize_audio: false,
             normalization_settings: None,
+            copy_audio: false,
         }
     }
 }
@@ -707,6 +708,12 @@ pub struct ConversionSettings {
     /// Normalization settings (used when normalize_audio is true)
     #[serde(default)]
     pub normalization_settings: Option<NormalizationConfig>,
+    /// Copy the source's AAC audio as it is instead of encoding it, writing
+    /// only new chapters, tags and cover. Needs AAC files that share a
+    /// sample rate and channel layout; bitrate, sample rate, encoding and
+    /// normalization do not apply.
+    #[serde(default)]
+    pub copy_audio: bool,
 }
 
 impl Default for ConversionSettings {
@@ -724,6 +731,7 @@ impl Default for ConversionSettings {
             copy_metadata: true,
             normalize_audio: false,
             normalization_settings: None,
+            copy_audio: false,
         }
     }
 }

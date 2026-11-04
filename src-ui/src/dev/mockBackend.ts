@@ -558,15 +558,26 @@ export function installMockBackend() {
             return null;
         },
 
+        // `?copy` pretends the files are AAC, so the audio can be kept
+        check_audio_copy: () =>
+            new URLSearchParams(window.location.search).has("copy")
+                ? { possible: true, reason: null, audio: "AAC, 64 kb/s, 44.1 kHz, stereo" }
+                : {
+                      possible: false,
+                      reason: `“${book?.files[0]?.path.split("/").pop() ?? "The file"}” holds MP3, not AAC, so it has to be converted.`,
+                      audio: null,
+                  },
         dry_run_conversion: ({ settings }: any) => ({
             title: book?.title ?? "Audiobook",
             input_duration_ms: book?.total_duration_ms ?? 0,
             input_file_count: book?.files.length ?? 0,
             input_size_bytes: book?.total_size_bytes ?? 0,
-            estimated_output_size_bytes: Math.round(
-                ((book?.total_duration_ms ?? 0) / 1000) * ((settings?.bitrate_kbps ?? 64) * 125)
-            ),
-            estimated_time_seconds: Math.round((book?.total_duration_ms ?? 0) / 1000 / 18),
+            estimated_output_size_bytes: settings?.copy_audio
+                ? (book?.total_size_bytes ?? 0)
+                : Math.round(((book?.total_duration_ms ?? 0) / 1000) * ((settings?.bitrate_kbps ?? 64) * 125)),
+            estimated_time_seconds: settings?.copy_audio
+                ? 4
+                : Math.round((book?.total_duration_ms ?? 0) / 1000 / 18),
             output_path: settings?.output_path ?? "",
             output_exists: false,
             chapter_count: book?.chapters.length ?? 0,

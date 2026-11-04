@@ -267,6 +267,14 @@ export function HelpPage() {
                             <B>Quality</B> sets bitrate, VBR or CBR, what to embed, and loudness normalization. 64k is
                             plenty for spoken word. Save a combination as a preset to reuse it.
                         </li>
+                        <li>
+                            When the files already hold AAC, as M4B and most M4A files do, <B>Quality → Keep as it is</B>
+                            copies the audio into the M4B untouched and writes only the chapters, details and cover. It
+                            takes seconds and loses nothing, so it is the way to fix an M4B&apos;s chapters or tags. A
+                            single M4B starts this way. Several files can be joined like this when they share a sample
+                            rate and channels. With one file, <B>Save over the original file</B> writes into it instead
+                            of a new one, after asking.
+                        </li>
                         <li>Estimated size and conversion time update as you change these.</li>
                     </List>
                     <p>

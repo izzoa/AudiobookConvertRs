@@ -1,5 +1,5 @@
 import { invoke } from '@tauri-apps/api/core';
-import type { ConversionSettings, ConversionJob, QueueState } from '../types/models';
+import type { ConversionSettings, ConversionJob, CopyCheck, QueueState } from '../types/models';
 
 export async function startConversion(audiobookId: string, settings: ConversionSettings): Promise<string> {
     return await invoke('start_conversion', { audiobookId, settings });
@@ -54,4 +54,9 @@ export async function getConversionQueueState(): Promise<QueueState> {
 
 export async function retryConversion(jobId: string): Promise<string> {
     return await invoke('retry_conversion', { jobId });
+}
+
+/** Whether the book's audio can go into the M4B as it is, without re-encoding. */
+export async function checkAudioCopy(audiobookId: string): Promise<CopyCheck> {
+    return await invoke('check_audio_copy', { audiobookId });
 }

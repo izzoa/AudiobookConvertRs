@@ -120,6 +120,17 @@ export interface ConversionSettings {
     copy_metadata: boolean;
     normalize_audio: boolean;
     normalization_settings?: NormalizationConfig;
+    /** Copy the source's AAC audio as it is, writing only chapters, tags and cover. */
+    copy_audio?: boolean;
+}
+
+/** Whether a book's audio can go into the M4B as it is (`check_audio_copy`). */
+export interface CopyCheck {
+    possible: boolean;
+    /** Why not, naming the file */
+    reason: string | null;
+    /** What would be kept, such as "AAC, 64 kb/s, 44.1 kHz, stereo" */
+    audio: string | null;
 }
 
 export type JobStatus = 'queued' | 'running' | 'paused' | 'complete' | 'error' | 'cancelled';

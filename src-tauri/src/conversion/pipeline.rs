@@ -7,11 +7,12 @@ use crate::conversion::progress::{ConversionProgress, ConversionStage, ProgressT
 use crate::conversion::temp::TempDirectory;
 use crate::error::{AppError, AppResult};
 use crate::ffmpeg::command_builder::{
-    build_chapters_command, build_concat_command, build_convert_command,
-    generate_concat_file_content, FFmpegCommand,
+    build_chapters_command, build_concat_command, build_concat_copy_command, build_convert_command,
+    build_copy_command, generate_concat_file_content, FFmpegCommand,
 };
 use crate::ffmpeg::detection::FFmpegInfo;
 use crate::ffmpeg::executor::{execute_ffmpeg_command, FFmpegProgressAccumulator};
+use crate::ffmpeg::probe::copy_check;
 use crate::metadata::writing::{
     embed_artwork_in_m4b, generate_ffmpeg_chapters_metadata, write_metadata_to_m4b,
 };
@@ -133,7 +134,8 @@ impl ConversionPipeline {
         };
 
         // Step 2: Apply normalization (if enabled)
-        let normalized_files = if job.settings.normalize_audio {
+        // Copying keeps the audio exactly as it is, so it is never normalized
+        let normalized_files = if job.settings.normalize_audio && !job.settings.copy_audio {
             info!("Step 2: Applying audio normalization");
             tracker.set_stage(ConversionStage::Normalizing);
             if let Some(progress) = tracker.get_progress() {
@@ -154,14 +156,24 @@ impl ConversionPipeline {
         // Step 3: Execute FFmpeg encoding
         info!("Step 3: Starting FFmpeg encoding");
         tracker.set_stage(ConversionStage::Encoding);
-        let encoded_path = self.execute_encoding(
-            job,
-            &temp_dir,
-            normalized_files.as_ref(),
-            &mut tracker,
-            &mut progress_callback,
-            &cancel_check,
-        )?;
+        let encoded_path = if job.settings.copy_audio {
+            self.execute_copy(
+                job,
+                &temp_dir,
+                &mut tracker,
+                &mut progress_callback,
+                &cancel_check,
+            )?
+        } else {
+            self.execute_encoding(
+                job,
+                &temp_dir,
+                normalized_files.as_ref(),
+                &mut tracker,
+                &mut progress_callback,
+                &cancel_check,
+            )?
+        };
 
         // Check for cancellation
         if cancel_check() {
@@ -392,6 +404,62 @@ impl ConversionPipeline {
             info!("execute_encoding: FFmpeg concat completed successfully");
         }
 
+        Ok(output_path)
+    }
+
+    /// Copy the files' AAC audio into a new M4B without re-encoding it,
+    /// leaving out their chapters, tags and cover, which are written after.
+    /// Refused, before anything is written, when the audio cannot be copied.
+    fn execute_copy<F, C>(
+        &self,
+        job: &ConversionJob,
+        temp_dir: &TempDirectory,
+        tracker: &mut ProgressTracker,
+        progress_callback: &mut F,
+        cancel_check: &C,
+    ) -> AppResult<Utf8PathBuf>
+    where
+        F: FnMut(ConversionProgress),
+        C: Fn() -> bool,
+    {
+        let files = &job.audiobook.files;
+        let check = copy_check(&self.ffmpeg_info.path, files)?;
+        if !check.possible {
+            return Err(AppError::ConversionError {
+                reason: check
+                    .reason
+                    .unwrap_or_else(|| "The audio cannot be kept as it is.".to_string()),
+            });
+        }
+        info!(
+            "Copying {} as it is from {} files",
+            check.audio.as_deref().unwrap_or("the audio"),
+            files.len()
+        );
+
+        let output_path = temp_dir.file_path("output.m4b");
+        let total_duration: u64 = files.iter().map(|f| f.duration_ms).sum();
+        let command = if files.len() == 1 {
+            tracker.set_current_file(0, files[0].filename(), total_duration);
+            build_copy_command(&self.ffmpeg_info.path, &files[0].path, &output_path, true)
+        } else {
+            let concat_file_path = temp_dir.file_path("concat.txt");
+            let paths: Vec<Utf8PathBuf> = files.iter().map(|f| f.path.clone()).collect();
+            fs::write(&concat_file_path, generate_concat_file_content(&paths)).map_err(|e| {
+                AppError::FileWriteError {
+                    path: concat_file_path.clone().into(),
+                    reason: format!("Failed to write concat file: {}", e),
+                }
+            })?;
+            tracker.set_current_file(0, "Joining files", total_duration);
+            build_concat_copy_command(
+                &self.ffmpeg_info.path,
+                &concat_file_path,
+                &output_path,
+                true,
+            )
+        };
+        self.execute_ffmpeg_with_progress(command, tracker, progress_callback, cancel_check)?;
         Ok(output_path)
     }
 
@@ -832,5 +900,179 @@ mod tests {
         let decoded = STANDARD.decode(audiobook.output_metadata.artwork_data.as_ref().unwrap());
         assert!(decoded.is_ok());
         assert_eq!(decoded.unwrap(), dummy_jpeg);
+    }
+
+    /// An AAC M4B with old chapters and a title is copied with new ones: the
+    /// audio comes through bit for bit. Needs FFmpeg:
+    /// `cargo test kept_audio -- --ignored --nocapture`.
+    #[test]
+    #[ignore]
+    fn kept_audio_is_copied_bit_for_bit_with_new_chapters_and_tags() {
+        use crate::models::{AudioFormat, Metadata};
+        use std::process::Command;
+        let ffmpeg = crate::ffmpeg::detection::detect_ffmpeg().expect("FFmpeg is needed");
+        let dir = tempfile::tempdir().unwrap();
+        let path = |name: &str| Utf8PathBuf::from_path_buf(dir.path().join(name)).unwrap();
+        let (meta, source, out) = (path("old.ffmeta"), path("old.m4b"), path("new.m4b"));
+        fs::write(
+            &meta,
+            ";FFMETADATA1\ntitle=Old Title\n[CHAPTER]\nTIMEBASE=1/1000\nSTART=0\nEND=10000\ntitle=Old One\n",
+        )
+        .unwrap();
+        let status = Command::new(ffmpeg.path.as_str())
+            .args([
+                "-v",
+                "error",
+                "-y",
+                "-f",
+                "lavfi",
+                "-i",
+                "sine=frequency=300:duration=10",
+            ])
+            .args([
+                "-i",
+                meta.as_str(),
+                "-map_metadata",
+                "1",
+                "-map_chapters",
+                "1",
+            ])
+            .args(["-c:a", "aac", "-b:a", "64k", "-f", "ipod", source.as_str()])
+            .status()
+            .unwrap();
+        assert!(status.success());
+        let audio_md5 = |file: &Utf8Path| {
+            let out = Command::new(ffmpeg.path.as_str())
+                .args([
+                    "-v",
+                    "error",
+                    "-i",
+                    file.as_str(),
+                    "-map",
+                    "0:a",
+                    "-c",
+                    "copy",
+                    "-f",
+                    "md5",
+                    "-",
+                ])
+                .output()
+                .unwrap();
+            String::from_utf8_lossy(&out.stdout).trim().to_string()
+        };
+
+        let mut book = AudioBook::new("New Title".to_string());
+        book.files.push(AudioFile {
+            path: source.clone(),
+            format: AudioFormat::M4b,
+            duration_ms: 10_000,
+            bitrate_kbps: Some(64),
+            sample_rate_hz: Some(44_100),
+            channels: Some(1),
+            file_size_bytes: fs::metadata(&source).unwrap().len(),
+            metadata: Metadata::default(),
+            has_artwork: false,
+        });
+        book.recalculate_totals();
+        book.output_metadata.title = Some("New Title".to_string());
+        book.chapters = vec![
+            Chapter::new(0, "First".to_string(), 0, 4_000),
+            Chapter::new(1, "Second".to_string(), 4_000, 10_000),
+        ];
+        let settings = ConversionSettings {
+            output_path: out.clone(),
+            copy_audio: true,
+            ..ConversionSettings::default()
+        };
+        let job = ConversionJob::new(book, settings);
+        let pipeline = ConversionPipeline::new(ffmpeg.clone(), PipelineConfig::default());
+        let written = pipeline.run(&job, |_| {}, || false).unwrap();
+        assert_eq!(written, out);
+
+        assert_eq!(
+            audio_md5(&source),
+            audio_md5(&out),
+            "the audio is untouched"
+        );
+        let described = Command::new(ffmpeg.path.as_str())
+            .args(["-hide_banner", "-i", out.as_str()])
+            .output()
+            .unwrap();
+        let log = String::from_utf8_lossy(&described.stderr);
+        println!("{log}");
+        assert!(log.contains("New Title"), "the new title is written");
+        assert!(
+            !log.contains("Old"),
+            "nothing of the old tags or chapters is left"
+        );
+        assert!(log.contains("First") && log.contains("Second"));
+        assert!(log.contains("Chapter #0:1"));
+        assert!(log.contains("Audio: aac"));
+    }
+
+    /// Two AAC files are joined without re-encoding, and the result replaces
+    /// the first file itself, as "save over the original" does. Needs FFmpeg:
+    /// `cargo test kept_audio_of_two -- --ignored`.
+    #[test]
+    #[ignore]
+    fn kept_audio_of_two_files_joins_them_and_can_replace_the_source() {
+        use crate::models::{AudioFormat, Metadata};
+        use std::process::Command;
+        let ffmpeg = crate::ffmpeg::detection::detect_ffmpeg().expect("FFmpeg is needed");
+        let dir = tempfile::tempdir().unwrap();
+        let mut book = AudioBook::new("Joined".to_string());
+        for (name, hz) in [("1.m4a", 300), ("2.m4a", 500)] {
+            let file = Utf8PathBuf::from_path_buf(dir.path().join(name)).unwrap();
+            let status = Command::new(ffmpeg.path.as_str())
+                .args(["-v", "error", "-y", "-f", "lavfi", "-i"])
+                .arg(format!("sine=frequency={hz}:duration=6"))
+                .args(["-c:a", "aac", "-b:a", "64k", file.as_str()])
+                .status()
+                .unwrap();
+            assert!(status.success());
+            book.files.push(AudioFile {
+                path: file,
+                format: AudioFormat::M4a,
+                duration_ms: 6_000,
+                bitrate_kbps: Some(64),
+                sample_rate_hz: Some(44_100),
+                channels: Some(1),
+                file_size_bytes: 0,
+                metadata: Metadata::default(),
+                has_artwork: false,
+            });
+        }
+        book.recalculate_totals();
+        book.chapters = vec![
+            Chapter::new(0, "One".to_string(), 0, 6_000),
+            Chapter::new(1, "Two".to_string(), 6_000, 12_000),
+        ];
+        let first = book.files[0].path.clone();
+        let settings = ConversionSettings {
+            output_path: first.clone(),
+            overwrite_existing: true,
+            copy_audio: true,
+            ..ConversionSettings::default()
+        };
+        let job = ConversionJob::new(book, settings);
+        let pipeline = ConversionPipeline::new(ffmpeg.clone(), PipelineConfig::default());
+        assert_eq!(pipeline.run(&job, |_| {}, || false).unwrap(), first);
+
+        let described = Command::new(ffmpeg.path.as_str())
+            .args(["-hide_banner", "-i", first.as_str()])
+            .output()
+            .unwrap();
+        let log = String::from_utf8_lossy(&described.stderr);
+        let duration = log
+            .lines()
+            .find_map(|l| l.trim().strip_prefix("Duration: 00:00:"))
+            .and_then(|rest| rest.split(',').next())
+            .and_then(|secs| secs.parse::<f64>().ok())
+            .expect("a duration");
+        assert!(
+            (duration - 12.0).abs() < 0.2,
+            "both files are in it: {duration}"
+        );
+        assert!(log.contains("Chapter #0:1") && log.contains("Two"));
     }
 }
