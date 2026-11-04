@@ -43,7 +43,12 @@ impl Default for PlaybackStatus {
 }
 
 enum PlayerCommand {
-    Play { path: String, start_ms: u64 },
+    /// `reply` says whether playback started, and why not
+    Play {
+        path: String,
+        start_ms: u64,
+        reply: Sender<Result<(), String>>,
+    },
     Pause,
     Resume,
     Stop,
@@ -74,69 +79,75 @@ impl Default for PlayerState {
     }
 }
 
-fn run_player_thread(rx: Receiver<PlayerCommand>) {
+/// Opens `path` and plays it from `start_ms`. Seeks where the format allows
+/// it; decoding forward to the start is the fallback, and it is slow far into
+/// a long file, so a chapter hours in would stay silent for a long time.
+fn start_playback(
+    path: &str,
+    start_ms: u64,
+    volume: f32,
+) -> Result<(rodio::OutputStream, rodio::Sink, u64), String> {
     use rodio::{Decoder, OutputStream, Sink, Source};
     use std::fs::File;
     use std::io::BufReader;
 
+    let file = File::open(path).map_err(|e| format!("could not open {}: {}", path, e))?;
+    let mut source = Decoder::new(BufReader::new(file))
+        .map_err(|e| format!("could not decode {}: {}", path, e))?;
+    let duration_ms = source
+        .total_duration()
+        .map(|d| d.as_millis() as u64)
+        .unwrap_or(0);
+    let (stream, handle) =
+        OutputStream::try_default().map_err(|e| format!("no audio output: {}", e))?;
+    let sink = Sink::try_new(&handle).map_err(|e| format!("could not start playback: {}", e))?;
+
+    let start = Duration::from_millis(start_ms);
+    if start_ms == 0 || source.try_seek(start).is_ok() {
+        sink.append(source);
+    } else {
+        sink.append(source.skip_duration(start));
+    }
+    sink.set_volume(volume);
+    Ok((stream, sink, duration_ms))
+}
+
+fn run_player_thread(rx: Receiver<PlayerCommand>) {
     let mut state = PlayerState::default();
-    let mut current_sink: Option<Sink> = None;
-    let mut current_stream: Option<OutputStream> = None;
+    let mut current_sink: Option<rodio::Sink> = None;
+    let mut current_stream: Option<rodio::OutputStream> = None;
 
     loop {
         match rx.recv_timeout(Duration::from_millis(100)) {
             Ok(cmd) => match cmd {
-                PlayerCommand::Play { path, start_ms } => {
+                PlayerCommand::Play {
+                    path,
+                    start_ms,
+                    reply,
+                } => {
                     if let Some(sink) = current_sink.take() {
                         sink.stop();
                     }
                     current_stream = None;
 
-                    match File::open(&path) {
-                        Ok(file) => {
-                            let reader = BufReader::new(file);
-                            match Decoder::new(reader) {
-                                Ok(source) => {
-                                    let duration_ms = source
-                                        .total_duration()
-                                        .map(|d| d.as_millis() as u64)
-                                        .unwrap_or(0);
-
-                                    match OutputStream::try_default() {
-                                        Ok((stream, stream_handle)) => {
-                                            match Sink::try_new(&stream_handle) {
-                                                Ok(sink) => {
-                                                    if start_ms > 0 {
-                                                        let skip_source = source.skip_duration(
-                                                            Duration::from_millis(start_ms),
-                                                        );
-                                                        sink.append(skip_source);
-                                                    } else {
-                                                        sink.append(source);
-                                                    }
-                                                    sink.set_volume(state.volume);
-
-                                                    state.current_path = Some(path.clone());
-                                                    state.duration_ms = duration_ms;
-                                                    state.start_position_ms = start_ms;
-                                                    state.is_playing = true;
-                                                    state.is_paused = false;
-
-                                                    current_sink = Some(sink);
-                                                    current_stream = Some(stream);
-                                                    info!("Started playback: {}", path);
-                                                }
-                                                Err(e) => error!("Failed to create sink: {}", e),
-                                            }
-                                        }
-                                        Err(e) => error!("Failed to get audio output: {}", e),
-                                    }
-                                }
-                                Err(e) => error!("Failed to decode audio: {}", e),
-                            }
+                    let result = match start_playback(&path, start_ms, state.volume) {
+                        Ok((stream, sink, duration_ms)) => {
+                            state.current_path = Some(path.clone());
+                            state.duration_ms = duration_ms;
+                            state.start_position_ms = start_ms;
+                            state.is_playing = true;
+                            state.is_paused = false;
+                            current_sink = Some(sink);
+                            current_stream = Some(stream);
+                            info!("Started playback: {} at {} ms", path, start_ms);
+                            Ok(())
                         }
-                        Err(e) => error!("Failed to open file: {}", e),
-                    }
+                        Err(e) => {
+                            error!("Playback failed: {}", e);
+                            Err(e)
+                        }
+                    };
+                    let _ = reply.send(result);
                 }
                 PlayerCommand::Pause => {
                     if let Some(ref sink) = current_sink {
@@ -245,10 +256,23 @@ impl AudioPlayer {
         if !path.exists() {
             return Err(AppError::FileNotFound(path.as_std_path().to_path_buf()));
         }
+        self.start(path.to_string(), start_ms.unwrap_or(0))
+    }
+
+    /// Asks the player thread to play and waits for whether it started.
+    fn start(&self, path: String, start_ms: u64) -> AppResult<()> {
+        let (reply, answer) = mpsc::channel();
         self.send_command(PlayerCommand::Play {
-            path: path.to_string(),
-            start_ms: start_ms.unwrap_or(0),
-        })
+            path,
+            start_ms,
+            reply,
+        })?;
+        match answer.recv_timeout(Duration::from_secs(10)) {
+            Ok(result) => result.map_err(AppError::AudioPlayback),
+            Err(_) => Err(AppError::AudioPlayback(
+                "playback did not start within 10 seconds".to_string(),
+            )),
+        }
     }
 
     pub fn pause(&self) -> AppResult<()> {
@@ -266,10 +290,7 @@ impl AudioPlayer {
     pub fn seek(&self, position_ms: u64) -> AppResult<()> {
         let status = self.get_status();
         if let Some(path) = status.current_path {
-            self.send_command(PlayerCommand::Play {
-                path,
-                start_ms: position_ms,
-            })
+            self.start(path, position_ms)
         } else {
             Err(AppError::AudioPlayback(
                 "No audio is currently playing".to_string(),
@@ -337,5 +358,29 @@ mod tests {
         player.set_volume(0.5).unwrap();
         let status = player.get_status();
         assert!((status.volume - 0.5).abs() < 0.01);
+    }
+}
+
+/// Seeking far into a long file is quick, where decoding forward is not. Run
+/// with `AUDIO_FILE=<a long MP3 or M4B> cargo test seek_far -- --ignored`.
+#[cfg(test)]
+mod seek_tests {
+    use rodio::{Decoder, Source};
+    use std::time::{Duration, Instant};
+
+    #[test]
+    #[ignore]
+    fn seek_far_into_a_long_file_is_quick() {
+        let path = std::env::var("AUDIO_FILE").expect("set AUDIO_FILE");
+        let file = std::fs::File::open(&path).unwrap();
+        let mut source = Decoder::new(std::io::BufReader::new(file)).unwrap();
+        let started = Instant::now();
+        source
+            .try_seek(Duration::from_millis(7_444_000))
+            .expect("the decoder can seek");
+        assert!(source.next().is_some(), "samples after the seek");
+        let took = started.elapsed();
+        println!("seek to 2:04:04 took {took:?}");
+        assert!(took < Duration::from_secs(2), "took {took:?}");
     }
 }

@@ -18,7 +18,7 @@ description = "A cross-platform audiobook converter - convert audio files to M4B
 # Audio processing
 symphonia = { version = "0.5", features = ["all"] }
 mp4ameta = "0.13"
-rodio = "0.19"
+rodio = { version = "0.19", features = ["symphonia-aac", "symphonia-isomp4"] }
 
 # Image processing
 image = "0.25"

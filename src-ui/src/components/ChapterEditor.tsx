@@ -285,6 +285,7 @@ export function ChapterEditor() {
             }
         } catch (e) {
             console.error("Playback error:", e);
+            setError(`Could not play this chapter: ${e}`);
             setPlayingChapterIndex(null);
         }
     };
