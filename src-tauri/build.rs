@@ -17,5 +17,39 @@ fn main() {
         println!("cargo:rustc-link-arg=/MANIFEST:EMBED");
         println!("cargo:rustc-link-arg=/MANIFESTINPUT:{}", manifest.display());
     }
+    link_clang_runtime_on_macos();
     tauri_build::try_build(attributes).expect("failed to run tauri-build");
+}
+
+/// whisper.cpp's Metal code checks the macOS version at run time (`@available`),
+/// which calls `__isPlatformVersionAtLeast` from clang's runtime library. Rust
+/// links without that library, so the release build (macOS 10.15 and later,
+/// where those checks are not compiled away) fails with an undefined symbol.
+/// Link the copy that ships with the Xcode clang that builds whisper.cpp.
+fn link_clang_runtime_on_macos() {
+    if std::env::var("CARGO_CFG_TARGET_OS").as_deref() != Ok("macos") {
+        return;
+    }
+    let resource_dir = std::process::Command::new("xcrun")
+        .args(["clang", "--print-resource-dir"])
+        .output()
+        .ok()
+        .filter(|out| out.status.success())
+        .map(|out| String::from_utf8_lossy(&out.stdout).trim().to_string());
+    let Some(resource_dir) = resource_dir else {
+        println!("cargo:warning=could not find clang's resource folder; whisper.cpp may not link");
+        return;
+    };
+    let runtime_dir = std::path::Path::new(&resource_dir)
+        .join("lib")
+        .join("darwin");
+    if !runtime_dir.join("libclang_rt.osx.a").exists() {
+        println!(
+            "cargo:warning=libclang_rt.osx.a is not in {}; whisper.cpp may not link",
+            runtime_dir.display()
+        );
+        return;
+    }
+    println!("cargo:rustc-link-search=native={}", runtime_dir.display());
+    println!("cargo:rustc-link-lib=static=clang_rt.osx");
 }
