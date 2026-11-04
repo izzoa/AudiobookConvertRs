@@ -1,22 +1,12 @@
 import { createContext, useContext } from 'react';
-import type {
-    AudioBook,
-    UserSettings,
-    ConversionJob,
-    UndoState,
-    ConversionDefaults,
-    Project,
-    ConversionSettings,
-    FFmpegDownloadProgress,
-    FFmpegStatus,
-} from '../types/models';
+import type { AudioBook, UserSettings, ConversionJob, UndoState, ConversionDefaults, Project, ConversionSettings, FFmpegDownloadProgress, FFmpegStatus, SpeechModelDownloadProgress, SpeechModelStatus } from '../types/models';
 
 // Lives apart from AppProvider so that editing the provider hot-reloads in place.
 
 export type AppView = 'book' | 'batch' | 'queue' | 'settings' | 'help';
 
 /** A Settings section other views can open directly. */
-export type SettingsSection = 'ffmpeg';
+export type SettingsSection = 'ffmpeg' | 'speech';
 
 /** FFmpeg's status and the actions that change it. App-wide, so a download keeps running when the user leaves Settings. */
 export interface FFmpegState {
@@ -37,6 +27,21 @@ export interface FFmpegState {
     choosePath: (path: string | null) => Promise<void>;
 }
 
+/** The optional speech model and the actions that change it. App-wide, so a download keeps running when Find details closes. */
+export interface SpeechModelState {
+    /** Null until the first check answers. */
+    status: SpeechModelStatus | null;
+    downloading: boolean;
+    /** Bytes received while downloading; null otherwise. */
+    progress: SpeechModelDownloadProgress | null;
+    /** Why the last download or removal failed. Cleared by the next attempt. */
+    error: string | null;
+    /** Resolves to whether the model is now installed. */
+    download: () => Promise<boolean>;
+    cancelDownload: () => Promise<void>;
+    remove: () => Promise<void>;
+}
+
 export interface AppState {
     // Navigation
     view: AppView;
@@ -46,6 +51,9 @@ export interface AppState {
 
     // FFmpeg
     ffmpeg: FFmpegState;
+
+    // Speech model
+    speechModel: SpeechModelState;
 
     // Project state
     activeAudiobook: AudioBook | null;

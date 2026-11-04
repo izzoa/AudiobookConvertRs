@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { ArrowLeftIcon, CheckIcon, MagnifyingGlassIcon, PhotoIcon, XMarkIcon } from "@heroicons/react/24/outline";
 import { Button } from "@/components/ui/button";
@@ -8,7 +8,7 @@ import { useToast } from "@/components/ui/use-toast";
 import { useApp } from "@/context/useApp";
 import * as LookupApi from "@/api/lookup";
 import { AUDIBLE_REGIONS, DEFAULT_AUDIBLE_REGION } from "@/lib/audibleRegions";
-import { formatClock, formatDuration } from "@/lib/format";
+import { formatBytes, formatClock, formatDuration } from "@/lib/format";
 import {
     applyPayload,
     initialSelection,
@@ -19,6 +19,7 @@ import {
     type ReviewRow,
 } from "@/lib/lookupReview";
 import { cn } from "@/lib/utils";
+import { SpeechModelDownload } from "@/components/settings/SpeechModelPanel";
 import type { AudioBook, ChaptersFittedEvent, LookupCandidate, LookupRecord, LookupSource } from "@/types/models";
 
 /** Ten letters and digits with at least one digit: an ASIN (or an ISBN-10), not a word. */
@@ -72,6 +73,8 @@ function FindDetails({ book, onClose }: { book: AudioBook; onClose: () => void }
     const [record, setRecord] = useState<LookupRecord | null>(null);
     const [busy, setBusy] = useState<"search" | "record" | "apply" | null>(null);
     const [error, setError] = useState<string | null>(null);
+    // Bumped to fit again from scratch once the speech model is installed
+    const [fits, setFits] = useState(0);
 
     // Chapters that need pause searches arrive after the record. A result for a
     // record no longer shown (another pick, or Back) does not match and is dropped.
@@ -154,6 +157,7 @@ function FindDetails({ book, onClose }: { book: AudioBook; onClose: () => void }
     if (record) {
         return (
             <Review
+                key={`${record.source}-${record.id}-${fits}`}
                 book={book}
                 record={record}
                 busy={busy === "apply"}
@@ -164,6 +168,10 @@ function FindDetails({ book, onClose }: { book: AudioBook; onClose: () => void }
                 }}
                 onApply={apply}
                 onClose={onClose}
+                onRefit={() => {
+                    setFits((n) => n + 1);
+                    openRecord(record.source, record.id);
+                }}
             />
         );
     }
@@ -366,6 +374,7 @@ function Review({
     onBack,
     onApply,
     onClose,
+    onRefit,
 }: {
     book: AudioBook;
     record: LookupRecord;
@@ -374,7 +383,10 @@ function Review({
     onBack: () => void;
     onApply: (payload: ReturnType<typeof applyPayload>, count: number) => void;
     onClose: () => void;
+    /** Fetch the record again so its chapters are fitted with the speech model */
+    onRefit: () => void;
 }) {
+    const { speechModel } = useApp();
     const rows = useMemo(
         () =>
             reviewRows(
@@ -407,6 +419,30 @@ function Review({
         });
 
     const count = selected.size;
+    // Chapters a speech model could place better, when there is none yet
+    const offerSpeech =
+        speechModel.status !== null && !speechModel.status.installed && (chaptersRow?.flagged?.length ?? 0) > 0;
+    const getSpeechModel = async () => {
+        if (await speechModel.download()) onRefit();
+    };
+    const speechOffer = offerSpeech ? (
+        <div className="mt-2 rounded-md border bg-surface-2 px-2.5 py-2 text-xs">
+            {speechModel.downloading ? (
+                <SpeechModelDownload progress={speechModel.progress} onCancel={speechModel.cancelDownload} />
+            ) : (
+                <div className="flex items-center justify-between gap-3">
+                    <span className="text-muted-foreground">
+                        Get the speech model ({formatBytes(speechModel.status?.size_bytes ?? 0)}) to place these by their
+                        spoken titles.
+                    </span>
+                    <Button size="sm" variant="outline" className="h-7 shrink-0" onClick={getSpeechModel}>
+                        {speechModel.error ? "Try again" : "Get it"}
+                    </Button>
+                </div>
+            )}
+            {speechModel.error && <p className="mt-1 text-destructive">{speechModel.error}</p>}
+        </div>
+    ) : null;
     const currentCover = book.output_metadata?.artwork_data
         ? `data:image/jpeg;base64,${book.output_metadata.artwork_data}`
         : null;
@@ -442,6 +478,7 @@ function Review({
                         onToggle={() => toggle(row.key)}
                         currentCover={currentCover}
                         disabled={busy}
+                        extra={row.key === "chapters" ? speechOffer : null}
                     />
                 ))}
             </div>
@@ -473,12 +510,15 @@ function ReviewLine({
     onToggle,
     currentCover,
     disabled,
+    extra,
 }: {
     row: ReviewRow;
     checked: boolean;
     onToggle: () => void;
     currentCover: string | null;
     disabled: boolean;
+    /** Shown under the found value, such as the speech model offer */
+    extra?: ReactNode;
 }) {
     const selectable = isSelectable(row);
     const id = `review-${row.key}`;
@@ -529,6 +569,7 @@ function ReviewLine({
                 <span className="min-w-0">
                     {value(row.found, "found")}
                     {row.flagged && row.flagged.length > 0 && <FlaggedList flagged={row.flagged} />}
+                    {extra}
                 </span>
             )}
         </label>

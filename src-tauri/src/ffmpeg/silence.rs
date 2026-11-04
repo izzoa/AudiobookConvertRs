@@ -115,7 +115,7 @@ pub fn locate(track_starts: &[u64], book_ms: u64) -> Option<(usize, u64)> {
 }
 
 /// "12.345" for FFmpeg's time options.
-fn seconds(ms: u64) -> String {
+pub(crate) fn seconds(ms: u64) -> String {
     format!("{}.{:03}", ms / 1000, ms % 1000)
 }
 

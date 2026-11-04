@@ -6,11 +6,13 @@ use crate::config;
 use crate::ffmpeg::detection::detect_ffmpeg;
 use crate::ffmpeg::silence::{choose_pause, find_silences, locate, LEAD_IN_MS};
 use crate::metadata::chapter_match::{
-    offer_chapters, track_starts, FoundChapters, PauseFinder, SNAP_WINDOW_MS,
+    offer_chapters, track_starts, FoundChapters, HeardFinder, PauseFinder, SNAP_WINDOW_MS,
 };
 use crate::metadata::lookup::{self, ChapterOffer, LookupCandidate, LookupRecord, LookupSource};
 use crate::metadata::{audible, open_library};
 use crate::models::{AudioBook, AudioFile, Chapter, Metadata};
+use crate::speech::hear::Listening;
+use crate::speech::{model, whisper_language, Transcriber};
 use crate::state::AppState;
 use camino::Utf8Path;
 use serde::Serialize;
@@ -33,7 +35,8 @@ fn to_string_err<E: ToString>(err: E) -> String {
 /// The chapters row as soon as the record is fetched.
 enum FirstOffer {
     Ready(ChapterOffer),
-    /// The fit needs pause searches; `estimates` is the result without them.
+    /// The fit needs pause searches or listening; `estimates` is the result
+    /// without them.
     NeedsPauses {
         estimates: ChapterOffer,
     },
@@ -41,7 +44,9 @@ enum FirstOffer {
 
 fn first_offer(found: &FoundChapters, book: &AudioBook) -> FirstOffer {
     let mut needs_pauses = false;
-    let estimates = fit_with(found, book, &mut |_| {
+    // Every chapter that would be listened for is also one that would be
+    // searched for a pause, so the pause finder alone tells
+    let estimates = fit_with(found, book, &mut |_, _| None, &mut |_| {
         needs_pauses = true;
         None
     });
@@ -52,14 +57,45 @@ fn first_offer(found: &FoundChapters, book: &AudioBook) -> FirstOffer {
     }
 }
 
-fn fit_with(found: &FoundChapters, book: &AudioBook, find_pause: &mut PauseFinder) -> ChapterOffer {
+fn fit_with(
+    found: &FoundChapters,
+    book: &AudioBook,
+    find_heard: &mut HeardFinder,
+    find_pause: &mut PauseFinder,
+) -> ChapterOffer {
     offer_chapters(
         found,
         book.total_duration_ms,
         &book.chapters,
         &track_starts(&book.files),
+        find_heard,
         find_pause,
     )
+}
+
+/// Where a chapter whose `title` is announced near `estimate_ms` starts,
+/// listening in the one file the estimate falls in.
+fn heard_near(
+    transcriber: &Transcriber,
+    ffmpeg: &Utf8Path,
+    files: &[AudioFile],
+    starts: &[u64],
+    language: Option<&str>,
+    title: &str,
+    estimate_ms: u64,
+) -> Option<u64> {
+    let (index, in_file) = locate(starts, estimate_ms)?;
+    let file = files.get(index)?;
+    let listening = Listening {
+        transcriber,
+        ffmpeg,
+        file: &file.path,
+        file_duration_ms: file.duration_ms,
+        language,
+    };
+    listening
+        .hear(title, in_file)
+        .map(|start| starts[index] + start)
 }
 
 /// A chapter start in a pause near `estimate_ms`, searching the one file it
@@ -80,20 +116,42 @@ fn pause_near(
     choose_pause(&silences, in_file, SNAP_WINDOW_MS).map(|start| starts[index] + start)
 }
 
-/// Runs the fit with real pause searches, one after another, and emits the
-/// result for `request_id`.
+/// Runs the fit with real listening (when the speech model is installed) and
+/// pause searches, one chapter after another, and emits the result for
+/// `request_id`.
 fn finish_fit_in_background(
     app: AppHandle,
     request_id: String,
     found: FoundChapters,
     book: AudioBook,
     ffmpeg: camino::Utf8PathBuf,
+    language: Option<&'static str>,
 ) {
     tauri::async_runtime::spawn_blocking(move || {
         let starts = track_starts(&book.files);
-        let offer = fit_with(&found, &book, &mut |estimate| {
-            pause_near(&ffmpeg, &book.files, &starts, estimate)
+        // One model load for the whole fit; without it, pauses only
+        let transcriber = model::installed_model().and_then(|path| {
+            Transcriber::load(&path)
+                .map_err(|e| warn!("Fitting without the speech model: {}", e))
+                .ok()
         });
+        let offer = fit_with(
+            &found,
+            &book,
+            &mut |title, estimate| {
+                let transcriber = transcriber.as_ref()?;
+                heard_near(
+                    transcriber,
+                    &ffmpeg,
+                    &book.files,
+                    &starts,
+                    language,
+                    title,
+                    estimate,
+                )
+            },
+            &mut |estimate| pause_near(&ffmpeg, &book.files, &starts, estimate),
+        );
         let payload = ChaptersFitted { request_id, offer };
         if let Err(e) = app.emit(CHAPTERS_FITTED_EVENT, payload) {
             error!("Failed to emit fitted chapters: {}", e);
@@ -143,12 +201,15 @@ pub async fn lookup_record(
                     FirstOffer::NeedsPauses { estimates } => match detect_ffmpeg() {
                         Ok(ffmpeg) => {
                             let request_id = uuid::Uuid::new_v4().to_string();
+                            let language =
+                                found.fields.language.as_deref().and_then(whisper_language);
                             finish_fit_in_background(
                                 app,
                                 request_id.clone(),
                                 list.clone(),
                                 book.clone(),
                                 ffmpeg.path,
+                                language,
                             );
                             ChapterOffer::Fitting { request_id }
                         }
@@ -294,9 +355,39 @@ mod tests {
     }
 
     #[test]
+    fn heard_titles_become_heard_placements() {
+        let book = book(&[404_000]);
+        let offer = fit_with(
+            &edition(4),
+            &book,
+            &mut |title, estimate| (title != "Chapter 3").then_some(estimate + 500),
+            &mut |estimate| Some(estimate + 1_500),
+        );
+        let ChapterOffer::Fitted {
+            counts, chapters, ..
+        } = offer
+        else {
+            panic!("expected fitted chapters");
+        };
+        assert_eq!((counts.heard, counts.pause), (2, 1));
+        assert_eq!(chapters[1].start_time_ms, 101_500);
+        assert_eq!(chapters[1].placement, None);
+    }
+
+    #[test]
+    fn book_languages_map_to_whisper_codes() {
+        use crate::speech::whisper_language;
+        assert_eq!(whisper_language("English"), Some("en"));
+        assert_eq!(whisper_language("Deutsch"), Some("de"));
+        assert_eq!(whisper_language("Klingon"), None);
+    }
+
+    #[test]
     fn the_finished_fit_places_chapters_in_pauses() {
         let book = book(&[404_000]);
-        let offer = fit_with(&edition(4), &book, &mut |estimate| Some(estimate + 1_500));
+        let offer = fit_with(&edition(4), &book, &mut |_, _| None, &mut |estimate| {
+            Some(estimate + 1_500)
+        });
         let ChapterOffer::Fitted {
             chapters,
             placements,

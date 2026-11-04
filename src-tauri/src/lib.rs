@@ -15,6 +15,7 @@ pub mod metadata;
 pub mod models;
 pub mod perf;
 pub mod project;
+pub mod speech;
 pub mod state;
 pub mod undo;
 

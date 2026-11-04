@@ -9,4 +9,5 @@ pub mod presets;
 pub mod project;
 pub mod quality;
 pub mod settings;
+pub mod speech;
 pub mod undo;

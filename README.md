@@ -66,6 +66,9 @@ Converting needs **FFmpeg**. You probably don't have to do anything: the app fin
 **Chapters**
 - One chapter per file to start with.
 - Or read the chapter marks inside the files (M4B and M4A chapters, MP3 chapter frames, FLAC cue sheets), import a CUE sheet, or import a chapter list (`.txt`, `.csv`, `.ffmeta`).
+- Chapter titles and starts from **Find details**, even when your files are split differently from the Audible edition: each chapter goes to a nearby track start, to where the narrator announces it, or into a pause. The ones placed by a pause or an estimate are marked for you to check.
+- **Chapters by ear**, with the optional speech model (57 MB, downloaded only when you ask): the app listens near each chapter for the narrator saying its title, such as "Chapter Four. Outlaws.", on this computer.
+- Edit any chapter's start time, and play a chapter to check where it begins.
 - Rename, reorder by dragging, and tidy titles in bulk with **Clean up titles**.
 - Export the list as Audacity labels, FFmetadata or CSV.
 
@@ -111,6 +114,19 @@ Then review what was found. Empty fields start ticked, values you already have s
   <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/find-details-review-dark.png">
   <img alt="The review step comparing each field of the book with the value found on Audible" src="docs/screenshots/find-details-review-light.png">
 </picture>
+
+### Chapters placed by ear
+
+When Audible's chapters do not line up with your files, for example when the book is one long MP3, each chapter is placed by the first of these that works:
+
+1. A track start within 30 seconds of where the chapter is expected.
+2. With the speech model, where the narrator announces the chapter's title, within 90 seconds. The chapter starts in the pause just before the announcement.
+3. The longest pause within 30 seconds.
+4. Where it is expected, from Audible's timings scaled to your book.
+
+Chapters placed by 3 or 4 are marked in the review and in the Chapters tab, so you can play them and move a start if needed. On a 7-hour single-file book, the speech model placed 15 of 17 chapters on their announcements; without it, 13 went to a pause and 3 to an estimate.
+
+Get the model from **Settings → Speech model**, or from the offer under the chapters in the review, which then fits the chapters again. It is OpenAI's Whisper base model (57 MB) from Hugging Face, run with [whisper.cpp](https://github.com/ggml-org/whisper.cpp). Its SHA-256 is checked before it is installed, and **Remove** deletes it. Listening happens on this computer; no audio is sent anywhere.
 
 ### Convert a whole library
 
@@ -214,15 +230,18 @@ Settings and the queue are saved in:
 
 A downloaded FFmpeg goes in the `ffmpeg` folder of the app's local data folder: the same folder as above on macOS, and `%LOCALAPPDATA%\AudiobookConvertRs\ffmpeg\` on Windows.
 
+The speech model goes in the `speech` folder beside it: `~/Library/Application Support/AudiobookConvertRs/speech/` on macOS, `%LOCALAPPDATA%\AudiobookConvertRs\speech\` on Windows and `~/.local/share/AudiobookConvertRs/speech/` on Linux.
+
 ## Building from source
 
 You need:
 - [Rust](https://rustup.rs/) 1.88 or later
 - [Node.js](https://nodejs.org/) 22 or later
 - FFmpeg, installed or downloaded from the app's Settings
-- On Linux, the WebKitGTK and ALSA build dependencies:
+- CMake and Clang, to build whisper.cpp for the speech model: on macOS, Xcode's command line tools and `brew install cmake`; on Windows, CMake and LLVM
+- On Linux, the WebKitGTK, ALSA and whisper.cpp build dependencies:
   ```bash
-  sudo apt install libwebkit2gtk-4.1-dev build-essential curl wget file libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev libasound2-dev
+  sudo apt install libwebkit2gtk-4.1-dev build-essential curl wget file libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev libasound2-dev cmake libclang-dev
   ```
 
 ```bash
@@ -258,6 +277,7 @@ cargo test -- --ignored         # only the tests that need FFmpeg or the network
 | Reading audio and tags | [Symphonia](https://github.com/pdeljanov/Symphonia) |
 | Encoding | [FFmpeg](https://ffmpeg.org/), run as a separate program |
 | Writing M4B tags and chapters | [mp4ameta](https://github.com/Saecki/mp4ameta) |
+| Hearing chapter titles | [whisper.cpp](https://github.com/ggml-org/whisper.cpp) through [whisper-rs](https://github.com/tazz4843/whisper-rs), with the Whisper base model |
 | Interface | React 19, TypeScript, Tailwind CSS 4, Heroicons |
 
 ```
@@ -267,6 +287,7 @@ AudiobookConvertRs/
 │       ├── audio/        loading files, batch import (Symphonia)
 │       ├── metadata/     tags, chapters, cover art, Audible and Open Library lookup
 │       ├── ffmpeg/       finding, downloading and running FFmpeg
+│       ├── speech/       the speech model: getting it, listening, matching titles
 │       ├── conversion/   the pipeline and the queue
 │       └── commands/     what the interface can call
 ├── src-ui/           React interface
@@ -320,12 +341,15 @@ GNU Affero General Public License, version 3 or (at your option) any later versi
 
 FFmpeg is a separate program under its own license (LGPL or GPL, depending on the build). The app runs it; it does not include it.
 
+whisper.cpp is MIT-licensed and built into the app. The Whisper model is MIT-licensed by OpenAI; the app downloads it when you ask and does not include it.
+
 ## Acknowledgments
 
 - [AudioBookConverter](https://github.com/yermak/AudioBookConverter), the inspiration
 - [Tauri](https://tauri.app/), [Symphonia](https://github.com/pdeljanov/Symphonia), [mp4ameta](https://github.com/Saecki/mp4ameta) and [FFmpeg](https://ffmpeg.org/)
 - [Audnexus](https://github.com/laxamentumtech/audnexus) and [Open Library](https://openlibrary.org/) for book details
 - [Martin Riedl](https://ffmpeg.martin-riedl.de/) and [gyan.dev](https://www.gyan.dev/ffmpeg/builds/) for the FFmpeg builds the app can download
+- [whisper.cpp](https://github.com/ggml-org/whisper.cpp), [whisper-rs](https://github.com/tazz4843/whisper-rs) and OpenAI's [Whisper](https://github.com/openai/whisper) for hearing chapter titles
 
 ## Support
 

@@ -80,6 +80,8 @@ pub enum ChapterOffer {
 #[serde(rename_all = "snake_case")]
 pub enum PlacementKind {
     Track,
+    /// Where the narrator announces the chapter's title
+    Heard,
     Pause,
     Estimate,
 }
@@ -95,6 +97,7 @@ pub struct FittedPlacement {
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PlacementCounts {
     pub track: usize,
+    pub heard: usize,
     pub pause: usize,
     pub estimate: usize,
 }
@@ -387,6 +390,7 @@ mod tests {
             ],
             counts: PlacementCounts {
                 track: 1,
+                heard: 0,
                 pause: 0,
                 estimate: 1,
             },

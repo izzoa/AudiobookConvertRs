@@ -260,6 +260,20 @@ export interface ConversionDefaults {
     copy_metadata: boolean;
 }
 
+/** The optional speech model that places chapters by their spoken titles. */
+export interface SpeechModelStatus {
+    installed: boolean;
+    size_bytes: number;
+    host: string;
+    page_url: string;
+}
+
+/** Payload of the `speech_model_download_progress` event. */
+export interface SpeechModelDownloadProgress {
+    received: number;
+    total: number;
+}
+
 /** Where the FFmpeg in use was found. */
 export type FFmpegSource = 'chosen' | 'system' | 'downloaded';
 
@@ -442,7 +456,7 @@ export type ChapterOffer =
     | { kind: 'fitting'; request_id: string }
     | { kind: 'unavailable'; reason: string };
 
-export type PlacementKind = 'track' | 'pause' | 'estimate';
+export type PlacementKind = 'track' | 'heard' | 'pause' | 'estimate';
 
 export interface FittedPlacement {
     index: number;
@@ -453,6 +467,8 @@ export interface FittedPlacement {
 
 export interface PlacementCounts {
     track: number;
+    /** Where the narrator announces the title */
+    heard: number;
     pause: number;
     estimate: number;
 }

@@ -118,6 +118,10 @@ fn main() {
             audiobookconvert_rs::commands::settings::download_ffmpeg,
             audiobookconvert_rs::commands::settings::cancel_ffmpeg_download,
             audiobookconvert_rs::commands::settings::remove_downloaded_ffmpeg,
+            audiobookconvert_rs::commands::speech::get_speech_model_status,
+            audiobookconvert_rs::commands::speech::download_speech_model,
+            audiobookconvert_rs::commands::speech::cancel_speech_model_download,
+            audiobookconvert_rs::commands::speech::remove_speech_model,
             audiobookconvert_rs::commands::settings::reset_settings,
             // Conversion
             audiobookconvert_rs::commands::conversion::start_conversion,

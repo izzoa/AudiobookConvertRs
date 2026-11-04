@@ -10,6 +10,7 @@ import * as SettingsApi from '@/api/settings';
 import * as FilesApi from '@/api/files';
 import type { UserSettings, ConversionDefaults, QualityPreset, EncodingMode } from '@/types/models';
 import { FFmpegPanel } from '@/components/settings/FFmpegPanel';
+import { SpeechModelPanel } from '@/components/settings/SpeechModelPanel';
 import { QualityPreset as QualityPresetValue, EncodingMode as EncodingModeValue } from '@/types/models';
 import { cn } from '@/lib/utils';
 import { AUDIBLE_REGIONS, DEFAULT_AUDIBLE_REGION } from '@/lib/audibleRegions';
@@ -365,6 +366,14 @@ export function SettingsPage() {
                     description="Encodes every book. Found on this computer, chosen by you, or downloaded here."
                 >
                     <FFmpegPanel />
+                </Section>
+
+                <Section
+                    id="settings-speech"
+                    title="Speech model"
+                    description="Optional. Places fitted chapters where the narrator announces them."
+                >
+                    <SpeechModelPanel />
                 </Section>
 
                 {activeProject && (

@@ -1,4 +1,4 @@
-import type { Chapter, ChapterOffer, LookupRecord, Metadata } from "@/types/models";
+import type { Chapter, ChapterOffer, FittedPlacement, LookupRecord, Metadata, PlacementCounts } from "@/types/models";
 
 /**
  * The review step of Find details: one row per value a lookup found, beside
@@ -157,24 +157,25 @@ function chapterRow(current: Chapter[], offer: ChapterOffer): ReviewRow {
     return row;
 }
 
-/** "48 chapters fitted: 45 on a track start, 2 at a pause, 1 estimated" */
-function fittedSummary(n: number, counts: { track: number; pause: number; estimate: number }): string {
-    if (counts.pause === 0 && counts.estimate === 0) return `${countChapters(n)} fitted, all on a track start`;
+/** "48 chapters fitted: 40 on a track start, 5 heard, 2 at a pause, 1 estimated" */
+function fittedSummary(n: number, counts: PlacementCounts): string {
+    if (counts.heard === 0 && counts.pause === 0 && counts.estimate === 0) {
+        return `${countChapters(n)} fitted, all on a track start`;
+    }
     const parts = [
         counts.track > 0 && `${counts.track} on a track start`,
+        counts.heard > 0 && `${counts.heard} heard`,
         counts.pause > 0 && `${counts.pause} at a pause`,
         counts.estimate > 0 && `${counts.estimate} estimated`,
     ].filter(Boolean);
     return `${countChapters(n)} fitted: ${parts.join(", ")}`;
 }
 
-function flaggedChapters(
-    chapters: Chapter[],
-    placements: { index: number; kind: "track" | "pause" | "estimate"; moved_ms: number }[]
-): FlaggedChapter[] {
+/** Chapters placed at a pause or an estimate; track starts and heard titles need no check. */
+function flaggedChapters(chapters: Chapter[], placements: FittedPlacement[]): FlaggedChapter[] {
     return placements.flatMap((p) => {
         const chapter = chapters[p.index];
-        if (p.kind === "track" || !chapter) return [];
+        if ((p.kind !== "pause" && p.kind !== "estimate") || !chapter) return [];
         return [{ title: chapter.title, start_ms: chapter.start_time_ms, kind: p.kind, moved_ms: p.moved_ms }];
     });
 }

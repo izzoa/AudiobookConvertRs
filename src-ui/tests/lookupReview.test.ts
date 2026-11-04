@@ -103,7 +103,7 @@ const fittedRecord: LookupRecord = {
             { index: 2, kind: "estimate", moved_ms: 0 },
             { index: 3, kind: "track", moved_ms: -1_200 },
         ],
-        counts: { track: 2, pause: 1, estimate: 1 },
+        counts: { track: 2, heard: 0, pause: 1, estimate: 1 },
     },
 };
 
@@ -133,12 +133,31 @@ test("fitted chapters all on track starts need no list", () => {
                 { index: 0, kind: "track", moved_ms: 0 },
                 { index: 1, kind: "track", moved_ms: 800 },
             ],
-            counts: { track: 2, pause: 0, estimate: 0 },
+            counts: { track: 2, heard: 0, pause: 0, estimate: 0 },
         },
     };
     const chapters = reviewRows(book, allTracks).find((r) => r.key === "chapters")!;
     assert.equal(chapters.found, "2 chapters fitted, all on a track start");
     assert.deepEqual(chapters.flagged, []);
+});
+
+test("heard chapters are counted and need no check", () => {
+    const heard: LookupRecord = {
+        ...record,
+        chapters: {
+            kind: "fitted",
+            chapters: [chapter(0, "Opening Credits", false), chapter(1, "Book One", false), chapter(2, "Book Two", false)],
+            placements: [
+                { index: 0, kind: "track", moved_ms: 0 },
+                { index: 1, kind: "heard", moved_ms: 4_200 },
+                { index: 2, kind: "heard", moved_ms: -900 },
+            ],
+            counts: { track: 1, heard: 2, pause: 0, estimate: 0 },
+        },
+    };
+    const row = reviewRows(book, heard).find((r) => r.key === "chapters")!;
+    assert.equal(row.found, "3 chapters fitted: 1 on a track start, 2 heard");
+    assert.deepEqual(row.flagged, []);
 });
 
 test("chapters still being fitted cannot be ticked or applied", () => {

@@ -205,10 +205,16 @@ export function HelpPage() {
                         <li>
                             When your book is within 2% of that edition&apos;s length but split differently, such as a CD
                             rip of many tracks or one long file, Audible&apos;s chapters are fitted to it. Each chapter
-                            goes to a track start within 30 seconds of where it is expected, otherwise into a pause of
-                            at least half a second nearby, otherwise where it is expected. The review says how many
-                            landed each way and lists the ones that did not land on a track start. Otherwise the review
-                            says why no chapters are offered.
+                            goes to a track start within 30 seconds of where it is expected; otherwise, with the speech
+                            model, to where the narrator announces its title within 90 seconds; otherwise into a pause
+                            of at least half a second nearby; otherwise where it is expected. The review says how many
+                            landed each way and lists the ones at a pause or estimated. Otherwise the review says why no
+                            chapters are offered.
+                        </li>
+                        <li>
+                            The speech model (about 60 MB) is optional: get it in Settings, or from the review when some
+                            chapters missed a track start. It listens on this computer; no audio is sent anywhere.
+                            Chapters placed where their title is heard need no checking and are not marked.
                         </li>
                         <li>
                             After applying, the Chapters tab marks those chapters <B>at a pause</B> or <B>estimated</B>,

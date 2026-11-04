@@ -54,6 +54,9 @@ pub enum AppError {
     #[error("Audio playback error: {0}")]
     AudioPlayback(String),
 
+    #[error("Speech recognition error: {0}")]
+    Speech(String),
+
     // ============================================
     // Metadata Errors
     // ============================================

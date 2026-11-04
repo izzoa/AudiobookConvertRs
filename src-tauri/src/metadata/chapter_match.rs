@@ -24,6 +24,10 @@ pub const SNAP_WINDOW_MS: u64 = 30_000;
 /// chapter should start in it, or `None` when there is none.
 pub type PauseFinder<'a> = dyn FnMut(u64) -> Option<u64> + 'a;
 
+/// Listens near an estimated start (book time) for a chapter's spoken title
+/// and returns where the chapter should start, or `None` when it is not heard.
+pub type HeardFinder<'a> = dyn FnMut(&str, u64) -> Option<u64> + 'a;
+
 #[derive(Debug, Clone)]
 pub struct FoundChapter {
     pub title: String,
@@ -42,13 +46,14 @@ pub struct FoundChapters {
 }
 
 /// The chapters row for a found edition. `track_starts` are where the book's
-/// files begin on its timeline (the first is 0); `find_pause` is asked only
-/// for fitted chapters with no track start nearby.
+/// files begin on its timeline (the first is 0). For fitted chapters with no
+/// track start nearby, `find_heard` is asked first, then `find_pause`.
 pub fn offer_chapters(
     found: &FoundChapters,
     book_duration_ms: u64,
     current: &[Chapter],
     track_starts: &[u64],
+    find_heard: &mut HeardFinder,
     find_pause: &mut PauseFinder,
 ) -> ChapterOffer {
     if found.chapters.is_empty() {
@@ -96,7 +101,13 @@ pub fn offer_chapters(
         return ChapterOffer::TitlesOnly { chapters };
     }
 
-    if let Some(offer) = fit_to_book(found, book_duration_ms, track_starts, find_pause) {
+    if let Some(offer) = fit_to_book(
+        found,
+        book_duration_ms,
+        track_starts,
+        find_heard,
+        find_pause,
+    ) {
         return offer;
     }
 
@@ -147,12 +158,13 @@ fn fit(found: &FoundChapters, shift_ms: u64, book_duration_ms: u64) -> Option<Ve
 /// Each start is estimated by scaling the found start (measured from the end
 /// of the intro) to the book, moved by how far the last chapter placed on a
 /// track start or at a pause landed from its own scaled start. A chapter then
-/// goes to the nearest track start within [`SNAP_WINDOW_MS`], else to a pause,
-/// else stays at the estimate. Starts only ever move forward.
+/// goes to the nearest track start within [`SNAP_WINDOW_MS`], else to where its
+/// title is heard, else to a pause, else stays at the estimate. Starts only ever move forward.
 fn fit_to_book(
     found: &FoundChapters,
     book_duration_ms: u64,
     track_starts: &[u64],
+    find_heard: &mut HeardFinder,
     find_pause: &mut PauseFinder,
 ) -> Option<ChapterOffer> {
     let reference_ms = found
@@ -192,9 +204,12 @@ fn fit_to_book(
                     .min_by_key(|&t| t.abs_diff(estimate));
                 let (start, kind) = match track {
                     Some(t) => (t, PlacementKind::Track),
-                    None => match find_pause(estimate).filter(|&p| usable(p)) {
-                        Some(p) => (p, PlacementKind::Pause),
-                        None => (estimate, PlacementKind::Estimate),
+                    None => match find_heard(&chapter.title, estimate).filter(|&h| usable(h)) {
+                        Some(h) => (h, PlacementKind::Heard),
+                        None => match find_pause(estimate).filter(|&p| usable(p)) {
+                            Some(p) => (p, PlacementKind::Pause),
+                            None => (estimate, PlacementKind::Estimate),
+                        },
                     },
                 };
                 if kind != PlacementKind::Estimate {
@@ -205,6 +220,7 @@ fn fit_to_book(
         };
         match kind {
             PlacementKind::Track => counts.track += 1,
+            PlacementKind::Heard => counts.heard += 1,
             PlacementKind::Pause => counts.pause += 1,
             PlacementKind::Estimate => counts.estimate += 1,
         }
@@ -226,7 +242,7 @@ fn fit_to_book(
             let end = starts.get(i + 1).copied().unwrap_or(book_duration_ms);
             let mut chapter = Chapter::new(i, c.title.clone(), starts[i], end);
             chapter.placement = match placement.kind {
-                PlacementKind::Track => None,
+                PlacementKind::Track | PlacementKind::Heard => None,
                 PlacementKind::Pause => Some(ChapterPlacement::Pause),
                 PlacementKind::Estimate => Some(ChapterPlacement::Estimate),
             };
@@ -268,7 +284,14 @@ mod tests {
 
     /// A book of one file, with no pauses to be found.
     fn offer(found: &FoundChapters, book_duration_ms: u64, current: &[Chapter]) -> ChapterOffer {
-        offer_chapters(found, book_duration_ms, current, &[0], &mut |_| None)
+        offer_chapters(
+            found,
+            book_duration_ms,
+            current,
+            &[0],
+            &mut |_, _| None,
+            &mut |_| None,
+        )
     }
 
     /// `n` evenly spaced chapters over `runtime_ms`, with no branding.
@@ -320,7 +343,9 @@ mod tests {
 
         let ChapterOffer::Fitted {
             chapters, counts, ..
-        } = offer_chapters(&found, book_ms, &[], &tracks, &mut |_| None)
+        } = offer_chapters(&found, book_ms, &[], &tracks, &mut |_, _| None, &mut |_| {
+            None
+        })
         else {
             panic!("expected fitted chapters");
         };
@@ -328,6 +353,7 @@ mod tests {
             counts,
             PlacementCounts {
                 track: 48,
+                heard: 0,
                 pause: 0,
                 estimate: 0
             }
@@ -346,7 +372,14 @@ mod tests {
             chapters,
             placements,
             counts,
-        } = offer_chapters(&found, 32_280_000, &current, &[0], &mut |_| None)
+        } = offer_chapters(
+            &found,
+            32_280_000,
+            &current,
+            &[0],
+            &mut |_, _| None,
+            &mut |_| None,
+        )
         else {
             panic!("expected fitted chapters");
         };
@@ -354,6 +387,7 @@ mod tests {
             counts,
             PlacementCounts {
                 track: 1,
+                heard: 0,
                 pause: 0,
                 estimate: 47
             }
@@ -389,7 +423,14 @@ mod tests {
             chapters,
             placements,
             ..
-        } = offer_chapters(&found, 404_000, &[], &[0, 109_000], &mut finder)
+        } = offer_chapters(
+            &found,
+            404_000,
+            &[],
+            &[0, 109_000],
+            &mut |_, _| None,
+            &mut finder,
+        )
         else {
             panic!("expected fitted chapters");
         };
@@ -411,6 +452,60 @@ mod tests {
     }
 
     #[test]
+    fn a_heard_title_beats_a_pause_and_moves_later_estimates() {
+        // Chapters every 100 s of a 400 s edition, one 404 s file: the scaled
+        // starts are 101 s, 202 s and 303 s. Only C1 is heard, 6 s late.
+        let found = FoundChapters {
+            chapters: (0..4)
+                .map(|i| FoundChapter {
+                    title: format!("C{}", i),
+                    start_ms: i * 100_000,
+                })
+                .collect(),
+            runtime_ms: 400_000,
+            intro_ms: 0,
+            outro_ms: 0,
+        };
+        let mut paused_at = Vec::new();
+        let offer = {
+            let mut heard =
+                |title: &str, estimate: u64| (title == "C1").then_some(estimate + 6_000);
+            let mut pause = |estimate: u64| {
+                paused_at.push(estimate);
+                Some(estimate + 1_000)
+            };
+            offer_chapters(&found, 404_000, &[], &[0], &mut heard, &mut pause)
+        };
+        let ChapterOffer::Fitted {
+            chapters,
+            placements,
+            counts,
+        } = offer
+        else {
+            panic!("expected fitted chapters");
+        };
+        // C2 is estimated 6 s late after C1, and C3 7 s late after C2's pause
+        assert_eq!(starts_of(&chapters), [0, 107_000, 209_000, 311_000]);
+        assert_eq!(
+            kinds(&placements),
+            [
+                PlacementKind::Track,
+                PlacementKind::Heard,
+                PlacementKind::Pause,
+                PlacementKind::Pause
+            ]
+        );
+        assert_eq!(
+            paused_at,
+            [208_000, 310_000],
+            "no pause search for a heard chapter"
+        );
+        assert_eq!((counts.heard, counts.pause), (1, 2));
+        assert_eq!(chapters[1].placement, None, "a heard chapter is not marked");
+        assert_eq!(chapters[2].placement, Some(ChapterPlacement::Pause));
+    }
+
+    #[test]
     fn a_chapter_never_lands_on_or_before_the_previous_start() {
         // Chapter 1 is estimated 10.1 s in; the only track start in reach is
         // the book's start, and the pause offered is there too.
@@ -420,7 +515,14 @@ mod tests {
             chapters,
             placements,
             ..
-        } = offer_chapters(&found, 404_000, &[], &[0, 50_000], &mut |_| Some(0))
+        } = offer_chapters(
+            &found,
+            404_000,
+            &[],
+            &[0, 50_000],
+            &mut |_, _| None,
+            &mut |_| Some(0),
+        )
         else {
             panic!("expected fitted chapters");
         };
@@ -442,7 +544,14 @@ mod tests {
             .collect();
         // 32,400,000 ms is within 2% of the edition, so a fit would also apply
         assert!(matches!(
-            offer_chapters(&dune_messiah(), 32_400_000, &current, &[0], &mut |_| None),
+            offer_chapters(
+                &dune_messiah(),
+                32_400_000,
+                &current,
+                &[0],
+                &mut |_, _| None,
+                &mut |_| None
+            ),
             ChapterOffer::TitlesOnly { .. }
         ));
     }

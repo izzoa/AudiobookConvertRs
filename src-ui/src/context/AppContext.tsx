@@ -5,6 +5,7 @@ import * as UndoApi from '../api/undo';
 import * as AudiobookApi from '../api/audiobook';
 import { AppContext, type AppView, type SettingsSection } from './useApp';
 import { useFFmpegState } from '../hooks/useFFmpegState';
+import { useSpeechModelState } from '../hooks/useSpeechModelState';
 
 export function AppProvider({ children }: { children: ReactNode }) {
     const [view, setView] = useState<AppView>('book');
@@ -19,6 +20,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         canRedo: false,
     });
     const ffmpeg = useFFmpegState();
+    const speechModel = useSpeechModelState();
 
     const openSettings = useCallback((section?: SettingsSection) => {
         setView('settings');
@@ -155,6 +157,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
             setView,
             openSettings,
             ffmpeg,
+            speechModel,
             activeAudiobook,
             setActiveAudiobook,
             activeProject,

@@ -394,16 +394,50 @@ pub async fn download_and_install(
         .map_err(|e| DownloadError::Unpack(e.to_string()))?
 }
 
+/// One file the app downloads, fixed by address, size and checksum.
+#[derive(Debug, Clone, Copy)]
+pub struct FixedFile {
+    pub url: &'static str,
+    pub host: &'static str,
+    pub size_bytes: u64,
+    pub sha256: &'static str,
+    /// Names the `.partial` file while it downloads
+    pub stem: &'static str,
+}
+
+impl FixedBuild {
+    pub fn file(&self) -> FixedFile {
+        FixedFile {
+            url: self.url,
+            host: self.host,
+            size_bytes: self.size_bytes,
+            sha256: self.sha256,
+            stem: self.version,
+        }
+    }
+}
+
 /// Download `build` to `dir/<version>.partial`, kept only when its size and
 /// SHA-256 match the table. Shared with the weekly link check.
 pub async fn fetch_verified(
     build: &FixedBuild,
     dir: &Utf8Path,
     cancel: &AtomicBool,
+    progress: impl FnMut(u64, u64),
+) -> Result<Utf8PathBuf, DownloadError> {
+    fetch_verified_file(&build.file(), dir, cancel, progress).await
+}
+
+/// Download `file` to `dir/<stem>.partial`, kept only when its size and
+/// SHA-256 match. `progress` gets (bytes received, total) after every chunk.
+pub async fn fetch_verified_file(
+    file: &FixedFile,
+    dir: &Utf8Path,
+    cancel: &AtomicBool,
     mut progress: impl FnMut(u64, u64),
 ) -> Result<Utf8PathBuf, DownloadError> {
     let network = |e: reqwest::Error| DownloadError::Network {
-        host: build.host,
+        host: file.host,
         reason: e.to_string(),
     };
     let client = reqwest::Client::builder()
@@ -412,29 +446,29 @@ pub async fn fetch_verified(
         .build()
         .map_err(network)?;
 
-    info!("Downloading FFmpeg {} from {}", build.version, build.url);
-    let mut response = client.get(build.url).send().await.map_err(network)?;
+    info!("Downloading {} from {}", file.stem, file.url);
+    let mut response = client.get(file.url).send().await.map_err(network)?;
     if !response.status().is_success() {
         return Err(DownloadError::HttpStatus {
-            host: build.host,
+            host: file.host,
             status: response.status().as_u16(),
         });
     }
 
-    let partial = dir.join(format!("{}.partial", build.version));
-    let mut writer = VerifiedWriter::create(&partial, build.size_bytes, build.sha256, cancel)?;
+    let partial = dir.join(format!("{}.partial", file.stem));
+    let mut writer = VerifiedWriter::create(&partial, file.size_bytes, file.sha256, cancel)?;
     loop {
         // A stalled connection must not outlive a cancel for long
         let next = tokio::time::timeout(Duration::from_secs(30), response.chunk())
             .await
             .map_err(|_| DownloadError::Network {
-                host: build.host,
+                host: file.host,
                 reason: "no data for 30 seconds".into(),
             })?
             .map_err(network)?;
         let Some(chunk) = next else { break };
         writer.push(&chunk)?;
-        progress(writer.received(), build.size_bytes);
+        progress(writer.received(), file.size_bytes);
     }
     writer.finish()
 }

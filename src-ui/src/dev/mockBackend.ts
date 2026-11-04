@@ -153,7 +153,7 @@ function mockRecord(id: string, target: AudioBook | null | undefined): LookupRec
 }
 
 /** Dune Messiah's chapters fitted to the open book: most on a track start, one at a pause, one estimated. */
-function mockFitted(target: AudioBook): ChapterOffer {
+function mockFitted(target: AudioBook, withSpeech = false): ChapterOffer {
     const titles = [
         "Opening Credits",
         "Excerpts from the Death Cell Interview",
@@ -164,7 +164,10 @@ function mockFitted(target: AudioBook): ChapterOffer {
         "End Credits",
     ];
     const total = target.total_duration_ms;
-    const kinds: PlacementKind[] = titles.map((_, i) => (i === 3 ? "pause" : i === 5 ? "estimate" : "track"));
+    // With the speech model, the chapters that missed a track start are heard instead
+    const kinds: PlacementKind[] = titles.map((_, i) =>
+        i === 3 ? (withSpeech ? "heard" : "pause") : i === 5 ? (withSpeech ? "heard" : "estimate") : "track"
+    );
     const starts = titles.map((_, i) => Math.round((total * i) / titles.length));
     const chapters: Chapter[] = titles.map((title, i) => ({
         index: i,
@@ -172,13 +175,18 @@ function mockFitted(target: AudioBook): ChapterOffer {
         start_time_ms: starts[i],
         end_time_ms: starts[i + 1] ?? total,
         auto_detected: false,
-        ...(kinds[i] === "track" ? {} : { placement: kinds[i] as "pause" | "estimate" }),
+        ...(kinds[i] === "pause" || kinds[i] === "estimate" ? { placement: kinds[i] as "pause" | "estimate" } : {}),
     }));
     return {
         kind: "fitted",
         chapters,
         placements: kinds.map((kind, index) => ({ index, kind, moved_ms: kind === "pause" ? 2_400 : index > 0 && kind === "track" ? 800 : 0 })),
-        counts: { track: kinds.filter((k) => k === "track").length, pause: 1, estimate: 1 },
+        counts: {
+            track: kinds.filter((k) => k === "track").length,
+            heard: kinds.filter((k) => k === "heard").length,
+            pause: kinds.filter((k) => k === "pause").length,
+            estimate: kinds.filter((k) => k === "estimate").length,
+        },
     };
 }
 
@@ -232,6 +240,16 @@ export function installMockBackend() {
 
     // FFmpeg: found on the system, unless `?ffmpeg=missing`; a "download" then installs a copy
     const ffmpegMode = new URLSearchParams(window.location.search).get("ffmpeg");
+    // Speech model: missing unless `?speech=installed`; `?speech=fail` makes its download fail partway
+    const speechMode = new URLSearchParams(window.location.search).get("speech");
+    let speechInstalled = speechMode === "installed";
+    let speechCancelled = false;
+    const speechStatus = () => ({
+        installed: speechInstalled,
+        size_bytes: 59_707_625,
+        host: "huggingface.co",
+        page_url: "https://huggingface.co/ggerganov/whisper.cpp",
+    });
     const ffmpegFound = ffmpegMode !== "missing" && ffmpegMode !== "fail";
     let ffmpegDownloaded = false;
     let ffmpegChosen: string | null = null;
@@ -298,6 +316,29 @@ export function installMockBackend() {
         },
         pick_ffmpeg_file: () => "/usr/local/bin/ffmpeg",
 
+        get_speech_model_status: () => speechStatus(),
+        download_speech_model: async () => {
+            speechCancelled = false;
+            const total = 59_707_625;
+            for (let step = 1; step <= 20; step++) {
+                await new Promise((resolve) => setTimeout(resolve, 100));
+                if (speechCancelled) throw "download cancelled";
+                if (speechMode === "fail" && step === 8) throw "could not reach huggingface.co: connection reset";
+                emit("speech_model_download_progress", { received: Math.round((total * step) / 20), total });
+            }
+            await new Promise((resolve) => setTimeout(resolve, 400));
+            speechInstalled = true;
+            return speechStatus();
+        },
+        cancel_speech_model_download: () => {
+            speechCancelled = true;
+            return null;
+        },
+        remove_speech_model: () => {
+            speechInstalled = false;
+            return speechStatus();
+        },
+
         can_undo: () => undoStack.length > 0,
         can_redo: () => false,
         get_undo_description: () => undoStack.at(-1)?.description ?? null,
@@ -319,7 +360,7 @@ export function installMockBackend() {
             // Dune Messiah needs pause searches: the review opens fitting, and the fit follows
             if (id === "B002V8H660" && target) {
                 const request_id = `mock-fit-${Date.now()}`;
-                setTimeout(() => emit("lookup_chapters_fitted", { request_id, offer: mockFitted(target) }), 1500);
+                setTimeout(() => emit("lookup_chapters_fitted", { request_id, offer: mockFitted(target, speechInstalled) }), 1500);
                 return { ...record, chapters: { kind: "fitting", request_id } };
             }
             return record;
