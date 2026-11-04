@@ -68,7 +68,8 @@ export function SpeechModelPanel() {
 
             <p className="text-xs text-muted-foreground leading-relaxed">
                 With it, Find details listens near each chapter it cannot place on a track start, and starts the chapter
-                where the narrator announces its title. Listening happens on this computer; no audio is sent anywhere.
+                where the narrator announces its title; and Generate can make chapters wherever a heading is announced.
+                Listening happens on this computer; no audio is sent anywhere.
             </p>
         </div>
     );

@@ -5,6 +5,7 @@
 //! optional download; without it, fitting uses track starts and pauses only.
 
 pub mod audio;
+pub mod detect;
 pub mod hear;
 pub mod matcher;
 pub mod model;

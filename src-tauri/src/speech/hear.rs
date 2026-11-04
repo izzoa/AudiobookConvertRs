@@ -13,7 +13,7 @@ const NEAR_MS: u64 = 30_000;
 /// How far it is listened for when it was not heard nearer
 pub const LISTEN_MS: u64 = 90_000;
 /// A silence must end this close before the title to be the chapter break
-const BREAK_BEFORE_MS: u64 = 1_500;
+pub const BREAK_BEFORE_MS: u64 = 1_500;
 /// How much further back the break may be when the title was matched on its
 /// words and the "chapter 4" before them was not recognized
 const UNHEARD_LEAD_IN_MS: u64 = 1_000;

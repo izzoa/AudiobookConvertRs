@@ -274,6 +274,15 @@ export interface SpeechModelDownloadProgress {
     total: number;
 }
 
+/** Payload of the `spoken_chapters_progress` event: pauses are searched file by
+ * file, then each place after a long pause is listened to. */
+export interface SpokenChaptersProgress {
+    audiobook_id: string;
+    stage: 'pauses' | 'listening';
+    done: number;
+    total: number;
+}
+
 /** Where the FFmpeg in use was found. */
 export type FFmpegSource = 'chosen' | 'system' | 'downloaded';
 

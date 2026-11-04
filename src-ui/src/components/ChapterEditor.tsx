@@ -5,7 +5,12 @@ import { useApp } from "@/context/useApp";
 import * as ChaptersApi from "@/api/chapters";
 import * as FilesApi from "@/api/files";
 import * as PlaybackApi from "@/api/playback";
-import type { Chapter, ChapterPlacement } from "@/types/models";
+import * as SpeechApi from "@/api/speech";
+import { listen } from "@tauri-apps/api/event";
+import { Progress } from "./ui/progress";
+import { SpeechModelDownload } from "./settings/SpeechModelPanel";
+import { formatBytes } from "@/lib/format";
+import type { Chapter, ChapterPlacement, SpokenChaptersProgress } from "@/types/models";
 import type { CueDetectionResult } from "@/api/files";
 import { PlayIcon, StopIcon } from "@heroicons/react/20/solid";
 import { Popover, MenuItem, MenuLabel, MenuSeparator } from "./ui/popover";
@@ -200,7 +205,7 @@ function SortableChapter({ chapter, displayIndex, formatDuration, onPlay, isPlay
 }
 
 export function ChapterEditor() {
-    const { activeAudiobook, setActiveAudiobook, refreshUndoState } = useApp();
+    const { activeAudiobook, setActiveAudiobook, refreshUndoState, speechModel } = useApp();
     const [isImporting, setIsImporting] = useState(false);
     const [isExporting, setIsExporting] = useState(false);
     const [isGenerating, setIsGenerating] = useState(false);
@@ -212,6 +217,9 @@ export function ChapterEditor() {
     const [detectedCue, setDetectedCue] = useState<CueDetectionResult | null>(null);
     const [isImportingCue, setIsImportingCue] = useState(false);
     const [playingChapterIndex, setPlayingChapterIndex] = useState<number | null>(null);
+    // Listening for spoken headings: "offer" asks for the speech model first
+    const [listening, setListening] = useState<"offer" | "running" | null>(null);
+    const [listenProgress, setListenProgress] = useState<SpokenChaptersProgress | null>(null);
 
     const sensors = useSensors(
         useSensor(PointerSensor, {
@@ -223,6 +231,21 @@ export function ChapterEditor() {
             coordinateGetter: sortableKeyboardCoordinates,
         })
     );
+
+    useEffect(() => {
+        let unlisten: (() => void) | undefined;
+        let disposed = false;
+        listen<SpokenChaptersProgress>("spoken_chapters_progress", (event) => setListenProgress(event.payload)).then(
+            (fn) => {
+                if (disposed) fn();
+                else unlisten = fn;
+            }
+        );
+        return () => {
+            disposed = true;
+            unlisten?.();
+        };
+    }, []);
 
     useEffect(() => {
         async function loadPresets() {
@@ -369,6 +392,37 @@ export function ChapterEditor() {
             setError(`Export failed: ${e}`);
         } finally {
             setIsExporting(false);
+        }
+    };
+
+    const handleDetectSpoken = async () => {
+        if (!activeAudiobook) return;
+        if (!speechModel.status?.installed) {
+            setListening("offer");
+            return;
+        }
+        setListening("running");
+        setListenProgress(null);
+        setError(null);
+        try {
+            const updated = await SpeechApi.detectSpokenChapters(activeAudiobook.id);
+            setActiveAudiobook(updated);
+            await refreshUndoState();
+        } catch (e) {
+            if (String(e) !== "cancelled") {
+                console.error("Failed to detect spoken chapters:", e);
+                setError(`Listening failed: ${e}`);
+            }
+        } finally {
+            setListening(null);
+            setListenProgress(null);
+        }
+    };
+
+    const handleGetModelAndListen = async () => {
+        if (await speechModel.download()) {
+            setListening(null);
+            await handleDetectSpoken();
         }
     };
 
@@ -583,7 +637,7 @@ export function ChapterEditor() {
                 <Popover
                     align="start"
                     trigger={() => (
-                        <Button variant="ghost" size="sm" disabled={isGenerating || isImportingCue}>
+                        <Button variant="ghost" size="sm" disabled={isGenerating || isImportingCue || listening === "running"}>
                             <SparklesIcon className="w-4 h-4 mr-1.5" />
                             Generate
                         </Button>
@@ -597,6 +651,9 @@ export function ChapterEditor() {
                             </MenuItem>
                             <MenuItem onClick={() => { close(); handlePickCueFile(); }}>
                                 A CUE sheet…
+                            </MenuItem>
+                            <MenuItem onClick={() => { close(); handleDetectSpoken(); }}>
+                                Titles spoken in the audio
                             </MenuItem>
                             <MenuSeparator />
                             <MenuItem onClick={() => { close(); handleImportClick(); }}>
@@ -699,6 +756,35 @@ export function ChapterEditor() {
                 </span>
             </div>
 
+            {listening && (
+                <div className="shrink-0 px-3 py-2 bg-primary/[0.07] border-b text-xs">
+                    {listening === "running" ? (
+                        <ListeningProgress progress={listenProgress} onCancel={SpeechApi.cancelSpokenChapters} />
+                    ) : speechModel.downloading ? (
+                        <SpeechModelDownload progress={speechModel.progress} onCancel={speechModel.cancelDownload} />
+                    ) : (
+                        <div className="flex items-center justify-between gap-3">
+                            <span className="text-muted-foreground">
+                                Listening for chapter titles needs the speech model (
+                                {formatBytes(speechModel.status?.size_bytes ?? 0)}). It runs on this computer; no audio
+                                is sent anywhere.
+                            </span>
+                            <div className="flex shrink-0 gap-1">
+                                <Button size="sm" variant="ghost" className="h-7" onClick={() => setListening(null)}>
+                                    Not now
+                                </Button>
+                                <Button size="sm" className="h-7" onClick={handleGetModelAndListen}>
+                                    {speechModel.error ? "Try again" : "Get it and listen"}
+                                </Button>
+                            </div>
+                        </div>
+                    )}
+                    {listening === "offer" && speechModel.error && (
+                        <p className="mt-1 text-destructive">{speechModel.error}</p>
+                    )}
+                </div>
+            )}
+
             {detectedCue && (
                 <div className="shrink-0 flex items-center gap-3 px-3 py-2 bg-primary/[0.07] border-b">
                     <div className="min-w-0 flex-1">
@@ -773,6 +859,43 @@ export function ChapterEditor() {
                         </p>
                     </div>
                 )}
+            </div>
+        </div>
+    );
+}
+
+/** Progress of listening for spoken chapter titles, with Cancel. */
+function ListeningProgress({
+    progress,
+    onCancel,
+}: {
+    progress: SpokenChaptersProgress | null;
+    onCancel: () => void;
+}) {
+    const [cancelling, setCancelling] = useState(false);
+    // Finding pauses is quick next to listening, so it fills the first tenth
+    const share = (p: SpokenChaptersProgress) => (p.total > 0 ? p.done / p.total : 0);
+    const value = !progress ? 0 : progress.stage === "pauses" ? share(progress) * 10 : 10 + share(progress) * 90;
+    const label = !progress || progress.stage === "pauses"
+        ? "Finding pauses…"
+        : `Listening for chapter titles… ${progress.done} of ${progress.total} places`;
+    return (
+        <div className="space-y-1.5">
+            <span className="nums">{cancelling ? "Stopping…" : label}</span>
+            <div className="flex items-center gap-3">
+                <Progress value={value} className="h-2" />
+                <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 shrink-0"
+                    disabled={cancelling}
+                    onClick={() => {
+                        setCancelling(true);
+                        onCancel();
+                    }}
+                >
+                    Cancel
+                </Button>
             </div>
         </div>
     );

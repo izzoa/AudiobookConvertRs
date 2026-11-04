@@ -156,6 +156,13 @@ export function HelpPage() {
                             chapter file (FFmetadata, Audacity labels or CSV).
                         </li>
                         <li>
+                            <B>Generate → Titles spoken in the audio</B> listens, with the speech model, after every
+                            pause of about two seconds and at the start of each file. Where the narrator announces a
+                            heading such as &ldquo;Chapter four&rdquo;, &ldquo;Lesson 21&rdquo; or &ldquo;Prologue&rdquo;,
+                            a chapter starts in the pause before it. Titles are the heading alone, so rename them as
+                            needed. A long book takes a few minutes; Undo brings the old chapters back.
+                        </li>
+                        <li>
                             <B>Export</B> saves the list as Audacity labels, FFmetadata or CSV.
                         </li>
                         <li>

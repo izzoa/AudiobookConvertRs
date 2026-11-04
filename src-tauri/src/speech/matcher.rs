@@ -20,7 +20,22 @@ const SENTENCE_GAP_MS: u64 = 300;
 const LEAD_IN_GAP_MS: u64 = 2_000;
 
 /// Words that name a numbered division of a book
-const DIVISIONS: &[&str] = &["chapter", "part", "book", "section"];
+const DIVISIONS: &[&str] = &["chapter", "part", "book", "section", "lesson", "unit"];
+
+/// Headings a book may announce without a number
+const HEADINGS: &[&str] = &[
+    "prologue",
+    "epilogue",
+    "introduction",
+    "preface",
+    "foreword",
+    "afterword",
+    "interlude",
+    "conclusion",
+    "appendix",
+    "acknowledgments",
+    "acknowledgements",
+];
 
 /// Common words that say little about which title was heard
 const STOP_WORDS: &[&str] = &[
@@ -137,6 +152,57 @@ pub fn find_announcement(title: &str, words: &[Word], estimate_ms: u64) -> Optio
         }
     }
     best.map(|(_, _, found)| found)
+}
+
+/// A heading heard where a chapter could start
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct HeardHeading {
+    /// "Chapter 4", "Lesson 21", "Prologue"
+    pub title: String,
+    /// Where it starts, in the transcript's time
+    pub start_ms: u64,
+}
+
+/// A heading announced at the start of `words`, when one of the sentences
+/// starting before `within_ms` opens with one: a division word and its
+/// number ("Chapter four.", "Lesson 21") or a heading word alone
+/// ("Prologue."). Anything else, such as "in chapter four we saw", is not a
+/// heading.
+pub fn heading_at_start(words: &[Word], within_ms: u64) -> Option<HeardHeading> {
+    let heard = tokenize(words);
+    for (i, token) in heard.iter().enumerate() {
+        if token.start_ms > within_ms {
+            break;
+        }
+        if !token.starts_sentence {
+            continue;
+        }
+        let next = heard.get(i + 1);
+        if DIVISIONS.contains(&token.text.as_str()) {
+            if let Some(n) = next.and_then(|t| value(&t.text)) {
+                return Some(HeardHeading {
+                    title: format!("{} {}", capitalized(&token.text), n),
+                    start_ms: token.start_ms,
+                });
+            }
+        }
+        let alone = next.is_none_or(|t| t.starts_sentence);
+        if alone && HEADINGS.contains(&token.text.as_str()) {
+            return Some(HeardHeading {
+                title: capitalized(&token.text),
+                start_ms: token.start_ms,
+            });
+        }
+    }
+    None
+}
+
+fn capitalized(word: &str) -> String {
+    let mut chars = word.chars();
+    chars
+        .next()
+        .map(|c| c.to_uppercase().chain(chars).collect())
+        .unwrap_or_default()
 }
 
 /// Where a title matched by its words at `heard[i]` starts: at the title's
@@ -579,5 +645,31 @@ mod tests {
         assert_eq!(texts("I said"), ["i", "said"]);
         assert_eq!(texts("Tomorrow's World"), ["tomorrows", "world"]);
         assert_eq!(texts("1st"), ["#1"]);
+    }
+
+    #[test]
+    fn a_heading_at_the_start_is_heard() {
+        let words = speech("Chapter Twenty one. Outlaws. In the spring", 400);
+        let heading = heading_at_start(&words, 3_000).unwrap();
+        assert_eq!(heading.title, "Chapter 21");
+        assert_eq!(heading.start_ms, 400);
+        let words = speech("um | Lesson 7. Greetings", 0);
+        assert_eq!(heading_at_start(&words, 3_000).unwrap().title, "Lesson 7");
+        let words = speech("Prologue. It was a cold night", 0);
+        assert_eq!(heading_at_start(&words, 3_000).unwrap().title, "Prologue");
+    }
+
+    #[test]
+    fn speech_that_only_mentions_a_chapter_is_not_a_heading() {
+        let words = speech("As we saw in chapter four, the men rode on", 0);
+        assert_eq!(heading_at_start(&words, 3_000), None);
+        let words = speech("The introduction of the railway changed", 0);
+        assert_eq!(heading_at_start(&words, 3_000), None);
+    }
+
+    #[test]
+    fn a_heading_heard_late_in_the_window_does_not_count() {
+        let words = speech("and so they went home. | | | | | | Chapter 5.", 0);
+        assert_eq!(heading_at_start(&words, 3_000), None);
     }
 }

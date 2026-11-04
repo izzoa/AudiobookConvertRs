@@ -1,5 +1,5 @@
 import { invoke } from '@tauri-apps/api/core';
-import type { SpeechModelStatus } from '../types/models';
+import type { AudioBook, SpeechModelStatus } from '../types/models';
 
 export async function getSpeechModelStatus(): Promise<SpeechModelStatus> {
     return await invoke('get_speech_model_status');
@@ -16,4 +16,14 @@ export async function cancelSpeechModelDownload(): Promise<void> {
 
 export async function removeSpeechModel(): Promise<SpeechModelStatus> {
     return await invoke('remove_speech_model');
+}
+
+/** Replace the book's chapters with ones where a narrator announces a heading.
+ * Progress arrives as `spoken_chapters_progress`; a cancelled run rejects with "cancelled". */
+export async function detectSpokenChapters(audiobookId: string): Promise<AudioBook> {
+    return await invoke('detect_spoken_chapters', { audiobookId });
+}
+
+export async function cancelSpokenChapters(): Promise<void> {
+    return await invoke('cancel_spoken_chapters');
 }
