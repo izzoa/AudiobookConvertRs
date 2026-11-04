@@ -59,7 +59,8 @@ export function ConvertBar({ onShowChapters }: { onShowChapters: () => void }) {
     const { refreshJobs, refreshQueueState } = useConversionStore();
 
     const defaults = getEffectiveConversionDefaults();
-    const [chosenPath, setChosenPath] = useState<string | null>(null);
+    // A folder picked for this book, in place of the output folder from Settings
+    const [chosenFolder, setChosenFolder] = useState<string | null>(null);
     const [bitrate, setBitrate] = useState(defaults.bitrate_kbps);
     const [matchSource, setMatchSource] = useState(false);
     // undefined keeps each file's own rate, as the backend reads a missing rate
@@ -81,18 +82,20 @@ export function ConvertBar({ onShowChapters }: { onShowChapters: () => void }) {
     const [keepAudio, setKeepAudio] = useState(false);
     const [replaceOriginal, setReplaceOriginal] = useState(false);
 
-    // A book gets its destination from the naming template without being
-    // asked, and it follows tag edits until a path is picked by hand.
-    const templatePath = useMemo(() => {
-        const dir = settings?.default_output_directory;
-        return activeAudiobook && dir ? outputPathForBook(dir, settings?.output_template, activeAudiobook) : null;
-    }, [activeAudiobook, settings?.default_output_directory, settings?.output_template]);
-    useEffect(() => setChosenPath(null), [activeAudiobook?.id]);
+    // The naming template always names the book's folders and file, inside
+    // the folder picked for it or else the output folder from Settings, so
+    // the path follows tag edits either way (as a batch's does).
+    const outputFolder = chosenFolder ?? settings?.default_output_directory ?? null;
+    const templatePath = useMemo(
+        () => (activeAudiobook && outputFolder ? outputPathForBook(outputFolder, settings?.output_template, activeAudiobook) : null),
+        [activeAudiobook, outputFolder, settings?.output_template]
+    );
+    useEffect(() => setChosenFolder(null), [activeAudiobook?.id]);
     const canKeep = copyCheck?.possible === true;
     const keeping = keepAudio && canKeep;
     // Only one file can be saved over; several are joined into a new one
     const replacing = keeping && replaceOriginal && activeAudiobook?.files.length === 1;
-    const outputPath = replacing ? activeAudiobook!.files[0].path : (chosenPath ?? templatePath);
+    const outputPath = replacing ? activeAudiobook!.files[0].path : templatePath;
 
     // A book's own files decide whether its audio can be kept. An M4B on its
     // own starts kept: encoding it again would only lose quality.
@@ -255,9 +258,8 @@ export function ConvertBar({ onShowChapters }: { onShowChapters: () => void }) {
     const chooseOutput = async () => {
         if (!activeAudiobook) return;
         try {
-            const suggested = templatePath ? basename(templatePath) : `${activeAudiobook.title || "audiobook"}.m4b`;
-            const picked = await FilesApi.pickOutputFile(suggested);
-            if (picked) setChosenPath(picked);
+            const picked = await FilesApi.pickDirectory();
+            if (picked) setChosenFolder(picked);
         } catch (error) {
             toast({ title: "Could not choose output", description: String(error), variant: "destructive" });
         }
@@ -434,7 +436,7 @@ export function ConvertBar({ onShowChapters }: { onShowChapters: () => void }) {
                         "flex items-center gap-2 h-9 px-2.5 rounded-md min-w-0 max-w-[40%] transition-colors",
                         "hover:bg-accent disabled:opacity-40 disabled:pointer-events-none"
                     )}
-                    title={outputPath ?? "Choose where to write the M4B"}
+                    title={outputPath ?? "Choose the folder to write the M4B in"}
                 >
                     <FolderIcon className="w-4 h-4 text-muted-foreground shrink-0" />
                     <span className="min-w-0 text-left">
@@ -447,7 +449,7 @@ export function ConvertBar({ onShowChapters }: { onShowChapters: () => void }) {
                                 outputPath ? "text-foreground" : "text-warning"
                             )}
                         >
-                            {outputPath ? shortenPath(outputPath, 46) : "Choose a destination…"}
+                            {outputPath ? shortenPath(outputPath, 46) : "Choose a folder…"}
                         </span>
                     </span>
                 </button>

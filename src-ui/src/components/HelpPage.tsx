@@ -255,13 +255,14 @@ export function HelpPage() {
                     <List>
                         <li>
                             <B>Output</B> defaults to the output folder from {toSettings}, named after the book. Click it to
-                            choose another place. If a file is already there, you are asked before it is replaced.
+                            choose another folder for this book; the file and folder names from {toSettings} still apply
+                            inside it. If a file is already there, you are asked before it is replaced.
                         </li>
                         <li>
                             <B>File and folder names</B> in {toSettings} can file books into folders, for example{' '}
                             <code className="font-mono text-xs">{'{author}/{series}/{title}'}</code>. A field the book
                             does not have drops out, so one pattern suits books with and without a series. The output
-                            path follows tag edits until you choose a place by hand.
+                            path follows tag edits, whichever folder it is in.
                         </li>
                         <li>
                             <B>Quality</B> sets bitrate, VBR or CBR, what to embed, and loudness normalization. 64k is

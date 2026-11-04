@@ -250,7 +250,7 @@ export function SettingsPage() {
                     <Field
                         label="Output folder"
                         htmlFor="output-dir"
-                        hint="Leave empty to choose a destination for each book."
+                        hint="Leave empty to choose a folder for each book. The names below apply inside it."
                     >
                         <div className="flex gap-2">
                             <Input
